@@ -1,0 +1,299 @@
+
+Interactive Fiction Reference Card for the Apple Macintosh
+----------------------------------------------------------
+
+I.  What You Need
+
+Required
+
+  [] Apple Macintosh Computer
+
+Optional
+
+  [] Extra 3 1/2 inch disks (for SAVEs)
+
+  [] Second disk drive (for convenience with SAVEs)
+
+  [] Expanded memory and/or a hard disk drive (for faster execution)
+
+  [] Apple Imagewriter or compatible printer (for SCRIPTing)
+
+
+II.  Making a Backup Copy
+
+  You are encouraged to make a backup copy of the story for your
+
+personal use in case the original disk becomes unusable.
+
+  When you start the story from a copy, it will pause to eject
+
+the copy and ask for your original ("master") story disk.
+
+When you insert the original disk, it will eject it and continue.
+
+The original disk will not be needed at any other time during the
+
+course of the story.
+
+
+III.  Starting the Story [*]
+
+  Turn on the Macintosh, insert the story disk, and wait for
+
+the desktop to appear on the screen.  Click once with the mouse on the
+
+story icon to select it, then pull down the File menu and choose Open.
+
+A standard shortcut is to double-click on the story icon.
+
+
+[*]  If you have an International Macintosh, run the
+
+Localizer program once before you start the story for the first time.
+
+It contains further instructions and adjusts the keyboard software.
+
+If you have a U.S. Macintosh, you don't need the Localizer.
+
+
+IV.  Talking to the Story
+
+  Whenever you see the prompt (>), the story is waiting for your
+
+instructions.  You may type a full line of instructions at a time.
+
+If you make a mistake, use the backspace key to erase the error.
+
+When you have finished typing in your instructions, press the RETURN
+
+key.  The story will respond and the prompt (>) will reappear.
+
+  If a description will not fit on the screen all at once,  **MORE** 
+
+will appear at the bottom of the screen.  After reading the screen, 
+
+press any key to see the rest of the description.
+
+
+V.  The Status Line
+
+  Near the top of the screen, you will see a status line.  This
+
+line is updated after every move to show your current location in the
+
+story.  Depending upon the type of story, it may also show other
+
+information:
+
+Score and Moves
+
+  In stories that keep a score, such as the ZORK underground adventures,
+
+the right side of the status line will show something like this:
+
+          Score: 245/920
+
+  The first number is your score and the second is the total number
+
+of moves you have made.  In the example above, you have 245 points
+
+in 920 moves.
+
+Time
+
+  In stories that keep track of the time, such as the mystery thriller
+
+DEADLINE, the right side of the status line will look something like
+
+the following:
+
+          Time: 9:22 a.m.
+
+  This shows the current time of day in the story.
+
+
+VI.  SCRIPTing
+
+  The SCRIPT function is an optional feature which is not necessary
+
+to complete the story and may not be available with certain hardware.
+
+A printer must be connected directly to the serial printer port on
+
+the back of the Macintosh, and a driver for the printer must be installed 
+
+on the story disk.
+
+  If the SCRIPT command works with your hardware configuration, you
+
+may make a transcript as you go along:
+
+  1.  Connect the printer to the printer port.  Turn on the printer and 
+
+make sure that it is ready for printing.
+
+  2.  Start the story as described above.  To start the transcript,
+
+type SCRIPT at the prompt (>).  To stop the transcript, type UNSCRIPT.
+
+Note that SCRIPT is available only with a draft quality font.
+
+  3.  SCRIPT and UNSCRIPT may be used as often as desired.
+
+
+VII.  Saving a Story Position
+
+  You can save your current story position to any disk in any drive, space
+
+permitting.  A SAVE typically requires 10 to 20 Kbytes of free space
+
+on the storage disk.  Other data on the storage disk will not be affected.
+
+  1.  Type SAVE at the prompt (>).  A standard Macintosh dialog box
+
+will be displayed.  The name of the default storage disk appears in the 
+
+upper right corner of the box.
+
+  2.  If you want to save your position to the default storage disk,
+
+skip step 2.  Otherwise, if you have one disk drive, click on the EJECT 
+
+button.  Remove the disk from the drive and insert another storage disk.
+
+If you have more than one drive, click on the DRIVE button until the 
+
+name of the desired storage disk appears as the default.
+
+  3.  Choose a file name under which to save your position and type
+
+it into the box.  The name can be up to 63 characters long.  Note that
+
+Macintosh file names cannot contain the colon character (:).
+
+  4.  Click on the SAVE button.  If you want to cancel the save operation, 
+
+click on the CANCEL button.
+
+
+  The disk drive will then spin for several seconds.  If all is well, 
+
+the story will respond:
+
+  OK
+
+  If it responds:
+
+  FAILED
+
+consult the troubleshooting section.
+
+  You may now continue the story.  You can use the storage disk
+
+and the RESTORE command to return to this position at another time.
+
+
+VIII.  Restoring a Saved Story Position
+
+  1.  Type RESTORE at the prompt (>).  A standard dialog box will appear, 
+
+showing a list of your previously saved positions on the default storage 
+
+disk.
+
+  2.  If you want to see a list of your saved positions on another disk, 
+
+click on the EJECT or DRIVE button as in Section VII.
+
+  3.  Click once with the mouse over the name of the position you
+
+want to restore, then click on the OPEN button.  If you want to cancel
+
+the restore operation, click on the CANCEL button.
+
+
+  A saved position can also be restored directly from the desktop, without
+
+waiting for the story to start in the usual way.  Follow the directions
+
+in Section III, but select the icon for the saved position instead of the 
+
+icon for the story.
+
+
+IX.  Macintosh Features
+
+  Stories on the Macintosh have several additional features, available 
+
+through the menus at the top of the screen.
+
+  1.  Apple Menu
+
+  The usual Macintosh desk accessories are available in the Apple menu.
+
+  2.  File Menu
+
+  You can issue some story commands by choosing them from the File menu.
+
+These include Save, Restore, Script, Unscript, Restart and Quit.
+
+  3.  Edit Menu
+
+  You can do standard text editing on the instruction line.
+
+Move the cursor around by pointing and clicking with the mouse, and use 
+
+Cut, Copy and Paste to change or add to the text.  Press RETURN when you 
+
+have finished editing.
+
+  4.  Font Menu and Size Menu
+
+  The text of the story can be displayed in different fonts and font sizes.
+
+The available ones are listed here.  You can add to or subtract from 
+
+this list by using the standard Font Mover utility.  Note that
+
+you should not remove Monaco font from the list, as it may be required 
+
+by the story.
+
+
+X.  Troubleshooting
+
+A.  If the story fails to load properly, or if SAVE, RESTORE or SCRIPT
+
+fails, check each of the following items.  If none of these offers a solution,
+
+consult your Apple dealer for assistance.
+
+  1. Inspect all disks carefully for any visible damage.
+
+  2. For SAVEs, make sure the SAVE disk is not write-protected (the small 
+
+opening in the corner of the disk should be closed).
+
+  3. For SCRIPTing, make sure the printer is connected properly, enabled 
+
+for printing, not out of paper, etc.
+
+  4. Try again, the problem may only be momentary.
+
+  If all else fails, you can call the Infocom TECHNICAL HOTLINE at
+
+(617) 576-3190.	 Please note that this number is for technical problems only.
+
+
+B.  If you receive an error message, run the following procedure:
+
+  After booting the disk and receiving an initial screen, type $VERIFY.
+
+The disk drive will spin for a minute or less, and a message similar to
+
+one of the following will appear.
+
+  1.  [as before]
+
+  2.  [as before]
+

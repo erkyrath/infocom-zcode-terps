@@ -1,0 +1,24 @@
+Mail-From: SEM created at 12-Jul-83 13:27:10
+Date: 12 Jul 1983 1327-EDT
+From: Steve Meretzky <SEM at ZORK>
+Subject: $VER
+To: consumers at ZORK
+
+I have done a study of relative verification speeds on most machines.
+Here are the results. The first number indicates the number of seconds
+required to verify Zork I. The second number is the relative verification
+speed, using the PDP-11 on-line version as the standard.
+
+PDP-11 (hard disk)     8 seconds     1.00
+Apple IIe             20 seconds     2.50
+Macintosh             23 seconds     2.88
+PDP-11 (floppy disk)  33 seconds     4.13
+IBM PC                33 seconds     4.13
+TI Professional       33 seconds     4.13
+DEC Rainbow           37 seconds     4.63
+NEC APC               48 seconds     6.00
+Osborne 1             51 seconds     6.38
+TRS-80 Model III      62 seconds     7.75
+Atari 800             95 seconds    11.88
+TI-99                131 seconds    16.38
+Commodore 64         255 seconds    31.88

@@ -1,0 +1,138 @@
+
+Amiga problems, additional information
+---------------------------------------------------------------------------
+
+PROBLEM
+
+    "When I run the story and try to change the window size, it crashes."
+
+DIAGNOSIS
+
+    User probably has a 256K Amiga (the basic model) and is running out of 
+
+memory.  Opening or resizing any window (or hiding certain windows like the 
+
+story's) temporarily uses a lot of memory.  
+
+    When memory is too low to comply, these actions SHOULD just be ignored.  
+
+Because of a bug in Amiga, sometimes they cause a crash.  
+
+FIX
+
+    Don't change the window, or upgrade to 512K.
+
+-------
+
+PROBLEM
+
+    "RESTORE says it can't locate my save file."
+
+DIAGNOSIS
+
+    Careful of sub-directories (folders).  If you started the story
+
+from within a sub-directory, save files will be put, by default, into the
+
+same sub-directory.  If you save to a second disk and later want to 
+
+restore from the first, you must explicitly specify the sub-directory.
+
+FIX
+
+    Prefix the name of the restore file with a full pathname.
+
+For example, "df0:Gamedir/Savefile.Save" specifies the internal drive
+
+and the Gamedir subdirectory (yes, with a forward slash).
+
+-------
+
+PROBLEM
+
+    "When I type the story name into the CLI, it says 'unknown command'
+
+or 'Story file open error'."
+
+DIAGNOSIS
+
+    The story disk is not in the default drive.  Or the story file is in
+
+a subdirectory which is not the default.  The story name has to be typed into
+
+the CLI (command line interpreter) without any drive or directory prefixes.
+
+(For example, "df1:Zork1" will fail.)
+
+FIX
+
+    Use the "cd" command to change the default drive/directory first.  
+
+For example, "cd df1:" if the story disk is in the external drive.  Or move 
+
+the disk to the default drive.
+
+-------
+
+PROBLEM
+
+    Run two games (or same game twice), when I quit the second one the
+
+machine crashes.
+
+DIAGNOSIS
+
+    Bug.
+
+FIX
+
+    Works in interpreter releases higher that 'A'.
+
+-------
+
+PROBLEM
+
+    Says "Not enough available memory" or "Memory block allocation error."
+
+DIAGNOSIS/FIX
+
+    In the first case, the story isn't finding the minimum amount of memory
+
+it needs to load.  You can free up memory by quitting any other programs
+
+that may be running, and by closing all unnecessary windows.  Or, you can
+
+make more memory available with the "F/" option (see refcard section X).
+
+TO MAXIMIZE THE MEMORY AVAILABLE TO THE STORY, START IT WITH "F/2000."
+
+    In the second case, the story is finding enough free memory, but it's
+
+"fragmented" (not in one block).  This can be caused moving things around
+
+on the desktop, or by opening and closing windows, or by running a program
+
+that doesn't completely "clean up" after itself.  If the fixes for the first 
+
+case don't work, try rebooting the machine.
+
+-------
+
+PROBLEM
+
+    "When I click on an icon for a save file, an error message says 
+
+'No default tool for this icon.'"
+
+DIAGNOSIS/FIX
+
+    The desktop icon for a save file is useful for copying the file 
+
+to another disk or deleting it, but the interpreter doesn't support 
+
+clicking it to start the game from the saved position, a la Macintosh.
+
+To restore a saved file, user must first start the game in the
+
+usual way, and then type RESTORE.  
+

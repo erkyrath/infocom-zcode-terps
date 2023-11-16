@@ -1,0 +1,32 @@
+
+    For the Macintosh II to become the primary development and 
+testing machine, it would be nice to have a single executable for the
+interpreter that runs all ZIP, EZIP, and XZIP games (plus any future
+flavors).  This program would also implement a virtual debugger, like
+ZDDT.  Size and speed are not expected to be limitations.
+
+    When a game is shipped it would be nice to have a tighter
+executable, without superfluous code or the debugger.  Size and speed
+on lesser Macintoshes might be a consideration.
+
+    To achieve the first goal:
+
+    () The instruction decoding section can include multiple 
+dispatch tables.  This allows for clean migration of opcodes and
+detection of illegal operations in context.
+
+    () Individual operators can be shared when possible (e.g. only
+one ADD routine is required) and separated into several flavors when
+the differences are great enough (e.g. for byte- vs. word-oriented
+object operations).
+
+    () Cases of lesser operator differences can be handled by run-time
+branching, ZIP20 style (e.g. the version display in VERIFY).
+
+    To achieve the second goal:
+
+    () Conditional compilation/assembly directives can be used
+judiciously throughout the source, allowing the shippable version of
+a given interpreter to be built based on the state of a handful of
+flags.
+

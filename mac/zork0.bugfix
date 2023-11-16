@@ -1,0 +1,18 @@
+
+	
+	To: Testing, Support
+	Date: 12-12-88
+	From: Duncan
+	Re: Zork0/MacII startup bug
+
+	Description: 
+	Game hangs while loading.
+
+	Conditions:
+	Happens only on a color MacII equipped with
+	- a single disk drive (forcing swaps between game and
+	  System disks during loading)
+	- System version 5.0 or 6.0
+
+	Fix:
+	Startup the MacII with System 6.0.1, 6.0.2, or higher.

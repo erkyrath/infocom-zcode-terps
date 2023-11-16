@@ -1,0 +1,15 @@
+
+    File I/O in Infocom Macintosh software fails under HFS, because 
+of the new meaning HFS assigns to the old "IMMED" bit (Tech note #Z-1,
+page 13).
+
+    The software will load and run normally, except that the user is
+unable to write and read documents from disk (i.e. Save and Restore his
+position in the game).
+
+    Upgrade policy - new disks with HFS compatible software will be
+available in January, probably for a $5 charge.  Alternately, Infocom
+will supply instructions to capable users who want to patch the old 
+software themselves.
+
+

@@ -1,0 +1,225 @@
+Interactive Fiction Reference Card for the TRS-80 COLOR COMPUTER 2
+
+
+I. What You Need
+
+Required
+
+- TRS-80 Color Computer 2
+- 64K bytes of RAM
+- One TRS-80 Color Disk Drive
+
+Optional
+
+- One or more blank, formatted disks (for SAVEs)
+- An 80-column line printer and serial printer cable (for SCRIPTing)
+- A second Color Disk Drive (for convenience with SAVEs)
+
+
+II. Loading The Disk
+
+1. Turn on the power to your disk drive(s) and Color Computer.
+
+2. Insert the master story disk into drive #0, with the oval-shaped cutout
+   going in first and the label facing to the right.
+
+3. Under BASIC's "OK" prompt, type:
+
+	RUN "GAME" <enter>
+
+   After a few seconds, the following prompt will appear:
+
+	LOADING GAME ...
+
+   The program automatically loads and runs in about 15 seconds.
+
+4. If nothing appears on your TV screen or monitor, or if you receive an
+   error message, something is wrong.  Refer to the Troubleshooting
+   section for help.
+
+
+III. Talking To The Game
+
+Whenever you see a prompt (>), the story is waiting for your command.
+You may type up to two full lines of text at a time.  If you make
+an error, use the back-arrow key to erase it.  Press the ENTER key when
+you are finished typing.  The story will respond and the prompt will reappear.
+
+A clicking sound has been added to the keys to make typing easier.  Use the
+volume control on your TV set or monitor to change the sound of the clicks.
+Certain keys (such as the up- and down-arrows, CLEAR and BREAK) have been
+disabled.  You will hear a "boop" sound if you accidently touch one of these
+keys.  You will also hear the "boop" if you try to type more than two lines
+of text at a time, or if you try to backspace past the beginning of a line.
+
+If a description will not fit on the screen all at once, [MORE] will
+appear in the bottom left corner.  Press the space bar (or any other key)
+after reading the screen to view the rest of the description.
+
+
+IV. The Status Line
+
+At the top of your screen, you will see a status line.  The line is updated
+after every move to indicate your current location in the story.  Depending
+on the story, the status line may also provide other information:
+
+Score
+
+In stories that keep a score, such as the ZORK underground adventure trilogy,
+the right side of the status line will look something like this:
+
+	245/920
+
+The number on the left is your score.  The other number tells you how many
+moves you have made.  In the example above, you have earned 245 points in
+920 moves.
+
+Time
+
+In stories that keep track of time, such as the mystery thriller DEADLINE, the
+right side of the status line will look something like this:
+
+	9:22 AM
+
+This indicates the current time in the story.
+
+
+V. Saving a Story Position
+
+WARNING: Disks used for SAVE and RESTORE are maintained in a special
+format and should not be used for any other purpose.  Files of any other
+kind stored on the disk will be erased by the SAVE command.
+
+You need a blank, formatted disk to SAVE your position in the story.  You
+may SAVE up to five different positions on a blank disk and RESTORE them in
+any order.  Each SAVE position is assigned a number from 0 to 4.  You must
+specify a position number each time you use the SAVE command, and
+you overwrite any position previously SAVEd with that number.  You must use
+a different number for each position that you want to SAVE.
+
+To save your current position, type the word SAVE at the prompt (>).  After
+pressing the ENTER key, the screen will clear and you'll see the following:
+
+	SAVING GAME
+	POSITION 0-4 (DEFAULT = 0):
+
+1. Type a number from 0 to 4 to tell the story which SAVE position on the
+   disk should be used, or simply press ENTER to use the default position.
+   You will see the message:
+
+	DRIVE 0 or 1 (DEFAULT = 0):
+
+2. Select the drive that will contain the SAVE disk, or press ENTER to use
+   the default setting.  You will now see:
+
+	INSERT SAVE DISK IN DRIVE 0 (or 1),
+	PRESS ANY KEY TO CONTINUE
+
+3. Insert your SAVE disk into the indicated drive and press a key.
+   The disk will spin for a few moments.  You will then be asked to
+
+	INSERT GAME DISK IN DRIVE 0,
+	PRESS ANY KEY TO CONTINUE
+
+4. Make sure the master story disk is inserted in drive #0 and press a key.
+   If all is well, you'll get the message:
+
+	Ok.
+
+   If you receive an error message, or the game responds with
+
+	Failed.
+
+   consult the Troubleshooting section.
+
+
+VI. Restoring a Saved Position
+
+To restore a previously saved story position, type RESTORE at the prompt
+(>).  Then follow steps 1 through 4 above for SAVE.
+
+
+VII. SCRIPTing
+
+If you have an 80-column TRS-80 Line Printer (or any equivalent printer that
+connects to the serial port on the back of the Color Computer), you may make a
+transcript as you go along.
+
+1. Connect the printer to the serial port on the back of your Color
+   Computer.
+
+2. Turn on the printer and set it on-line.
+
+3. Load the master disk and start the story as previously described.
+
+4. To start the transcript at any time, type SCRIPT.
+
+5. To stop the transcript, type UNSCRIPT.
+
+6. SCRIPT and UNSCRIPT may be used as often as desired for as long as the
+   printer is left on-line.
+
+
+VIII. Initializing SAVE Disks
+
+Blank disks must be formatted before they can be used to SAVE games.  Use the
+standard Disk Extended BASIC command DSKINI to format your disks.  Refer to
+the TRS-80 Color Computer Disk System Owner's Manual and Programming Guide for
+more information.
+
+
+IX. Troubleshooting
+
+A. If the program refuses to load properly, if SAVE/RESTORE fails, or if you
+   receive an error message, check each of the following points.
+
+1. Make sure your Color Computer and disk drive(s) are connected
+   properly and everything is turned on.
+
+2. Make sure the disk is inserted correctly into the drive slot,
+   and the drive door is closed.
+
+3. Inspect the master disk and SAVE disk(s) carefully for visible damage.
+
+4. Make sure each disk is in the proper drive.  The master disk can only
+   be run from drive #0.  For SAVE/RESTORE, make sure that you have typed
+   the correct drive number for the storage disk, and that you have replaced
+   the master disk in drive #0 before proceeding with the story.
+
+5. When saving a story position, make sure the write-protect notch on the
+   edge of the SAVE disk is not covered.  Also make certain the storage disk
+   has been formatted properly.  As a last resort, try a different storage
+   disk.
+
+B. If you receive an error message, turn off your Color Computer and reload
+   the story following the instructions in Section II.  The problem may be
+   only momentary.  If trouble persists, try the following procedure.
+
+   After reloading the master disk and receiving the intial prompt (>),
+   type $VERIFY.  The disk will spin for about a minute, and a message
+   similar to one of the following will appear:
+
+   a. DISK CORRECT.  This indicates that the story data on the disk is
+      intact.  This may indicate a problem with your hardware (probably
+      the disk drive).  It is also possible that the story program
+      contains a bug.  If you suspect a bug, call the Infocom Technical
+      Hotline.
+
+   b. INTERNAL ERROR. This response indicates either
+      hardware trouble or disk damage.  Repeat the $VERIFY procedure
+      several times.  Also try the procedure on another Color Computer
+      system (such as your dealer's).  If you ever get the message DISK
+      CORRECT, the problem is probably in your hardware.
+
+      If you repeatedly get an error message on more than one computer,
+      the disk is probably damaged.  Please send the master disk ONLY to
+      Infocom for testing.
+
+
+TRS-80 is a registered trademark of Tandy Corporation.
+DEADLINE is a trademark and ZORK is a registered trademark of Infocom, Inc.
+
+(Logo) INFOCOM
+
+Infocom, Inc., 55 Wheeler Street, Cambridge, MA 02138
+

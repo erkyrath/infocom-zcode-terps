@@ -1,0 +1,313 @@
+
+Interactive Fiction Reference Card for the  
+
+Atari ST
+__________________________________________________________ 
+
+
+I.  What You Need 
+
+Required 
+
+	[] Atari ST series computer
+
+Optional 
+
+ 	[] Extra 3 1/2 inch disks (for SAVEs) 
+
+	[] Second disk drive (for convenience with SAVEs) 
+
+	[] Hard disk drive (for faster execution)
+
+ 	[] Compatible printer (for SCRIPTing) 
+
+
+II.  Making a Backup Copy
+
+	To make a backup copy of the story, copy the story disk onto a
+
+blank, formatted disk.  You should use the backup copy each time you
+
+start the story.  Store the original disk in a safe place.
+
+
+III.  Starting the Story
+
+  	Turn on the Atari ST and wait for the desktop to appear.
+
+Insert the story disk and open the disk window.  Click once with the
+
+mouse on the story (.PRG) icon to select it, then choose Open from the
+
+File menu.  A standard shortcut is to double-click on the story icon.
+
+
+IV.  Talking to the Story 
+
+  	Whenever you see the prompt (>), the story is waiting for your
+
+instructions.  You may type a full line of instructions at a time.  If
+
+you make a mistake, use the backspace key to erase the error.  When
+
+you have finished typing in your instructions, press the RETURN key.
+
+The story will respond and the prompt (>) will reappear.
+
+  	If a description will not fit on the screen all at once,
+
+[MORE] will appear at the bottom of the screen.  After reading the
+
+screen, press any key to see the rest of the description.
+
+
+V.  The Status Line 
+
+  	At the top of the screen, you will see a status line.  This
+
+line is updated after every move to show your current position in the
+
+story.  Depending upon the type of story, it may also show other
+
+information:
+
+
+Score and Moves 
+
+  	In stories that keep a score, such as the ZORK () underground
+
+adventures, the right side of the status line will show something like
+
+this:
+
+        Score: 245/920 
+
+ 	The first number is your score and the second is the total number 
+
+of moves you have made.  In the example above, you have 245 points 
+
+in 920 moves. 
+
+
+Time 
+
+        In stories that keep track of the time, such as the mystery thriller 
+
+DEADLINE (), the right side of the status line will look something like 
+
+the following: 
+
+        Time: 9:22 a.m. 
+
+        This shows the current time of day in the story. 
+
+
+VI.  SCRIPTing 
+
+  	The SCRIPT function is an optional feature which is not necessary
+
+to complete the story and may not be available with certain hardware. 
+
+
+  	If the SCRIPT command works with your hardware configuration, you 
+
+may make a transcript as you go along: 
+
+
+  	1.  Connect the printer directly to the printer port at the
+
+back of the Atari ST.  Turn it on and make sure it is ready.
+
+  	2.  Start the story as described in Section III.  
+
+	3.  Type SCRIPT at the prompt (>) to start the transcript.  To
+
+stop the transcript, type UNSCRIPT. 
+
+  	4.  SCRIPT and UNSCRIPT may be used as often as desired.
+
+
+VII.  Saving a Story Position
+
+  	You can save your current story position to any disk in any
+
+drive, space permitting.  The save disk must have been previously 
+
+initialized.  Any other data on the save disk will not be affected.
+
+
+  	1.  Type SAVE at the prompt (>).  The standard Atart ST dialog
+
+box for selecting files will be displayed.  The directory in which
+
+your save will be stored (including drive identifier) appears near the
+
+top of the box.
+
+
+	2A.  Using a single drive
+
+	If you want to SAVE to the story disk itself, skip to #3.
+
+Otherwise, remove the story disk from the drive and insert your save
+
+disk.  Click with the mouse on the shaded "title bar" area of the
+
+inner directory window to display the directory of the save disk.
+
+
+	2B.  Using multiple drives
+
+	If your save disk is in a different drive than the story disk,
+
+you must identify the drive by changing the directory specification
+
+(the line near the top of the dialog box).  Edit this line so that the
+
+drive letter corresponds to the drive containing your save disk.  Click
+
+with the mouse anywhere INSIDE of the inner directory window to display 
+
+the directory of the save disk.
+
+	The following keys are useful for editing items in the file
+
+selection box:
+
+	[] Up and down cursor keys - select item to edit.
+
+	[] Left and right cursor keys - position cursor within item.
+
+	[] Backspace and delete keys - erase the character before
+
+or after the cursor.
+
+	[] ESC key - erase the whole item.
+
+
+  	3.  Choose a file name under which to save your position and
+
+type it into the selection area.  It is not necessary to type ".SAV" after
+
+the name, this is added automatically.
+
+  	4.  Click on the OK button, or press the RETURN key.  If you want 
+
+to cancel the save operation, click on the CANCEL button.
+
+
+The disk drive will spin for several seconds.  If all is well,  the story 
+
+will respond: 
+
+  OK 
+
+If it responds: 
+
+  FAILED 
+
+consult the troubleshooting section. 
+
+  	You may now continue the story.  
+
+
+VIII.  Restoring a Saved Story Position 
+
+	You can return to a previously saved story position at any
+
+time, as follows.
+
+  	1.  Type RESTORE at the prompt (>).  A standard dialog box
+
+will appear, showing a list of your saved positions on the indicated
+
+disk.  If there are more save files on the disk than will fit in
+
+the window, the scroll bar becomes active.  If you want to restore
+
+from a different disk, change disks as described in Section VII.
+
+  	2.  Click once over the name of the position you want to restore, 
+
+then click on the OK button, or press the RETURN key.  If you want 
+
+to cancel the restore operation, click on the CANCEL button.
+
+
+IX.  Color Display
+
+	If you are using a color monitor, you can change the colors
+
+used in the display.  At the prompt (>), hold down the SHIFT key and
+
+press the cursor keys to cycle through the available combinations.
+
+	If you are using a monochrome monitor, you can display
+
+reversed video in the same way.
+
+
+X.  Troubleshooting
+
+A.	 If the story fails to load properly, or if SAVE, RESTORE or
+
+SCRIPT fails, check each of the following items.  If none of these
+
+offers a solution, consult your Atari dealer for assistance.
+
+
+	1. Inspect all disks carefully for any visible damage. 
+
+ 	2. For SAVEs, make sure the SAVE disk is not write-protected
+
+(the small opening in the corner of the disk should be closed).
+
+	3. For SCRIPTing, make sure the printer is connected properly, enabled 
+
+ for printing, not out of paper, etc. 
+
+  	4. Try again, the problem may only be momentary. 
+
+
+  	If all else fails, you can call the Infocom TECHNICAL HOTLINE at 
+
+(617) 576-3190.  Please note that this number is for technical problems
+
+only.
+
+
+B.  If you receive an error message, run the following procedure: 
+
+
+  After booting the disk and receiving an initial screen, type $VERIFY. 
+
+The disk drive will spin for a minute or so, and a message similar to 
+
+one of the following will appear. 
+
+ 	1.  "DISK CORRECT."  The disk has not been damaged; the data
+
+is intact. This may indicate a problem with your hardware (usually
+
+with the disk drive).  It is also possible the story contains a bug.
+
+If you suspect a bug, call the Infocom Technical Hotline number.
+
+
+	2.  "DISK FAILED" or "DISK READ ERROR."  This reply indicates
+
+either hardware trouble or disk damage.  Repeat the $VERIFY process
+
+several times.  Also try the $VERIFY process on another computer (such
+
+as your dealer's).  If the story ever replies "DISK CORRECT", the
+
+problem is in your hardware.
+
+	If you repeatedly get an internal error message with more than
+
+one computer, the disk has most likely been damaged.  Please send the
+
+disk only to Infocom for testing.
+
+

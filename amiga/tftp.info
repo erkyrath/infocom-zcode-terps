@@ -1,0 +1,21 @@
+
+HOW TO USE THE AMIGA TFTP
+-------------------------------------------------------------------------------
+
+1. The DEC20-Amiga connection should NOT have pins 2-3 reversed.
+   Because the serial port on the Amiga is female, it may be convenient
+   to use two crossover cables, which cancel each other out.
+
+2. Boot the Workbench/TFTP disk in drive 0.  Workbench normally sets 
+   the serial port to 9600 baud.  This setting can be changed with the 
+   Amiga Preferences tool.
+
+3. Put a copy of the Amiga Create disk in drive 1.
+
+4. Run TFTP in the usual way.  TFTP will create a file on the disk
+   in drive 1 called "Story.Data".
+
+   Note: if an error occurs, Amiga TFTP shows an 'N' followed by some
+   diagnostics.  '1' means bad command, '2' means bad header bytes, and
+   a string of numbers of the form 'x/y' indicates mismatched checksums.
+

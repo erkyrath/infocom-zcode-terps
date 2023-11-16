@@ -1,0 +1,85 @@
+	PAGE
+	SBTTL "--- OPCODE DISPATCH TABLES ---"
+
+	; -------------------
+	; 0-OP DISPATCH TABLE
+	; -------------------
+
+OPT0:	DW	GNOOP		; 0
+	DW	GRTRUE		; 1
+	DW	GRFALS		; 2
+	DW	GRSTAK		; 3
+	DW	GFSTAK		; 4
+	DW	GQUIT		; 5
+	DW	GCOPYP		; 6
+	DW	GVERP		; 7
+
+NOPS0	EQU	8		; # VALID 0-OPS
+
+	; -------------------
+	; 1-OP DISPATCH TABLE
+	; -------------------
+
+OPT1:	DW	GPUSH		; 0
+	DW	GPOP		; 1
+	DW	GVALUE		; 2
+	DW	GINC		; 3
+	DW	GDEC		; 4
+	DW	GZEROP		; 5
+	DW	GBNOT		; 6
+	DW	GJUMP		; 7
+	DW	GRET		; 8
+
+NOPS1	EQU	9		; # VALID 1-OPS
+
+	; -------------------
+	; 2-OP DISPATCH TABLE
+	; -------------------
+
+OPT2:	DW	BADOP2		; 0, UNDEFINED
+	DW	GADD		; 1
+	DW	GSUB		; 2
+	DW	GMUL		; 3
+	DW	GDIV		; 4
+	DW	GMOD		; 5
+	DW	GBAND		; 6
+	DW	GBIOR		; 7
+	DW	GBXOR		; 8
+	DW	GBITSP		; 9
+	DW	GEQP		; 10
+	DW	GLESSP		; 11
+	DW	GDLESP		; 12
+	DW	GGRTRP		; 13
+	DW	GIGRTP		; 14
+	DW	GSET		; 15
+	DW	GGET		; 16
+	DW	GGETB		; 17
+
+NOPS2	EQU	18		; # VALID 2-OPS
+
+	; -------------------
+	; X-OP DISPATCH TABLE
+	; -------------------
+
+OPTX:	DW	GCALL		; 0
+	DW	GPUT		; 1
+	DW	GPUTB		; 2
+	DW	GINPUT		; 3
+	DW	GSHOWI		; 4
+	DW	GSETI		; 5
+	DW	GSWAPI		; 6
+	DW	GSOUND		; 7
+	DW	GRAND		; 8
+	DW	GCLEAR		; 9
+	DW	GSHOWN		; 10
+	DW	GWIND		; 11
+	DW	GITER		; 12
+	DW	GLOAD		; 13
+	DW	GDUMP	   	; 14
+	DW	GREST		; 15
+	DW	GSAVE		; 16
+
+NOPSX	EQU	17		; # VALID X-OPS
+
+	END
+

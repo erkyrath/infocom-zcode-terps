@@ -1,0 +1,333 @@
+O^u & .TITLE  "ZORK - MAIN LOOP"
+ .PAGE
+	 ;MAIN LOOP, READ AN INSTRUCTION AND ITS ARGS, THEN DISPATCH
+ 
+ MLOOP:
+         LDA     PRFLG           ;TEST PRINTER SLOT QUESTION
+	 BNE     DLOOP           ;YES, FORGET IT
+	 
+	 LDY     #ZSCRIP+<LO^INVERT>     ;SCRIPT ON TEST
+	 LDA     @ZCODEP,Y
+	 AND     #1
+	 BEQ     DLOOP           ;*** MODF. 12-01-83 D.H.
+	 
+	 JSR     PCHK            ;NONE DONE SO DO THEM
+ 
+ DLOOP:
+ ;;      MOVE    ZPCL,PCSAV      ;SAVE CURRENT PC FOR DEBUGGING
+ ;;      MOVEW   ZPCH,PCSAV+1
+         LDA     #0
+	 STA     ARGCNT          ;ZERO ARG COUNT
+	 JSR     NEXTPC          ;GET NEXT OPCODE
+	 STA     OPCODE          ;SAVE IT
+	 CMP     #128.
+	 BCS     $1
+	 JMP     OP2             ;TWO OP
+ $1      CMP     #176.
+	 BCS     $2
+	 JMP     OP1             ;ONE OP
+ $2      CMP     #192.
+	 BCC     OP0             ;ZERO OP
+ OPEXT:  JSR     NEXTPC          ;GET VAR TYPES, THIS IS AN EXT OP
+         LDX     #0
+ OPEXTL: PHA                     ;SAVE VAR TYPES
+         TAY
+	 TXA                     ;SAVE ARG PTR
+	 PHA
+	 TYA
+	 AND     #0C0            ;ISOLATE ARG TYPE
+	 BNE     $1
+	 JSR     GETLNG          ;LONG IMMED
+	 JMP     $4
+ $1      CMP     #80
+	 BNE     $2
+	 JSR     GETVAR          ;VARIABLE
+	 JMP     $4
+ $2      CMP     #40
+         BNE     $3
+	 JSR     GETSHT          ;SHORT IMMED
+	 JMP     $4
+ $3      PLA
+	 PLA
+	 JMP     OPEXTF          ;ALL DONE
+ $4      PLA                     ;RESTORE ARG PTR
+	 TAX
+	 LDA     TEMP+LO         ;SAVE ARG
+	 STA     ARG1+LO,X
+	 LDA     TEMP+HI
+	 STA     ARG1+HI,X
+	 INX
+	 INX
+	 INC     ARGCNT
+	 PLA                     ;RESTORE VAR TYPES
+         SEC                     ;GET TO NEXT ARG TYPE
+	 ROL     A
+	 SEC
+	 ROL     A
+	 JMP     OPEXTL
+ 
+ OPEXTF: MOVEI   OPXT,TEMP       ;COMPUTE DISPATCH POINTER
+	 LDA     OPCODE
+	 CMP     #224.
+	 BCS     $1
+	 JMP     OP2EX           ;2EX TYPE
+ $1      SBC     #224.           ;WHICH ONE
+	 CMP     #OPXM           ;MAX VAL
+	 BCS     BADOP
+ OPDSPH: ASL     A               ;GENERALIZED DISPATCH
+	 TAY                     ;2*OFFSET
+	 LDA     @TEMP,Y
+	 STA     JSROP+LO
+	 INY
+	 LDA     @TEMP,Y
+	 STA     JSROP+HI        ;LOCATION TO DISPATCH TO
+ ;;;     JSR     07C             ;PATCH AREA
+ JSROP   .EQU    *+1             ;PATCH LOCATION TO INSERT JSR ADDRESS
+	 JSR     *               ;GO TO IT
+         JMP     MLOOP           ;NEXT OPERATION
+ 
+ OP0:    SEC
+	 SBC     #176.           ;CHECK RANGE
+	 CMP     #OP0M
+	 BCS     BADOP
+         PHA
+	 MOVEI   OP0T,TEMP
+	 PLA
+	 JMP     OPDSPH          ;DISPATCH
+ 
+ BADOP:  JSR     ZER
+ 
+ OP1:    AND     #30             ;1 OP, GET ARG TYPE
+	 BNE     $10
+	 JSR     GETLNG
+	 JMP     $99
+ $10     CMP     #10
+	 BNE     $20
+	 JSR     GETSHT
+	 JMP     $99
+ $20     JSR     GETVAR
+ $99     LDA     #1
+	 STA     ARGCNT          ;1 ARG
+	 MOVEW   TEMP,ARG1            ;STORE IT
+	 LDA     OPCODE
+	 AND     #0F             ;TURN OFF MODE BITS
+         CMP     #OP1M           ;CHECK IN RANGE
+	 BCS     BADOP
+         PHA
+         MOVEI   OP1T,TEMP
+	 PLA
+	 JMP     OPDSPH          ;DISPATCH
+ 
+ OP2:    AND     #40            ;2 OP, GET OPERAND TYPES
+	 BNE     $11
+	 JSR     GETSHT
+	 JMP     $1
+ $11     JSR     GETVAR
+ $1      MOVEW   TEMP,ARG1            ;STORE ARG1
+	 LDA     OPCODE
+	 AND     #20             ;CHECK ARG2
+	 BNE     $21
+	 JSR     GETSHT
+	 JMP     $2
+ $21     JSR     GETVAR
+ $2      MOVEW   TEMP,ARG2            ;STORE ARG 2
+	 LDA     #2
+	 STA     ARGCNT          ;TWO ARGS
+	 LDA     OPCODE
+ OP2EX:  AND     #01F            ;TURN OFF MODE BITS
+	 CMP     #OP2M
+	 BCS     BADOP
+         PHA
+         MOVEI   OP2T,TEMP
+	 PLA
+	 JMP     OPDSPH
+ 
+ GETSHT: JSR    NEXTPC          ;GET SHORT IMMEDIATE
+	 STA     TEMP+LO
+	 LDA     #0              ;FILL IN MSB
+	 STA     TEMP+HI
+	 RTS
+ 
+ GETLNG: JSR     NEXTPC
+	 PHA
+	 JSR     NEXTPC
+	 STA     TEMP+<HI^INVERT>
+	 PLA
+	 STA     TEMP+<LO^INVERT>
+	 RTS
+	 
+ VARGET: ORA     #0
+	 BEQ     VARGTS          ;GET VAR FROM STACK
+	 JMP     GETVR1
+ 
+ VARPUT: ORA     #0
+	 BEQ     VARPTS
+	 JMP     PUTVR1
+ 
+ VARGTS: JSR     POPSTK
+	 JMP     PSHSTK          ;GET FROM STACK AND REPLACE
+ 
+ VARPTS: PUSHW   TEMP
+	 JSR     POPSTK          ;TAKE OFF OLD TOP OF STACK
+	 PULLW   TEMP            ;GET BACK NEW VALUE
+	 JMP     PSHSTK          ;AND PUT IT ON TOP OF ZSTACK
+ 
+ GETVAR: JSR     NEXTPC          ;GET VAR, FIND FIRST TYPE
+	 ORA     #0
+	 BEQ     GETVRS          ;FROM STACK
+ GETVR1: CMP     #16.
+	 BCS     GETVRG          ;GLOBAL
+ GETVRL: SEC                     ;LOCAL
+	 SBC     #1
+	 ASL     A
+	 TAX
+	 LDA     LOCALS,X
+	 STA     TEMP+<LO^INVERT>
+	 INX
+	 LDA     LOCALS,X
+	 STA     TEMP+<HI^INVERT>
+	 RTS
+ 
+ GETVRG: SEC
+	 SBC     #16.            ;SUBTRACT OFFSET OF 16.
+         ASL     A               ;DOUBLE GLOBAL # TO VAL
+	 STA     VAL+LO
+	 LDA     #0
+	 ROL     A
+	 STA     VAL+HI
+	 CLC                     ;ADD IN PTR TO GLOBAL TABLE
+	 LDA     GLOBAL+LO
+	 ADC     VAL+LO
+	 STA     VAL+LO
+	 LDA     GLOBAL+HI
+	 ADC     VAL+HI
+	 STA     VAL+HI
+	 LDY     #0
+	 LDA     @VAL,Y
+	 STA     TEMP+<LO^INVERT>
+	 INY
+	 LDA     @VAL,Y
+	 STA     TEMP+<HI^INVERT>
+	 RTS                     ;RETURN VALUE IN TEMP
+ 
+ GETVRS: JSR     POPSTK          ;VAR FROM STACK
+	 RTS
+ 
+ RET0:   LDA     #0              ;RETURN 0
+ PUTBYT: STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+ PUTVAL: JMP     PUTVLC
+ 
+ PUTVLC: PUSHW   TEMP            ;SAVE VALUE
+	 JSR     NEXTPC          ;GET TYPE
+	 TAX
+	 PULLW   TEMP
+         TXA
+ PUTVR1: ORA     #0
+	 BNE     $1
+	 JMP     PSHSTK          ;SAVE ON STACK AND RETURN
+ $1      CMP     #16.
+	 BCS     PUTVLG          ;GLOBAL
+ PUTVLL: SEC                     ;LOCAL
+	 SBC     #1
+	 ASL     A
+	 TAX
+	 LDA     TEMP+<LO^INVERT>
+	 STA     LOCALS,X
+	 INX
+	 LDA     TEMP+<HI^INVERT>
+	 STA     LOCALS,X
+	 RTS
+ 
+ PUTVLG: SEC
+	 SBC     #16.            ;SUBTRACT OFFSET OF 16.
+         ASL     A               ;DOUBLE GLOBAL # TO VAL
+	 STA     VAL+LO
+	 LDA     #0
+	 ROL     A
+	 STA     VAL+HI
+	 CLC                     ;ADD IN PTR TO GLOBAL TABLE
+	 LDA     GLOBAL+LO
+	 ADC     VAL+LO
+	 STA     VAL+LO
+	 LDA     GLOBAL+HI
+	 ADC     VAL+HI
+	 STA     VAL+HI
+	 LDY     #0
+	 LDA     TEMP+<LO^INVERT>
+	 STA     @VAL,Y
+	 INY
+	 LDA     TEMP+<HI^INVERT>
+	 STA     @VAL,Y
+         RTS
+ 
+ PREDS:  JSR     NEXTPC          ;PREDICATE HACKS, THIS ONE FOR SUCCEED
+	 ORA     #0
+	 BMI     PREDB           ;BRANCH
+	 BPL     PREDNB          ;DON'T BRANCH
+ 
+ PREDF:  JSR     NEXTPC          ;PREDICATE FAIL
+	 ORA     #0
+	 BPL     PREDB           ;BRANCH
+ PREDNB: AND     #40             ;CHECK FOR MULTI BYTE HACK
+	 BNE     $1
+         JSR     NEXTPC          ;GET NEXT BYTE IF SO
+ $1      RTS                     ;CONTINUE IN SEQUENCE
+ 
+ PREDB:  TAX
+	 AND     #40
+	 BEQ     PREDLB          ;LONG (2 BYTE) BRANCH
+	 TXA
+	 AND     #3F
+         STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 JMP     PREDB1          ;SIMULATE LONG BRANCH TO A CLOSE PLACE
+ 
+ PREDLB: TXA                     ;STRIP OFF EXTRANEOUS JUNK
+	 AND     #3F
+	 PHA
+	 JSR     NEXTPC          ;GET SECOND BYTE
+	 STA     TEMP+LO
+	 PLA
+	 STA     TEMP+HI
+	 AND     #20             ;CHECK SIGN
+	 BEQ     PREDB1          ;POSITIVE
+	 LDA     TEMP+HI
+	 ORA     #0C0            ;MAKE A FULL WORD NEG
+	 STA     TEMP+HI
+ PREDB1: LDA     TEMP+HI
+	 ORA     TEMP+LO
+	 BEQ     RFALSE          ;RETURN FALSE
+	 SUBB    TEMP,#1
+         LDA     TEMP+HI
+	 ORA     TEMP+LO
+	 BEQ     RTRUE
+ PREDB3: SUBB    TEMP,#1         ;2 NOW SUBTRACTED FROM JUMP ADDRESS
+	 LDA     TEMP+HI         ;COMPUTE A 17 BIT ADDRESS
+	 STA     VAL+LO          ;HIGH ORDER 9 BITS IN VAL
+	 ASL     A               ;EXTEND SIGN BIT
+	 LDA     #0
+	 ROL     A
+	 STA     VAL+HI
+	 LDA     ZPCL            ;ADD IN LOW ORDER 8 BITS (FROM TEMP+LO)
+	 CLC
+	 ADC     TEMP+LO
+	 BCC     PREDB2          ;NO OVERFLOW
+	 INCW    VAL
+ PREDB2: STA     ZPCL            ;STORE LOW BYTE
+	 LDA     VAL+HI
+	 ORA     VAL+LO
+	 BEQ     PREDB4          ;NO CHANGE IN PAGE, DO FASTER JUMP
+	 CLC
+	 LDA     VAL+LO
+	 ADC     ZPCH+LO         ;MODIFY UPPER
+	 STA     ZPCH+LO
+	 LDA     VAL+HI
+	 ADC     ZPCH+HI
+	 AND     #1
+	 STA     ZPCH+HI
+	 LDA     #0
+	 STA     ZPCFLG          ;CHANGED PAGES
+ PREDB4: RTS                     ;FINISHED

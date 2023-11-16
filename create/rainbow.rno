@@ -1,0 +1,179 @@
+.C;MAKING A RAINBOW CREATE DISK FOR A NEW GAME
+.s
+1. Put the disk labelled "CPM 80/86 Working" in Drive A, and the disk
+labelled "Working Disk TFTP" in Drive B.
+.s
+2. Turn on the Rainbow by pushing the large switch in front to the "1"
+setting.
+.s
+3. Put the Rainbow in Caps Lock mode.
+.s
+4. When the menu appears, type "A".
+.s
+5. When the "A>" prompt appears, type "RED B:ZIP.A86" and hit the return
+key.
+.s
+6. The editor will load. This will take approximately 30 seconds.
+.s
+7. Type "L" for LOCATE followed by "GAMFCB [tab] DB" and hit the return
+key.
+.s
+8. After a wait of approxmately 90 seconds, the cursor will be at a line
+containing the phrase "[game]DAT" and two lines later will be the phrase
+"[game]SAV" (where [game] is the name of an Interlogic game shortened to
+eight characters or padded to eight characters using spaces).
+.s
+9. Use the arrow keys to move the cursor to the first character in
+"[game]DAT".
+.s
+10. Type "E" for ERASE and then move the cursor using the right arrow
+key a total of eight times. The cursor should now be on the "D" in
+"DAT". Hit the DO key. The eight characters you passes over should
+disappear.
+.s
+11. Type "I" for INSERT followed by the name of the game you are making
+a create disk for. It must be shortened to the first eight characters or
+lengthened to eight characters using blank spaces. Hit the DO key. The
+characters should appear before the cursor.
+.s
+12. Use the arrow key to move the cursor to the first character in
+"[game]SAV". Repeat steps 10 and 11.
+.s
+13. Type "Q" for QUIT.
+.s
+14. Type "K" for KEEP.
+.s
+15. After about 30 seconds, the "A>" prompt will appear. You should now
+type "SUBMIT ASM" and hit the return key.
+.s
+16. The Rainbow will run for around minutes. The last thing that appears
+on the screen should be:
+.s
+.ts 15
+.no fill
+	A>PIP ZIP.CMD=B:
+	A>
+.s
+.fill
+17. Remove the disk from Drive B. Put a blank, RX50 disk in Drive B.
+This disk will become the new create disk.
+.s
+18. Type control-C. You will get another "A>" prompt.
+.s
+19. Type "PIP B:[game].CMD=ZIP.CMD" and hit the return key.
+.s
+20. The disk in Drive B is now the create disk for the new game. Label
+it as such.
+
+.pg
+.c;COPYING GAMES FROM THE DEC-20 TO THE DEC RAINBOW
+.s 2
+NOTE:  Before you begin this procedure, a create disk must already exist for
+this particular game.  If one does not yet exist, follow the procedure
+outlined on the previous pages.
+.s
+1. Connect the Rainbow's COMM line (a heavy white cable) to the TN20 line.
+.s
+2. Place the "CP/M 86/80 Working" disk in Drive A, and place the create disk
+in Drive B (note that the disk in Drive B should be upside-down).
+.s
+3. Turn the power on (press "1" on the 1-0 button).
+.s
+4. A menu will appear. Type "A" to boot the CPM disk in Drive A.
+.s
+5. At this point, you need to change the set-up features of the Rainbow.
+Type the "F3" key (near the top left corner of the keyboard) to enter set-up
+mode.
+.s
+6. Press the "next screen" key twice.
+.s
+7. The first set-up feature (and possibly the second and third features)
+need to be changed. The up-arrow key cycles through the various
+allowable values for each feature, and the right-arrow key moves you to
+the next feature. The set-up you want is:
+.ts 15, 22
+	8N	data B/P
+	4800	XMT
+	4800	RCV
+.s
+8. Press the "F3" key to leave set-up mode.
+.s
+9. When the prompt "A>" appears, type "era b:[game].dat", where [game] is
+the first eight letters of the title. (If you're not sure, type "dir b:"
+to get a listing of the files on the disk.)
+.s
+10. The screen may say "NO FILE" at this point. Ignore it. You'll see
+the "A>" prompt again. Type "tftp b:[game].dat".
+.s
+11. Go to a DEC-20 terminal and follow the separate instructions for
+running TN20.
+.s
+12. Unlike most other transfer programs, A's will not appear on the
+screen of the receiving machine, the Rainbow. The transfer should take
+five to ten minutes.
+.s
+13. When the transfer is complete, the Rainbow screen will print
+"COMPLETED" and the "A>" prompt should reappear.
+.s
+14. Type "dir b:" to see the directory of the create disk in Drive B. It
+should consist of two files, one called "[game].cmd" and one called
+"[game].dat" (where [game] is something like ZORK2 or PLANETFA).
+.s
+15. At this point, you should return the Rainbow to its default set-up
+features. To do this, press the "F3" key, type an upper-case "D", and
+press the "F3" key again.
+.s
+16. At the "A>" prompt type "b:". You will get a "B>" prompt.
+.s
+17. Boot the game from the create disk in Drive B by typing "[game]"
+(where, once again, [game] is the first 8 letters of the name of the
+game). When the game prompt appears, test the game by typing "$verify".
+
+.pg
+.C;USING THE CREATE DISK TO MAKE A GAME DISK ON THE DEC RAINBOW
+.s 2
+NOTE: The create disk, once you have transferred the game file to it, is
+identical to a game disk. Therefore, in order to produce a game disk
+from a create disk, all you need do is copy it.
+.s
+1. Put the "CP/M 86/80 Working" disk in drive A.
+.s
+2. Turn the power on (press "1" on the 1-0 button).
+.s
+3. A menu will appear. Type "A".
+.s
+4. A prompt will appear that looks like "A>". Type "copy".
+.s
+5. Put the create disk in drive A and a blank disk in drive B. (NOTE:
+you must use a Digital RX50 disk for the blank disk! The Dysan disks that
+we normally use will not work.)
+.s
+6. Answer yes to the two questions that appear.
+.s
+7. When the copy procedure is complete, you will be asked if you want to make
+another copy.
+.s
+8. When you are done making copies, test the games by booting them each and
+typing "$verify".
+
+.pg
+.C;BOOTING GAME DISKS ON THE DEC-RAINBOW
+.s
+1. Find the disk labelled "CP/M 86/80 Working" and place it in Drive A,
+the top drive. It should go in with the label facing upward and closer
+to you.
+.s
+2. Place the game disk in the bottom drive, Drive B. It should go in
+with the label facing downward and closer to you.
+.s
+3. Turn on the Rainbow by pushing the large switch labelled "1" and "0"
+to the "1" setting.
+.s
+4. After a few churns, beeps, and whistles, a menu will appear on the
+screen. Type "A".
+.s
+5. A prompt that looks like "A>" will appear. Type "B:".
+.s
+6. A prompt that looks like "B>" will appear. Type the first eight
+letters of the name of the game. Some typical names: ZORK3, STARCROS,
+PLANETFA. The game will then boot.

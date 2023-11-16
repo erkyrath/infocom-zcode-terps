@@ -1,0 +1,45 @@
+	PAGE
+	SBTTL "--- 0-OPS ---"
+
+	; -----
+	; RTRUE
+	; -----
+
+	; SIMULATE "RETURN 1"
+
+GRTRUE:	LDX	#1
+
+GRT1:	LDA	#0
+
+GRT2:	STX	ARG1+LO
+	STA	ARG1+HI
+	JMP	GRET
+
+	; ------
+	; RFALSE
+	; ------
+
+	; SIMULATE "RETURN 0"
+
+GRFALS:	LDX	#0
+	BEQ	GRT1
+
+	; ------
+	; RSTACK
+	; ------
+
+	; "RETURN" WITH VALUE ON STACK
+
+GRSTAK:	JSR	POPVAL		; GET VALUE INTO [X/A]
+	JMP	GRT2
+
+	; ------
+	; FSTACK
+	; ------
+
+	; FLUSH TOP VALUE OFF G-STACK
+
+GFSTAK	EQU	POPVAL
+
+	END
+

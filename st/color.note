@@ -1,0 +1,20 @@
+Re: ST XZIP, Color and Mouse, addendum to spec
+Date: 5/26/87
+
+    The color function in the XZIP spec lists eight colors.  The Atari
+ST, in 80-column mode, can display at most four of them at any one time.
+They are identified internally by color index numbers 0-3.
+
+    There are two additional restrictions:
+
+    () Only one background color is allowed, which is always index 0.
+(This is a limitation of the software support, not the hardware.)
+This effectively leaves three foreground colors.
+
+    () The mouse pointer uses index 1.  Index 1 should always be
+different from index 0 for this reason, or the pointer will be visible
+only as an odd silhouette.
+
+    The current ST XZIP implementation will recycle indices to satisfy
+requests for new colors, using a cheap LRU method.  Index 1 will always
+be used to satisfy the first request.

@@ -1,0 +1,71 @@
+
+        INTEL HEX FILE TO BINARY FILE CONVERSION PROGRAM
+
+
+Supplied on your master disk are the following two files:
+
+     ITOB.COM  Intel HEX file to Binary file conversion program.
+
+     ITOB.DOC  This file.
+
+
+ITOB:
+
+     The ITOB command line is formatted as follows:
+
+     ITOB Hex_filename [Binary_filename] [-Base_address_override]
+
+
+     ITOB                     Name of the conversion program.
+     Hex_filename             Name of the Intel Hex file to 
+                              convert.
+     Binary_filename          Optional.  Name of the binary 
+                              output file.
+     -Base_address_override   Optional.  Value to assume as the 
+                              base address of the input hex file.
+
+
+     The extent of the Hex_filename defaults to ".HEX" if it is 
+not given on the command line.
+
+     The extent of the Binary_filename defaults to ".BIN" if it 
+is not given on the command line.
+
+     If a Binary_filename is not given on the command line, the 
+name of the binary output file defaults to the Hex_filename, with 
+the extent ".BIN".
+
+     If the -Base_address_override is not given, ITOB will take 
+the lowest-addressed byte in the Intel hex file and write this 
+byte as the first byte of the binary output file.
+
+     If the -Base_address_override is given, ITOB will assume the 
+lowest-addressed byte in the Intel hex file is at the 
+Base_address_override value.
+
+     If the -Base_address_override specifies a value which is 
+greater than the actual lowest-addressed byte in the Intel hex 
+file, a warning message will be issued.  The bytes in the hex 
+file below the Base_address_override value will be discarded.
+
+     If the Intel hex file contains "holes" in the hex records, 
+these holes will be filled in with 0FFH bytes in the binary 
+output file.
+
+
+Examples:
+          ITOB HEXFILE                  ; Convert HEXFILE.HEX 
+                                        ;  into HEXFILE.BIN
+          ITOB HEXFILE.HXE              ; Convert HEXFILE.HXE 
+                                        ;  into HEXFILE.BIN
+          ITOB HEXFILE BINFILE          ; Convert HEXFILE.HEX 
+                                        ;  into BINFILE.BIN
+          ITOB HEXFILE BINFILE.COM      ; Convert HEXFILE.HEX 
+                                        ;  into BINFILE.COM
+          ITOB HEXFILE -0               ; Convert HEXFILE.HEX 
+                                        ;  into HEXFILE.BIN with 
+                                        ;  the binary base 
+                                        ;  address set to 0
+          ITOB HEXFILE BINFILE -F000    ; All options used
+
+

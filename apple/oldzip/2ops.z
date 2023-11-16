@@ -1,0 +1,303 @@
+O^( |".TITLE  "ZORK - 2 OPS"
+ .PAGE
+ 
+ LESSP   MOVEW   ARG1,TEMP
+	 MOVEW   ARG2,VAL
+	 JSR     SHLGED
+	 BCC     PREDSM
+	 JMP     PREDF
+ 
+ GRTRP   MOVEW   ARG1,VAL
+	 MOVEW   ARG2,TEMP
+	 JSR     SHLGED
+	 BCC     PREDSM
+	 JMP     PREDF
+ 
+ DLESSP  JSR     DEC1
+	 MOVEW   ARG2,VAL
+	 JMP     IGRTP1
+ 
+ IGRTRP  JSR     INC1
+	 MOVEW   TEMP,VAL
+	 MOVEW   ARG2,TEMP
+ IGRTP1  JSR     SHLGED
+	 BCC     PREDSM
+	 JMP     PREDF
+ PREDSM  JMP     PREDS
+ 
+ INP     LDA     ARG1+LO
+	 JSR     OBJLOC
+	 LDY     #4
+	 LDA     ARG2+LO
+	 CMP     @TEMP,Y
+	 BEQ     PREDSM          ;SUCCESS IF OBJ 2 IN 1
+	 JMP     PREDF
+ 
+ BTST    LDA     ARG2+HI
+	 STA     TEMP+HI
+	 AND     ARG1+HI
+	 STA     VAL+HI
+	 LDA     ARG2+LO
+	 STA     TEMP+LO
+	 AND     ARG1+LO
+	 STA     VAL+LO
+	 JSR     HLGEDE
+	 BEQ     PREDSM
+	 JMP     PREDF
+ 
+ BOR     LDA     ARG2+HI
+	 ORA     ARG1+HI
+	 STA     TEMP+HI
+	 LDA     ARG2+LO
+	 ORA     ARG1+LO
+	 STA     TEMP+LO
+	 JMP     PUTVAL
+ 
+ BAND    LDA     ARG2+HI
+	 AND     ARG1+HI
+	 STA     TEMP+HI
+	 LDA     ARG2+LO
+	 AND     ARG1+LO
+	 STA     TEMP+LO
+	 JMP     PUTVAL
+ 
+ FSETP   JSR     FLAGSU          ;GET BIT
+	 LDA     VAL+HI
+	 AND     MASK+HI
+	 STA     VAL+HI
+	 LDA     VAL+LO
+	 AND     MASK+LO
+	 ORA     VAL+HI          ;CHECK FOR ON
+	 BNE     PREDSM          ;BIT ON
+	 JMP     PREDF           ;BIT OFF
+ 
+ FSET    JSR     FLAGSU
+	 LDY     #<LO^INVERT>
+	 LDA     VAL+LO
+	 ORA     MASK+LO
+	 STA     @TEMP,Y
+	 NEXT    <HI^INVERT>
+	 LDA     VAL+HI
+	 ORA     MASK+HI
+	 STA     @TEMP,Y
+	 RTS
+ 
+ FCLEAR  JSR     FLAGSU
+	 LDY     #<LO^INVERT>
+	 LDA     MASK+LO
+	 EOR     #0FF
+	 AND     VAL+LO
+	 STA     @TEMP,Y
+	 NEXT    <HI^INVERT>
+	 LDA     MASK+HI
+	 EOR     #0FF
+	 AND     VAL+HI
+	 STA     @TEMP,Y
+	 RTS
+ 
+ ZSET    MOVEW   ARG2,TEMP
+	 LDA     ARG1+LO
+ VARPTR  JMP     VARPUT
+ 
+ ZMOVE   JSR     REMOVC          ;REMOVE OBJECT FIRST
+	 LDA     ARG1+LO
+	 JSR     OBJLOC
+	 PUSHW   TEMP            ;SAVE LOC OF FIRST ARG
+	 LDY     #4
+	 LDA     ARG2+LO
+	 STA     @TEMP,Y
+	 JSR     OBJLOC
+	 LDY     #6              ;FIRST SLOT
+         LDA     @TEMP,Y
+	 TAX
+	 LDA     ARG1+LO
+	 STA     @TEMP,Y
+	 PULLW   TEMP
+	 TXA
+	 BEQ     $1
+	 LDY     #5
+	 STA     @TEMP,Y         ;NEXT SLOT
+ $1      RTS
+ 
+ GET     ASL     ARG2+LO
+	 ROL     ARG2+HI         ;ITEM NUMBER * 2
+	 CLC
+	 LDA     ARG2+LO
+	 ADC     ARG1+LO
+	 STA     TEMP+LO
+	 LDA     ARG2+HI
+	 ADC     ARG1+HI
+	 STA     TEMP+HI
+	 JSR     SETWRD
+	 JSR     GETWRD
+	 JMP     PUTVAL
+ 
+ GETB    CLC
+	 LDA     ARG2+LO
+	 ADC     ARG1+LO
+	 STA     TEMP+LO
+	 LDA     ARG2+HI
+	 ADC     ARG1+HI
+	 STA     TEMP+HI
+	 JSR     SETWRD
+	 JSR     GETBYT
+	 STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ GETP    JSR     PROPB           ;GET POINTER TO PROPS IN PROP TABLE
+ GETP1   JSR     PROPN
+	 CMP     ARG2+LO
+	 BEQ     GETP2           ;FOUND PROP
+	 BCC     GETP3           ;GET PROP FROM DEFAULT TABLE
+	 JSR     PROPNX          ;NEXT ENTRY
+	 JMP     GETP1
+ 
+ GETP3   LDY     #ZOBJEC+<LO^INVERT>
+	 CLC
+	 LDA     @ZCODEP,Y
+	 ADC     ZCODEP+LO
+	 STA     VAL+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 ADC     ZCODEP+HI
+	 STA     VAL+HI         ;BEG OF OBJECT TABLE
+	 LDA     ARG2+LO
+	 ASL     A
+	 TAY
+	 DEY
+	 LDA     @VAL,Y
+	 STA     TEMP+<HI^INVERT>
+	 DEY
+	 LDA     @VAL,Y
+	 STA     TEMP+<LO^INVERT>
+	 JMP     PUTVAL          ;RETURN DEFAULT VALUE
+ 
+ GETP2   JSR     PROPL           ;GET LENGTH
+	 INY
+	 CMP     #0
+	 BEQ     GETP2A          ;1 BYTE
+	 CMP     #1
+	 BEQ     $1
+	 JSR     ZER             ;BAD PROP LENGTH
+ $1      LDA     @TEMP,Y
+	 STA     VAL+<LO^INVERT>
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<HI^INVERT>
+	 MOVEW   VAL,TEMP
+	 JMP     PUTVAL          ;RETURN TWO BYTE PROP
+ 
+ GETP2A  LDA     @TEMP,Y
+         STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ GETPT   JSR     PROPB
+ GETPT1  JSR     PROPN
+	 CMP     ARG2+LO
+	 BEQ     GETPT2          ;FOUND PROP
+	 BCS     $1
+	 JMP     RET0
+ $1      JSR     PROPNX
+	 JMP     GETPT1
+ 
+ GETPT2  INCW    TEMP
+	 CLC                     ;ADD IN OFFSET
+	 TYA
+	 ADC     TEMP+LO
+	 STA     TEMP+LO
+	 BCC     $1
+	 INC     TEMP+HI
+ $1      SEC
+	 LDA     TEMP+LO
+	 SBC     ZCODEP+LO       ;SUBTRACT OFF RELATIVE POINTER
+	 STA     TEMP+LO
+	 LDA     TEMP+HI
+	 SBC     ZCODEP+HI
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ NXTP    JSR     PROPB           ;POINT TO PROP VALUE
+	 LDA     ARG2+LO
+	 BEQ     NXTP2           ;PROP0
+ NXTP1   JSR     PROPN
+	 CMP     ARG2+LO
+	 BEQ     NXTP3           ;FOUND PROP
+	 BCS     $1
+	 JMP     RET0            ;RETURN 0
+ $1      JSR     PROPNX
+	 JMP     NXTP1
+ 
+ NXTP2   JSR     PROPN
+	 JMP     PUTBYT
+ 
+ NXTP3   JSR     PROPNX
+	 JMP     NXTP2           ;PROPN OF NEXT
+ 
+ ZADD    CLC
+	 LDA     ARG1+LO
+	 ADC     ARG2+LO
+	 STA     TEMP+LO
+	 LDA     ARG1+HI
+	 ADC     ARG2+HI
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ ZSUB    SEC
+	 LDA     ARG1+LO
+	 SBC     ARG2+LO
+	 STA     TEMP+LO
+	 LDA     ARG1+HI
+	 SBC     ARG2+HI
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ MUL     MOVEW   ARG1,TEMP
+	 MOVEW   ARG2,VAL
+	 JSR     SIGNC           ;CHECK SIGN
+	 LDA     VAL+HI
+	 BNE     MUL0
+	 LDA     VAL+LO
+	 CMP     #2
+	 BEQ     MUL2
+	 CMP     #4
+	 BEQ     MUL4
+ MUL0    JSR     MULT            ;DO THE MULTIPLY
+ MUL1    JSR     SIGNS           ;SET THE SIGN
+         JMP     PUTVAL
+ 
+ MUL4    ASL     TEMP+LO
+	 ROL     TEMP+HI
+ MUL2    ASL     TEMP+LO
+	 ROL     TEMP+HI
+         JMP     MUL1
+ 
+ DIV     MOVEW   ARG1,TEMP
+	 MOVEW   ARG2,VAL
+	 JSR     SIGNC           ;CHECK SIGNS
+	 LDA     VAL+HI
+	 BNE     DIV0
+	 LDA     VAL+LO
+	 CMP     #2
+	 BEQ     DIV2
+	 CMP     #4
+	 BEQ     DIV4
+ DIV0    JSR     DIVIDE          ;DO THE DIVIDE
+	 JMP     MUL1            ;SET SIGN AND RETURN
+ 
+ DIV4    LSR     TEMP+HI
+	 ROR     TEMP+LO
+ DIV2    LSR     TEMP+HI
+	 ROR     TEMP+LO
+	 JMP     MUL1
+ 
+ ZMOD    MOVEW   ARG1,TEMP
+	 MOVEW   ARG2,VAL
+	 JSR     SIGNC           ;MAKE THEM POSITIVE
+	 JSR     DIVIDE          ;DO THE DIVIDE
+	 MOVEW   VAL,TEMP        ;GET THE REMAINDER
+	 JMP     PUTVAL
+ 

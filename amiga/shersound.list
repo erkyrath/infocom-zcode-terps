@@ -1,0 +1,135 @@
+
+	init                       10124
+	join                        1072
+	mkdata			    5212
+
+	midi.asm                      90
+	midi.o                       256
+	midi                          80  (.mid file w/ segment header)
+	test                          80  (similar to midi - 3 diffs)
+
+MP = "midi pitch," $4A standard
+MR = "midi ref," $32 standard (MP-$18)
+
+   3.	armor.dat                       18
+	  fan.mid                       11	MP
+	  armor                      33290	MR 3C00 (15.4K)
+
+   4.	badviol.dat                     20	
+	  badv.mid                      11	MP
+	  badvio                     38650	MR 2800 (10.2K)
+
+   5.	bark.dat                        21
+	  (clk.mid)
+	  bark.bin                    6508	MR 3C00
+
+   6.	splash.dat                      19
+	  (clk.mid)
+	  splash                     53130	MR 3002 (12.3K)
+
+   7.	clock.dat                       19
+	  clk.mid                       11	MP
+	  benclk                     38180	MR 4164 (16.7K)
+
+	  benclk1  (unused)          46908	MR 4178
+
+   8.	crowd.dat                       21
+	  crowd.mid                     11	MP-2
+	  crowd1  (chopped)          25830	MR 2800
+
+   9.	fanfare.dat                     24
+	  (clk.mid)
+	  fanfare.bin                56602	MR 25E4 (9.7K)
+
+  10.	growl.dat                       20
+	  growl.mid                     11	MP
+	  growl                      50488	MR 4178 (16.8K)
+
+  11.	heart1.dat                      21
+	  heart1.mid                    11	MP-6
+	  heart                      14010	MR 47FE (18.4K)
+
+  12.	heart2.dat                      20
+	  (growl.mid)
+	  (heart)
+
+  13.	heart3.dat                      21
+	  heart3.mid                    11	MP+5
+	  (heart)
+
+
+
+  14.	horse.dat                       20
+	  horse.mid                     11	MP-2
+	  horse  (chopped)	      9705	MR 2400  (sr/2)
+
+	  horse-or1                  40010	MR 47FE
+	  horsie                     40080	(same, plus garbage header)
+	
+  15.	violin.dat                      24
+	  (clk.mid)
+	  violin.bin                 48218	MR 25E4
+
+	  violin    (unused)         52832	MR 3764
+	  violinb2  (unused)         16464	MR 6C81 (27.8K)  (garbage hdr)
+
+  16.	snore.dat                       22
+	  (clk.mid)
+	  snore.bin                  49930	MR 2D00 (11.5K)
+
+  17.	clock2.dat                      19
+	  (clk.mid)
+	  ben2  (shortened)          25454	MR 4164
+
+
+	music.dat  (unused)             30  (similar to armor.dat)
+	  (clk.mid)
+	  (armor)
+
+	boating.dat  (unused)           44
+	  water.mid                     23	MR, MR-2, MR-2
+	  (splash)
+	  birdie.bin  (unused)       49930	MR 3C00
+	  windy.bin  (unused)        56970	MR 3C00
+
+
+	52 files - 1 directory - 1592 blocks used
+
+
+
+Sorted by sr:
+
+	  violinb2  (unused)         16464	MR 6C81 (27.8K)  (garbage hdr)
+	  heart                      14010	MR 47FE (18.4K)
+	  horse-or1  (unused)        40010	MR 47FE
+	  growl                      50488	MR 4178 (16.8K)
+	  benclk1  (unused)          46908	MR 4178
+	  benclk                     38180	MR 4164 (16.7K)
+	  ben2  (chopped)            25454	MR 4164
+	  armor                      33290	MR 3C00 (15.4K)
+	  bark.bin                    6508	MR 3C00
+	  violin  (unused)           52832	MR 3764 (14.2K)
+	  splash                     53130	MR 3002 (12.3K)
+	  snore.bin                  49930	MR 2D00 (11.5K)
+	  badvio                     38650	MR 2800 (10.2K)
+	  crowd1                     61050	MR 2800
+	  fanfare.bin                56602	MR 25E4  (9.7K)
+	  violin.bin                 48218	MR 25E4
+	  horse (-ss1) (chopped)      9705	MR 2400  (9.2K)  (sr/2)
+
+
+Sorted by filesize:
+
+	  fanfare.bin                56602
+	  splash                     53130
+	  snore.bin                  49930
+	  violin.bin                 48218
+	  badvio                     38650
+	  armor                      33290
+	  crowd1  (chopped)          25830
+	  ben2  (chopped)            25454
+	  growl  (-ss1)              25244
+	  benclk  (-ss1)             19090
+	  horse  (-ss1)  (chopped)    9705
+	  heart  (-ss1)               7005
+	  bark.bin                    6508

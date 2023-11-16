@@ -1,0 +1,29 @@
+Addbuffers df0: 10
+c:SetPatch >NIL: ;patch system functions
+cd c:
+echo "A500/A2000 Workbench disk.  Release 1.3 version 34.20*N"
+Sys:System/FastMemFirst ; move C00000 memory to last in list
+BindDrivers
+mount dh0:
+MOUNT DH1:
+echo "     Mounting the PHOENIX ELECTRONICS INC. PHD-48 meg HardDrive"
+ECHO "             WITH WORKBENCH 1.3 AND FAST FILE SYSTEM"
+ECHO "              THE MOUNTLIST HAS TWO PARTITIONS"
+cd dh0:
+info
+avail
+setclock load ;load system time from real time clock (A1000 owners should
+              ;replace the SetClock load with Date
+FF >NIL: -0 ;speed up Text
+resident CLI L:Shell-Seg SYSTEM pure add; activate Shell
+resident c:Execute pure
+mount newcon:
+;
+failat 11
+run execute s:StartupII ;This lets resident be used for rest of script
+wait >NIL: 5 mins ;wait for StartupII to complete (will signal when done)
+;
+SYS:System/SetMap usa1 ;Activate the ()/* on keypad
+path ram: c: sys:utilities sys:system s: sys:prefs add ;set path for Workbench
+LoadWB delay  ;wait for inhibit to end before continuing
+endcli >NIL:

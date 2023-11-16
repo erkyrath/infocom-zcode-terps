@@ -1,0 +1,30 @@
+
+IBM Command Lines
+------------------------------------------------------------------------
+
+    These command line arguments are available with the IBM/MSDOS
+ZIP interpreter, versions 'L' and up, and all EZIP versions.
+
+    The first four are listed in the reference card; the last two 
+are undocumented.
+
+; /P	INITIALIZE PRINTER THROUGH INT 17
+; /M	MONOCHROME
+; /C	COLOR
+; /W	WINDOWED SCROLLING
+
+; /K<n>	AMOUNT OF MEMORY TO USE IN KBYTES
+; /G<gamefile.ext> RUN THE GAME FILE SPECIFIED
+
+    /K is used to limit the amount of memory used by the game,
+which normally takes as much as it can get (up to the size of the data
+file).  The frequency of disk accesses (never in the case of full 
+preload) increases as memory is reduced.
+
+    For example, Zork1 normally uses around 85K but can be run 
+with as little as /K25.  Specifying less than 25K causes a "not enough
+memory" error message.
+
+    /G makes the interpreter use a different data file.  For example,
+ZORK1.EXE normally runs ZORK1.DAT, but can in general run any other
+ZIP game.

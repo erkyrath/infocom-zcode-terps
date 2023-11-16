@@ -1,0 +1,726 @@
+
+	STTL	"--- ZIP SAVE AND RESTORE ROUTINES ---"
+	PAGE
+; -----------------------------
+; SET UP SAVE & RESTORE SCREENS
+; -----------------------------
+SAVRES:
+	jsr	ZCRLF	; CLEAR THE LINE BUFFER
+	lda	#0	
+	sta	SCRIPT	; DISABLE SCRIPTING
+	lda	PAGE2SW+MAIN	; just do this for the heck of it
+        lda     BNK2SET		; this stuff too
+        lda     BNK2SET
+
+	rts
+
+; -----------------------------
+; SAVE & RESTORE STRINGS
+; -----------------------------
+YES:	DB	"YES"
+	DB	EOL	
+YESL	EQU	$-YES	
+NO:	DB	"NO"	
+	DB	EOL	
+NOL	EQU	$-NO	
+
+NAMEQ:	db	EOL
+	db	"Insert save disk and enter "
+	db	"full pathname of save file: "
+	db	EOL
+	db	"Hit '?' key to get a list of online volumes."
+	db	EOL
+	db	"Current pathname is:",
+	db	EOL
+NAMEQL	EQU	$-NAMEQ
+SNDATA:		 	; show start of name and length
+SNAMEL:	db	0	; place to save length of name
+SAVENAME: ds	64+15	; save plenty of room for max name
+
+DELQ:	db	EOL,"File exists, delete it (Yes/No)? "
+DELQL	EQU	$-DELQ+1	; include this following EOL
+RETQ:	db	EOL,"Please hit [RETURN]",EOL
+RETQL	EQU	$-RETQ
+PREFIX_ERR: db  EOL,"Name must have prefix, "
+        db      "i.e.: /DISKNAME/FILENAME",EOL
+PREFIX_ERRL EQU  $-PREFIX_ERR
+
+MAX_SAVENAME EQU 45		; max # of chars allowed in save name
+
+; -----------------------------
+; SAVE/RESTORE Parameter Blocks
+; -----------------------------
+CREATE_PB:
+	db	7		; 7 parameters
+	dw	SNDATA		; pointer to name
+	db	$C3		; full access to file
+	db	$06		; BIN file type
+	dw	0		; no aux data
+	db	$01		; standard file
+	dw	0		; create date
+	dw	0
+	     ; creation time
+SETEOF_PB:
+	db 	2		; 1 parameter
+        db      0               ; refnum
+        db      0,0,0           ; set to zero spot to clear it out
+OPEN_SV:
+	db	3		; 3 parameters
+	dw	SNDATA		; name
+	dw	GAME1FIO	; file buffer
+	db	0		; ref num
+CLOSE_PB:
+	db	1		; only one parm
+	db	0		; the refnum
+WRITE_SV:
+	db	4		; parm count
+	db	0		; refnum
+	dw	IOBUFF		; data is always here
+	dw	512             ; 1 page worth
+	dw	0		; how many actually went
+
+; get the save file name.  If user hits the ESC key, then abort the
+; save by return with the carry set.
+;
+GET_SNAME:
+	jsr	CLOSE_GAME	; close the game files
+	jsr	SWAP2INFOW	; goto information window
+GTSN0:
+	DLINE	NAMEQ		; ask about name
+	lda	SNAMEL		; is there a name yet?
+	beq	GTSN00		; nope
+	DLINE	SAVENAME,SNAMEL	; show current name of file
+GTSN00:
+	lda	#0		; clear line count	
+	sta	CLOSE_PB+CL_REFNUM ; clear this too
+	ldx	SNAMEL		; get length
+	stx	CHRCNT		; okay
+	ldy	SNAMEL		; point to copy
+	dey			; one less
+GCOPY:
+	lda	SNAMEL,X	; get char
+	sta	LBUFF,Y		; save it
+	dex			; point to previous one
+	dey			; previous pointer
+	bpl	GCOPY		; copy until length byte
+GNAME:
+	jsr	GETKEY		; WAIT FOR A KEY
+	cmp	#EOL		; IF [RETURN],
+	beq	GOTNAME		; got the name
+	cmp	#ESCAPE		; hit escape key?
+	sec			; just in case it does exit
+	bne     GNM2
+        jmp     GNX             ; all done then
+GNM2:
+	cmp	#BACKSPACE	; erasing things?
+	bne	GNM1		; nope
+
+	ldx	CHRCNT		; make sure there are chars there
+	bne	GNMBP		; ayyup, do delete
+GNMBAD:
+	jsr	BEEP		; no room for delete
+	jmp	GNAME		; okay
+GNMBP:
+	dex			; point down one
+	stx	CHRCNT		; count one down
+	lda	LBUFF,X		; get char to delete
+	tax			; show in [X]
+	lda	#BACKSPACE	; and doing a backspace 
+	bne	GNMSHOW		; okay, delete char on screen
+GNM1:
+	cmp	#'/'		; slash is the only good non-numeric char
+	beq	GNMGOOD		; fine, use it
+	cmp	#'.'		; well, maybe a . too
+	beq	GNMGOOD 	; fine, here it is
+	cmp	#VOLCHAR	; does user want list of volumes?
+	bne	GNM1x		; nope
+
+	lda	#0		; clear out current name
+	sta	CHRCNT		; okay, we did
+	jsr	LISTVOLS	; show them
+	jmp	GTSN0		; start over, kind of
+GNM1x:
+	cmp	#'0'		; is it a number
+	bcc	GNMBAD		; nope
+	cmp	#'9'+1		; well?
+	bcc	GNMGOOD		; yup
+	cmp	#'z'+1		; make sure it is alpha numeric
+	bcs	GNMBAD		; nope
+	cmp	#'A'		; well?
+	bcc	GNMBAD		; nope
+	cmp	#'a'		; little char?
+	bcs	GNMGOOD		; yup
+	cmp	#'Z'+1		; big char
+	bcs	GNMBAD		; nope
+GNMGOOD:
+	ldx	CHRCNT		; get name index
+	cpx	#MAX_SAVENAME	; just get so many characters
+	bcs	GNMBAD		; beep at user
+	inc	CHRCNT		; point to next char
+	sta	LBUFF,X		; save name char
+GNMSHOW:
+	jsr	CHAR		; show character
+	jsr	DISP_LINE	; make sure it is there
+	jmp	GNAME		; go get next char
+;
+; got the name, so copy it to the SAVENAME buffer
+;
+GOTNAME:
+        lda     CHRCNT          ; did we get any?
+        beq     GTNMERR         ; nope
+        lda     LBUFF           ; make sure first name is a directory
+        cmp     #'/'            ; is it?
+        beq     GTNM1           ; yup, probly okay then
+GTNMERR:
+	lda	#0		; clear CHRCNT so name doesn't get
+	sta	CHRCNT		; output again
+        DLINE   PREFIX_ERR      ; complain and die
+        sec                     ; show bad name
+        bcs     GNX             ; all done
+GTNM1:
+        ldx     #0              ; now check to make sure there are 2
+        ldy     #$FE            ; use this as counter
+GTNMCHK:
+        lda     LBUFF,X         ; get char
+        inx                     ; next char
+        cmp     #'/'            ; prefix deliminator?
+        bne     GTNMCHK1        ; nope
+        iny                     ; count this one
+        beq     GTNM2           ; we have 2 of them
+GTNMCHK1:
+        cpx     CHRCNT          ; at end?
+        beq     GTNMERR         ; yes, and no 2 '/'s
+        bne     GTNMCHK         ; go check next char
+GTNM2:
+        cpx     CHRCNT          ; make sure there are chars after prefix
+        beq     GTNMERR         ; nope, still an error
+        ldx	CHRCNT		; get how many characters
+	stx	SNAMEL		; save in length byte
+	dex			; points one too far
+GNL:
+	lda	LBUFF,X		; get the char
+	sta	SAVENAME,X	; save the char
+	dex			; point to previous one
+	bpl	GNL		; and go get it
+	clc			; show did just fine
+GNX:
+	php			; save status
+	lda	#0		; and clear CHRCNT
+	sta	CHRCNT		; okay
+	lda	#EOL		; print EOL
+	jsr	CHAR		; okay
+	jsr	SWAPBACK	; change back to old window
+	plp			; get status back
+	rts			; all done
+;
+; open up a save file, by first trying to create it.  If it already exists
+; then make sure the player wants to delete the file, then get rid of it.
+; Finally open the file.  Return with carry set if user aborts the save.
+; Store the ref number into the write parm block.
+;
+OPEN_SAVE:
+	CREATE	CREATE_PB	; first try to create the file
+	bcc	OPSV_OPEN	; created just fine, so open it
+;
+; can't create the file, check out why
+;
+	cmp	#$47		; this means file already there	
+	beq	OPSV1		; nope, not that
+	jmp	DISK_ERR	; show badness
+OPSV1:
+	DLINE	DELQ		; ask about deleting this file
+	jsr	GETYN		; get me the yes or no
+	bcc	OPSV_OPEN	; so then delete it if yes
+	rts			; nope, so just quit
+OPSV_OPEN:
+	OPEN	OPEN_SV		; open the save file
+	bcc	OPSV_OP1	; okey, things worked just fine
+	jmp	DISK_ERR		; complain about error
+OPSV_OP1:
+	lda	OPEN_SV+OP_REFNUM	; get the ref number
+	sta	WRITE_SV+WR_REFNUM	; save the ref number
+	sta	CLOSE_PB+CL_REFNUM	; to close parm too
+        sta     SETEOF_PB+SE_REFNUM     ; for cleansing file
+        SET_EOF SETEOF_PB       ; clear out file
+        bcc     OPSVEX          ; no problems
+        jsr     DISK_ERR        ; complain
+OPSVEX:
+	rts			; file has been opened, return
+;
+; OPEN_RES - open the save file
+;
+OPEN_RES:
+	OPEN	OPEN_SV		; open it up
+	bcc	OPR1		; okay, it worked
+	rts			; okay, it didn't
+OPR1:
+	lda	OPEN_SV+OP_REFNUM ; get reference number
+	sta	READ_PB+RD_REFNUM ; save for read
+	sta	CLOSE_PB+CL_REFNUM ; and for close
+	rts
+;
+; CLOSE_SAVE - close up the save file if it is open, and
+;       restore open game files
+;
+CLOSE_SAVE:
+	lda	CLOSE_PB+CL_REFNUM ; check if it opened
+	beq	CLSVX		; okay, nothing
+	CLOSE	CLOSE_PB	; close the save file
+CLSVX:
+;	lda	#1              ; flag is true
+;	sta	SAVEDISK	; show we have a save disk in there
+;        jsr     SET_GAMEPRE     ; go get the last one used
+;	jsr	FETCH_FILE	; this does it
+	ldx	GAME1NML	; get length of current name
+	lda	GAME1NM,X	; get the number of the file
+	sta	SAVENUM 	; we need this to look for prefix
+        sta     SAVEDISK        ; show taking out save disk, not game disk        
+	jsr	DO_GAME1        ; open up GAME1 file
+	lda	D2SEG+HI	; set DSEGS to point to #2
+	sta	DSEGS+HI
+	lda	D2SEG+LO
+	sta	DSEGS+LO
+	ldx	GAME2NML	; get length of current name
+	lda	GAME2NM,X	; get the number of the file
+	sta	SAVENUM 	; we need this to look for prefix
+	jsr	OPEN_GAME2	; open up GAME2 file
+	ldy	#0		; open up GAME2 file, just for kicks
+	sty	SAVEDISK	; show we have a save disk in there
+	sty	CLOSE_PB+CL_REFNUM	; clear close
+        iny                     ; set for true        
+	sty	SCRIPT		; allow scripting again
+	rts			; DONE
+;
+; CLOSE_GAME - close the current game file(s)
+;	and set DSEGS to point to preload so it will reopen them
+;
+CLOSE_GAME:
+	lda	#0			; show no files are open
+	sta	CLOSE_PB+CL_REFNUM	; 0 closes all files
+	sta	GAME1REF		; zero out two game files too
+	sta	GAME2REF		; and here is number 2
+        sta     PF_FID                  ; clear this too
+	CLOSE	CLOSE_PB		; now all are closed
+	rts
+;
+; Get answer to Yes/No question.  Return with C==0 for yes, and C==1
+; for a no.  RETURN == Yes, ESCAPE == NO
+;
+GETYN:
+	jsr	GETKEY		; get the key strok
+	cmp	#'y'		; IF REPLY IS "Y"
+	beq	ALLSET		; ACCEPT RESPONSES
+	cmp	#'Y'		; get both y's
+	beq	ALLSET	
+	cmp	#EOL		; EOL IS ALSO ACCEPTABLE
+	beq	ALLSET	
+	cmp	#'n'		; IF REPLY IS "N"
+	beq	NOTSAT		; return with carry set
+	cmp	#'N'		; check both n's
+	beq	NOTSAT	
+	cmp	#ESCAPE		; check for ESC key too
+	beq	NOTSAT		; which means no
+	jsr	BEEP		; ELSE BEEP
+	jmp	GETYN		; INSIST ON Y OR N
+NOTSAT:
+	DLINE	NO		; PRINT "NO"/EOL
+	sec			; set the carry
+	rts			; and show it
+ALLSET:
+	DLINE	YES  		; Print "YES"/EOL
+	clc			; clear the carry
+	rts
+GETRET:
+	DLINE	RETQ		; ask for return
+GETRETL:
+	jsr	GETKEY		; get a key
+	cmp	#EOL		; return key?
+	bne	GETRETL		; nope
+	jsr	CHAR		; show the <CR>
+	rts
+		
+; ---------
+; SAVE GAME
+; ---------
+ZSAVE:
+	lda	#'N'
+	ldx	NARGS
+	beq	OLDSAV		; NORMAL, COMPLETE SAVE
+	lda	#'P'
+OLDSAV:
+	sta	TYPE
+	jsr	SAVRES		; set up screen
+	jsr	GET_SNAME	; get the name of the save file
+	bcs	ZSEXIT		; don't wanna after all
+	jsr	OPEN_SAVE	; open the file
+	bcs	ZSEXIT		; don't really care to
+;
+; SAVE GAME PARAMETERS IN [BUFSAV]
+;		
+	lda	ZBEGIN+ZID	; MOVE GAME ID
+	sta	BUFSAV+0	; INTO 1ST 2 BYTES
+	lda	ZBEGIN+ZID+1	; OF THE A
+	sta	BUFSAV+1	
+	lda	ZSP+LO		; MOVE [ZSP]
+	sta	BUFSAV+2	
+	lda	ZSP+HI	
+	sta	BUFSAV+3	
+	lda	OLDZSP+LO	
+	sta	BUFSAV+4	
+	lda	OLDZSP+HI	; MOVE [OLDZSP]
+	sta	BUFSAV+5	
+	ldx	#2		; MOVE CONTENTS OF [ZPC]
+ZSL1:	lda	ZPC,X		; TO BYTES 7-9
+	sta	BUFSAV+6,X	; OF [BUFSAV]
+	dex		
+	bpl	ZSL1	
+	lda	TYPE
+	sta	BUFSAV+9	; NORMAL OR PARTIAL
+	cmp	#'P'
+	bne	ZSNONM		; NORMAL SAVE SO NO name TO SAVE
+
+	lda	ARG3+LO		; set up FPC to get save name
+	sta	FPCL		; lo part is okay
+	lda	ARG3+HI		; get page
+	jsr	SETPC		; get memory addr
+	sta	FPCH		; page number
+	sty	FPCBNK		; and bank
+	jsr	FETCHB		; get count
+	sta	I		; and save it
+	jsr	NEXTFPC		; point to next byte
+	lda	#0		; set up data offset
+	sta	J		; did it
+ZSL3:
+	jsr	FETCHB		; get data byte
+	ldy	J		; get offset
+	sta	BUFSAV+10,Y	; save into buffer
+	jsr	NEXTFPC		; point to next byte
+	inc	J		; next byte
+	dec	I		; count it
+	bne	ZSL3		; loop again
+ZSNONM:
+;
+; WRITE [LOCALS]/[BUFSAV] PAGE TO DISK
+;
+	lda	#MAIN		; in the main bank
+	sta	DSKBNK		; thank you
+	lda	#>LOCALS	; start at locals
+	sta	DBUFF+HI	; POINT TO THE PAGE
+	jsr	PUTDSK		; AND WRITE IT OUT
+	bcc	ZSOK		; IF SUCCEEDED, WRITE STACK
+ZSBAD:
+	jsr	DISK_ERR	; print error message
+        SET_EOF SETEOF_PB       ; clear out file, maybe
+ZSEXIT:
+	jsr	CLOSE_SAVE	  ; else get game file back
+	jmp	RET0		; AND FAIL
+;
+; IF A PARTIAL SAVE WRITE FROM ARG1 FOR ARG2 BYTES TO DISK
+; (ROUNDED TO PGS) SKIPPING ZSTACK WRITE
+;
+ZSOK:
+	lda	TYPE
+	cmp	#'P'
+	bne	ZSALL
+	lda	ARG1+HI		; find where to start & how far to go
+	jsr	SETPC		; get page in memory
+        pha                     ; save for minute
+        and     #$01            ; check for odd page
+        beq     ZSP1            ; nope, don't make one more page
+        inc     ARG2+HI         ; go get one more page
+ZSP1:
+        pla                     ; get it back
+        and     #$FE            ; must be on block boundary
+	sta	DBUFF+HI	; this is page
+	sty	DSKBNK		; which bank
+	ldx	ARG2+HI		; get MSB of count
+	lda	ARG1+LO		; get lo offset
+	clc			; add
+	adc	ARG2+LO		; lo count
+	bcc	ZSPINC		; no extra page
+	inx			; wrapped extra page
+ZSPINC:
+        bne     SAVE2DISK       ; go copy it now
+;
+; WRITE CONTENTS OF Z-STACK TO DISK
+;
+ZSALL:
+	lda	#>ZSTKBL	; point to 1st page
+	sta	DBUFF+HI        
+	jsr	PUTDSK		; write them, first one
+	bcs	ZSBAD
+	jsr	PUTDSK		; write them, second one
+	bcs	ZSBAD
+;
+; WRITE ENTIRE GAME PRELOAD TO DISK
+;
+	lda	#>ZBEGIN	; POINT TO 1ST PAGE
+	sta	DBUFF+HI	; OF PRELOAD
+	ldx	ZBEGIN+ZPURBT	; GET # IMPURE PAGES
+SAVE2DISK:
+	inx			; use for counting
+	stx	I+LO
+        lsr     I+LO            ; /2 for 512byte pages
+        bcc     ZSL2            ; no wrapping
+        inc     I+LO            ; wrapped once
+ZSL2:
+	jsr	PUTDSK          ; this does the write
+	bcs	ZSBAD
+	dec	I+LO            ; count one page
+	bne	ZSL2            ; not done yet
+
+	jsr	CLOSE_SAVE	; prompt for game file
+
+	IF	CHECKSUM == 1
+	lda	CKS_COUNT
+	jsr	HEXNUM
+	lda	CKSB
+	jsr	HEXNUM
+	lda	#EOL
+	jsr	CHAR
+	ENDIF
+
+	lda	#1		; set to mark
+	ldx	#0
+	jmp	PUTBYT		; SUCCESS
+
+; ------------
+; RESTORE GAME
+; ------------
+
+ZREST:
+	lda	#'N'
+	ldx	NARGS
+	beq	OLDRES		; NORMAL, COMPLETE RESTORE
+	lda	#'P'		; partial restore
+OLDRES:
+	sta	TYPE		; save which kind of restore
+;	
+; SAVE LOCALS IN CASE OF ERROR
+;
+	ldx	#31
+LOCSAV:	lda	LOCALS,X	; COPY ALL LOCALS
+	sta	LOCAL_SV,X	; to a save spot
+	dex
+	bpl	LOCSAV
+
+	jsr	GET_SNAME	; get the name of the file
+	bcs	ZRQUIT		; okay, don't do it
+	jsr	OPEN_RES	; open the restore file
+	bcs	ZRBAD		; can't do it
+
+	lda	TYPE		; PARTIAL SAVE DIFFERS STARTING HERE
+	cmp	#'P'
+	bne	ZRNRML
+	jmp	ZPARTR		; just a partial restore
+ZRNRML:
+	lda	#MAIN
+	sta	DSKBNK		; SET TO WRITE TO MAIN BANK
+	lda	#>LOCALS
+	sta	DBUFF+HI
+	lda	#2              ; must read in two pages
+	sta	L+LO
+	jsr	GETRES		; RETRIEVE 1ST BLOCK OF PRELOAD
+	bcs	ZRBAD           ; didn't work!
+        lda     READ_PB+RD_LENGTH+HI ; see how much was read in
+        cmp     #2              ; were 2 blocks read in?
+        bne     ZRQUIT          ; wrong kind of file for complete save
+
+	lda	BUFSAV+0	; DOES 1ST BYTE OF SAVED GAME ID
+	cmp	ZBEGIN+ZID	; MATCH THE CURRENT ID?
+	bne	ZRQUIT		; WRONG DISK IF NOT
+
+	lda	BUFSAV+1	; WHAT ABOUT THE 2ND BYTE?
+	cmp	ZBEGIN+ZID+1
+	beq	ZROK		; CONTINUE IF BOTH BYTES MATCH
+ 	bne	ZRQUIT		; skip disk error message
+;
+; HANDLE RESTORE ERROR
+;
+ZRBAD:
+	jsr	DISK_ERR	; print error message
+ZRQUIT:
+	ldx	#31		; RESTORE ALL SAVED LOCALS
+ZRL2:	lda	LOCAL_SV,X
+	sta	LOCALS,X
+	dex
+	bpl	ZRL2
+BADRES:
+	jsr	CLOSE_SAVE	  ; PROMPT FOR GAME DISK
+	jmp	RET0		; PREDICATE FAILS
+;
+; CONTINUE RESTORE
+;
+ZROK:
+	lda	ZBEGIN+ZFLAGS	; save both flag bytes
+	sta	J+LO
+	lda	ZBEGIN+ZFLAGS+1
+	sta	J+HI
+
+	lda	#>ZSTKBL	; retrieve old contents of
+	sta	DBUFF+HI	; z-stack
+	lda	#4		; do 4 pages
+	sta	L+LO		; tell GETRES how many pages
+	jsr	GETRES		; get 4 pages of z-stack
+	bcc	ZROKL1
+	jmp	DISK_FATAL	; if here, mix of good & bad so die
+ZROKL1:
+	lda	#>ZBEGIN	; get where we are
+	sta	DBUFF+HI
+	lda	ZBEGIN+ZPURBT	; get # pages to load
+	sta	I+LO
+        inc     I+LO            ; go get last page if possible
+LREST0:
+	lda	I+LO		; how many pages left
+        beq     LRESTj          ; finis
+	sec			; doing subtract
+	sbc	#4		; doing it 4 blocks at a time
+	bcc	LREST1		; <4 blocks left so deal with it special
+	sta	I+LO		; save remenants
+LREST:
+	lda	#4		; assume at least 4 pages
+	sta	L+LO		; this tells GETRES how many to read in
+	jsr	GETRES		; fetch the remainder
+	bcc	LREST0
+	jmp	DISK_FATAL
+LREST1:
+	lda	I+LO		; get how many left
+	sta	L+LO		; and show it to GETRES
+        and     #$1             ; is it odd?
+        beq     LREST2          ; nope
+        inc     L+LO            ; read one more
+LREST2:
+	jsr	GETRES		; and finish it up
+;
+; RESTORE THE STATE OF THE SAVED GAME
+;
+LRESTj:
+	lda	J+LO		; RESTORE THE STATE
+	sta	ZBEGIN+ZFLAGS	; OF THE FLAG WORD
+	lda	J+HI
+	sta	ZBEGIN+ZFLAGS+1
+
+	lda	BUFSAV+2	; RESTORE THE [ZSP]
+	sta	ZSP+LO
+	lda	BUFSAV+3
+	sta	ZSP+HI
+	lda	BUFSAV+4
+	sta	OLDZSP+LO
+	lda	BUFSAV+5	; AND THE [OLDZSP]
+	sta	OLDZSP+HI
+
+	ldx	#2		; RESTORE THE [ZPC]
+ZRL4:	lda	BUFSAV+6,X
+	sta	ZPC,X
+	dex
+	bpl	ZRL4
+
+ZROUT:	jsr	CLOSE_SAVE	  ; PROMPT FOR GAME DISK
+	jsr	VLDZPC		; MAKE VALID (MUST DO AFTER GET DISK)
+
+	IF	CHECKSUM == 1
+	lda	CKS_COUNT
+	jsr	HEXNUM
+	lda	CKSB
+	jsr	HEXNUM
+	lda	#EOL
+	jsr	CHAR
+	ENDIF
+
+	lda	#2		; SET TO
+	ldx	#0
+	jmp	PUTBYT		; SUCCESS
+
+
+	; DO PARTIAL RESTORE GETTING 1ST PAGE 
+	; AND LAST PAGE BYTE ALIGNMENT CORRECT
+        ; WRITE LOCALS TO IOBUFF JUST TO LOOK AT NAME
+ZPARTR:	
+	lda	#MAIN
+	sta	DSKBNK
+	lda	#>IOBUFF	; DON'T READ TO LOCALS YET (X)
+	sta	DBUFF+HI
+	lda	#2		; just one block please
+	sta	L+LO
+	jsr	GETRES		; RETRIEVE 1ST BLOCK OF PRELOAD
+	bcc     ZRN2            ; worked just fine
+ZPBAD:
+        jmp	BADRES		; names don't match, die
+ZRN2:
+	lda	ARG3+LO		; set up FPC to get save name
+	sta	FPCL		; lo part is okay
+	lda	ARG3+HI		; get page
+	jsr	SETPC		; get memory addr
+	sta	FPCH		; page number
+	sty	FPCBNK		; and bank
+	jsr	FETCHB		; get count
+	sta	I		; and save it
+	jsr	NEXTFPC		; point to next byte
+	lda	#<BUFSAV	; get bufsav offset
+	clc			; and add
+	adc	#10		; name offset
+	sta	J		; did it
+ZRN3:
+	jsr	FETCHB		; get data byte
+	ldy	J		; get offset
+	cmp	IOBUFF,Y	; save into buffer
+	bne	ZPBAD		; okay, then it's not it
+	jsr	NEXTFPC		; point to next byte
+	inc	J		; next byte
+	dec	I		; count it
+	bne	ZRN3		; loop again
+
+	lda	ARG1+HI		; FIND WHERE TO START & HOW FAR TO GO
+	jsr	SETPC		; get page in memory
+	sta	SPCH		; this is page
+	sty	SPCBNK		; which bank
+	lda	ARG1+LO		; START BYTE FIRST PAGE
+	sta	SPCL
+
+	ldx	ARG2+HI
+	stx	J+HI
+	ldx	ARG2+LO
+	stx	J+LO            ; how many to get
+
+	jsr	DECJ		; correct alignment for this usage
+POK:
+	lda	#>IOBUFF	; get 1st page
+	sta	DBUFF+HI	; getres should keep in iobuff
+        sta     ZPARTMOD+2      ; and show where to get it from
+        lda     #$01            ; is it odd
+        bit     SPCH            ; get page destination
+        beq     ZPARTx          ; nope
+        inc     ZPARTMOD+2      ; then get second page worth
+ZPARTx:
+	lda	#2		; just do one block
+	sta	L+LO
+	jsr	GETRES
+	bcc	ZPART0
+	jmp	DISK_FATAL	; ALL MESSED UP, JUST QUIT
+ZPART0:
+	ldy	ARG1+LO		; START BYTE FIRST PAGE
+ZPARTMOD:
+	lda	IOBUFF,Y        ; this gets modified with good page #
+	jsr	STASHB
+	jsr	NEXTSPC
+	jsr	DECJ
+	bcs	ZPART1		; CARRY CLEAR IF $FFFF RESULT
+	jmp	ZROUT
+ZPART1:
+	inc	ARG1+LO
+	bne	ZPART0
+        lda     #>IOBUFF+1      ; this is second page address
+        cmp     ZPARTMOD+2      ; is it second one already?
+	beq	POK		; yes, so read in a new block
+        sta     ZPARTMOD+2      ; then update it 
+        bne     ZPART0          ; and do it again
+;
+; THE OLD SAVE & RESTORE STILL HAVE OPCODES
+; SO JUST PUT IN A PLACE FOR THEM HERE FOR NOW
+;
+OSAVE:
+OREST:	RTS
+
+ZISAVE:
+ZIREST:	JMP	RET0	; NOT IMPLEMENTED ON APPLE
+	END

@@ -1,0 +1,650 @@
+;
+;  procedure dissBits (srcBits, dstBits: bitMap; srcRect, dstRect: rect); external;
+;
+; kludged-up version with optimizations and irrelevant error checks removed to save space.
+; also moved to the "aboutseg" segment.
+;
+; mike morton
+; release: 4 july 1985
+;
+; this is the fifth version.  if it doesn't work right, try using copyBits instead
+; and see if it works.	and if there are bugs, they're likely due to the recent
+; fancy optimizations, so version three should work instead.
+;
+; differences from version 4 are:
+;	nasty bug fixed in copying small rectangles
+;	new address for correspondence
+;	slightly more detailed notes on calling from C
+;	various miscellaneous comment changes
+; differences from version 3 are:
+;	bugs in the log2 routine fixed
+;	general case sped up about five percent
+;	certain cases (e.g., the full screen) sped up over fifty percent
+;	the time to dissolve is not directly related to the size of the rectangle.
+; differences between version 2 and version 3 are:
+;	documentation improved and neatened
+;	log2 routine rewritten
+;
+; comments and suggestions are, of course, welcome.
+;
+; ******************************************************************************
+; *									       *
+; *		    copyright 1984, 1985 by michael s. morton		       *
+; *    please see details below on using, copying and changing this source.    *
+; *									       *
+; ******************************************************************************
+;
+; what this routine does:
+; ----------------------
+;
+; dissBits is like copyBits: it moves one rectangle to another, in their respective
+; bitMaps.  it doesn't implement the modes of copyBits, nor clipping to a region.
+; what it DOES do is copy the bits in a pseudo-random order, giving the appearance
+; of "dissolving" from one image to another.  the dissolve is rapid: the entire
+; screen will dissolve in under four seconds.  (note: smaller areas may be SLOWER
+; to dissolve -- see below.)
+;
+; copyBits pay attention to the current clipping.  be aware that this routine does
+; no such thing.
+;
+; other likely differences from copyBits:
+;     o  the rectangles must have the same extents (not necessarily the same lrbt).
+;	 if they are not, the routine will return -- doing nothing!  no stretching
+;	 copy is done as copyBits would.
+;     o  the cursor is hidden during the dissolve, since drawing is done without
+;	 quickdraw calls.  the cursor reappears when the drawing is finished.  for
+;	 an odd effect, try changing it not to hide the cursor; is this how bill
+;	 atkinson thought of the spray can in MacPaint?
+;     o  copyBits may be smart enough to deal with overlapping areas of memory.
+;	 this routine certainly isn't.
+;     o  i may have misunderstood how to interpret rectangle bounds in quickdraw.
+;	 if your rectangles are off by a pixel, let me know.
+;
+; you should know a few implementation details which may help:
+;     o  copying from a dark area (lots of 1 bits) is slower than from a light area.
+;	 but just barely.  (about one per cent, i think.)
+;     o  there is no way to use this to randomly invert a rectangle.  instead,
+;	 copyBits it elsewhere, invert it, and dissBits it back into place.
+;     o  there is also no way to slow the dissolve of a small area.  to do this,
+;	 copy a large area in which the only difference is the area to change.
+;     o  if you fade in a solid area, you're likely to see patterns, since the
+;	 random numbers are so cheesy.	don't do this; fade in nifty patterns
+;	 which will distract your viewers.
+;     o very small areas (less than 2 pixels in either dimension) are actually
+;	done with a call to the real copyBits routine, since the pseudo-random
+;	sequence generator falls apart under those conditions.
+;
+; a close relative of this routine is "dissBytes", which (as you might guess) copies
+; a byte at a time, which is really fast (the whole screen in .1 or .2 seconds).  it
+; works only for certain rectangles.
+;
+; sample calling code:
+; -------------------
+;
+; this is an excerpt from how a prerelease of DarTerminal called this routine.
+; note the clever use of "paintbehind".  this took about 3 seconds to dissolve
+; onto the screen.
+;
+;var   rg:	rgnhandle;			(* window to copy into *)
+;      aport:	grafptr;			(* port to draw into *)
+;      bits:	bitmap; 			(* new bitmap for that port *)
+;      r:	rect;				(* rectangle to draw into *)
+;      pat:	pattern;
+;      text:	packed array[1..37] of char;
+; ...
+;   aport := grafptr(newptr(sizeof(grafport))); (* get a port *)
+;   openport(aport);				(* make it current *)
+;
+;   r := theport^.portbits.bounds;		(* start with the whole screen *)
+;   insetrect(r,100,100);			(* get rect the size of the window *)
+;   (* note that the number of bytes per row must be even! *)
+;   bits.rowbytes := (((r.right-r.left)+15) div 16) * 2; (* bytes per row *)
+;   bits.baseaddr := qdptr(newptr(bits.rowbytes*(r.bottom-r.top))); (* get bitmap *)
+;   bits.bounds := r;				(* set boundary *)
+;
+;   setportbits(bits);				(* make that new bitmap current *)
+;
+;   eraserect(r);
+;   textfont(london); textsize(18); textface([bold]);
+;   text := 'DarTerminal version -1.9  August 1984';
+;   textbox(@text,37,r,tejustcenter);
+;
+;   dissbits(bits,screenport^.portbits,r,r);	(* dissolve it in *)
+;
+;   repeat until getnextevent(mdownmask+keydownmask,anevent); (* let user marvel *)
+;
+;   rg := newrgn;				(* get a region to clip with *)
+;   rectrgn(rg,r);				(* as a rectangle *)
+;   paintbehind(windowpeek(frontwindow),rg);
+;
+;   disposergn(rg);
+;   disposptr(ptr(bits.baseaddr));
+;   disposptr(ptr(aport));
+;
+;
+; calling from languages other than pascal:
+; ----------------------------------------
+;
+; this routine uses the standard Lisa Pascal calling sequence.	to convert it to
+; most C compilers, you'll probably just have to delete this instruction from near
+; the end of the main routine:
+;	add.l #psize,A7 		; unstack parameters
+;
+; i'd be very interested in hearing about successful uses of this routine from
+; other languages.
+;
+; speed of the dissolve: (not relevant in this version)
+; ---------------------
+;
+; you need to pay attention to this section only if: (a) you want the dissolve to
+; run as fast as it can OR (b) you do dissolves of various sizes and want them to
+; take proportionate lengths of time.
+;
+; there are 3 levels of speedup; the correct one is automatically chosen  for you:
+; (1) an ordinary dissolve will work when moving from any bitmap to any bitmap,
+;     including on the Lisa under MacWorks.  this will dissolve at about 49
+;     microseconds per pixel.  a rectangle one-quarter the size of the screen will
+;     dissolve in just over two seconds.  the speed per pixel will vary slightly,
+;     and will be less if your rect extents are close to but less than powers of 2.
+; (2) the dissolve will speed up if both the source and destination bitmaps have
+;     rowBytes fields which are powers of two.	if you're copying to the screen on
+;     a mac, the rowBytes field already satisfies this.  so, make your source
+;     bitmap the right width for a cheap speedup -- about 20% faster.
+; (3) the fanciest level is intended for copying the whole screen.  it'll paint it
+;     in about 3.4 seconds (19 microseconds per pixel).  actually, painting any
+;     rectangle which is the full width of the screen will run at this speed, for
+;     what that's worth.
+;
+; duplication and use of this routine:
+; -----------------------------------
+;
+; this is freeware.  you're welcome to copy it and use it in programs.  you're
+; welcome to modify it, as long as you leave everything up until this section
+; unchanged.  i'd be very interested in seeing your changes, especially if you find
+; a way to make the central loop faster.  you're also welcome to port it to other
+; machines/languages; i'd appreciate hearing about efforts to do this.
+;
+; if you use it for profit, i ask that you pay me for my work.	why?
+;
+;	o if you have problems using it, i'll try to help you debug it.
+;	o i'll send you improved, debugged, faster versions.
+;	o i'll tell you about future products.  this is the first thing i
+;	  wrote for the Mac; wouldn't you like to see what else i've produced?
+;	  send me some positive feedback!
+;
+; how much should you pay?  my suggestion is:
+;	(cost of one copy of the program) * (log10 of number of copies sold)
+; if the subroutine is an integral part of your program, double the amount.
+; if it's a frill (e.g., you dissolve in your "About MacWhatever"), halve it.
+;
+; i find it hard to believe that any damages to you or anyone else could come from
+; bugs in this routine.  but, alas, whether or not you pay me, i can't be
+; liable in any way for any problems in it.
+;
+; send comments, contributions, criticisms, or whatever to:
+;	mike morton
+;	INFOCOM
+;	125 CambridgePark Dr.
+;	Cambridge, MA  02140
+;
+; if, for some reason, you only have a hard copy of this and would like a source on
+; a diskette, please contact:
+;	robert hafer
+;	the boston computer society
+;	one center plaza
+;	boston, mass.  02108
+;
+
+;
+;	-- end of introduction; real stuff starts here --
+;
+
+;
+; things left to do:
+; -----------------
+;
+; clean up register usage (as if i'll ever actually get around to this)
+;
+
+;
+; include files:
+;	tlasm/graftypes -- definitions of "bitMap" and "rect"
+;	tlasm/quickmacs -- macros for quickdraw calls (e.g., _hidecursor)
+;
+
+
+	BLANKS	ON
+	STRING	ASIS
+
+ PRINT	 OFF
+ INCLUDE  'quickequ.a'		 ; NEW FOR MPW -- dbb
+ INCLUDE  'traps.a'		 ; NEW FOR MPW -- dbb
+ PRINT	 ON
+
+;
+; definitions of the "ours" record: this structure, of which there are two copies in
+; our stack frame, is a sort of bitmap:
+;
+
+oRows	EQU  0				; (word) number of last row (first is 0)
+oCols	EQU  oRows+2			; (word) number of last column (first is 0)
+oLbits	EQU  oCols+2			; (word) size of left margin within 1st byte
+oStride EQU  oLbits+2			; (word) stride in memory from row to row
+oBase	EQU  oStride+2			; (long) base address of bitmap
+
+osize	EQU  oBase+4			; size, in bytes, of "ours" record
+
+;
+; stack frame elements:
+;
+
+srcOurs EQU  -osize			; (osize) our view of source bits
+dstOurs EQU  srcOurs-osize		; (osize) our view of target bits
+
+sflast	EQU  dstOurs			; relative address of last s.f. member
+sfsize	EQU  -sflast			; size of s.f. for LINK (must be EVEN!)
+;
+;	parameter offsets from the stack frame pointer, A6:
+;	last parameter is above return address and old s.f.
+;
+
+dRptr	EQU  4+4			; ^destination rectangle
+sRptr	EQU  dRptr+4			; ^source rectangle
+dBptr	EQU  sRptr+4			; ^destination bitMap
+sBptr	EQU  dBptr+4			; ^source bitMap
+
+plast	EQU  sBptr+4			; address just past last parameter
+
+psize	EQU  plast-dRptr		; size of parameters, in bytes
+
+;
+; entrance: set up a stack frame, save some registers, hide the cursor.
+;
+
+ SEG	 'AboutSeg'			 ; put us in the code with "about"
+dissBits PROC	 EXPORT 
+
+	link A6,#-sfsize		; set up a stack frame
+	movem.l D3-D7/A2-A5,-(A7)	; save registers compiler may need
+	_hidecursor			; don't let the cursor show for now
+
+;
+; convert the source and destination bitmaps and rectangles to a format we prefer.
+; we won't look at these parameters after this.
+;
+
+	move.l sBptr(A6),A0		; point to source bitMap
+	move.l sRptr(A6),A1		; and source rectangle
+	lea srcOurs(A6),A2		; and our source structure
+	bsr CONVERT			; convert to our format
+
+	move.l dBptr(A6),A0		; point to destination bitMap
+	move.l dRptr(A6),A1		; and rectangle
+	lea dstOurs(A6),A2		; and our structure
+	bsr CONVERT			; convert to our format
+
+;
+; check that the rectangles match in size.
+;
+	move.w srcOurs+oRows(A6),D0	; pick up the number of rows
+	cmp.w dstOurs+oRows(A6),D0	; same number of rows?
+	bne ERROR			; nope -- bag it
+
+	move.w srcOurs+oCols(A6),D0	; check the number of columns
+	cmp.w dstOurs+oCols(A6),D0	; same number of columns, too?
+	bne ERROR			; that's a bozo no-no
+
+;
+; figure the bit-width needed to span the columns, and the rows.
+;
+
+	move.w srcOurs+oCols(A6),D0	; get count of columns
+	ext.l D0			; make it a longword
+	bsr LOG2			; figure bit-width
+	move.w D0,D1			; set aside that result
+
+	move.w srcOurs+oRows(A6),D0	; get count of rows
+	ext.l D0			; make it a longword
+	bsr LOG2			; again, find the bit-width
+
+;
+; set up various constants we'll need in the in the innermost loop
+;
+
+	move.l #1,D5			; set up...
+	lsl.l D1,D5			; ...the bit mask which is...
+	sub.l #1,D5			; ...bit-width (cols) 1's
+
+	add.w D1,D0			; find total bit-width (rows plus columns)
+	lsl.w #2,D0			; make the stride right [sic?] (longwords)
+	lea TABLE,A0			; point to the table of XOR masks
+	move.l 0(A0,D0),D3		; grab the correct XOR mask in D3
+
+	move.l D3,D0			; 1st sequence element is the mask itself
+
+	move.l srcOurs+oBase(A6),D2	; set up base pointer for our source bits
+	lsl.l #3,D2			; make it into a bit address
+	move.l D2,A0			; put it where the fast loop will use it
+	move.w srcOurs+oLbits(A6),D2	; now pick up source left margin
+	ext.l D2			; make it a longword
+	add.l D2,A0			; and make A0 useful for odd routine below
+
+	move.l dstOurs+oBase(A6),D2	; set up base pointer for target
+	lsl.l #3,D2			; again, bit addressing works out faster
+	move.l D2,A1			; stuff it where we want it for the loop
+	move.w dstOurs+oLbits(A6),D2	; now pick up destination left margin
+	ext.l D2			; make it a longword
+	add.l D2,A1			; and make A1 useful, too
+
+	move.w srcOurs+oCols(A6),A2	; pick up the often-used count of columns
+	move.w srcOurs+oRows(A6),D2	; and of rows
+	add.w #1,D2			; make row count one-too-high for compares
+	ext.l D2			; and make it a longword
+	lsl.l D1,D2			; slide it to line up w/rows part of D0
+	move.l D2,A4			; and save that somewhere useful
+
+	move.w D1,D2			; put log2(columns) in a safe place (sigh)
+
+;
+; try to reduce the amount we shift down D2.  this involves:
+;    halving the strides as long as each is even, decrementing D2 as we go
+;    masking the bottom bits off D4 when we extract the row count in the loop
+;
+; alas, we can't always shift as little as we want.  for instance, if we don't
+; shift down far enough, the row count will be so high as to exceed a halfword,
+; and the dread mulu instruction won't work (it eats only word operands).  so,
+; we have to have an extra check to take us out of the loop early.
+;
+
+	move.w srcOurs+oStride(A6),D4	; pick up source stride
+	move.w dstOurs+oStride(A6),D7	; and target stride
+	move.w srcOurs+oRows(A6),D1	; pick up row count for kludgey check
+
+	tst.w D2			; how's the bitcount?
+	beq HALFDONE			; skip out if already down to zero
+
+HALFLOOP
+	btst #0,D4			; is this stride even?
+	bne HALFDONE			; nope -- our work here is done
+	btst #0,D7			; how about this one?
+	bne HALFDONE			; have to have both even
+
+	lsl.w #1,D1			; can we keep max row number in a halfword?
+	bcs HALFDONE			; nope -- D2 mustn't get any smaller!
+
+	lsr.w #1,D4			; halve each stride...
+	lsr.w #1,D7			; ...like this
+	sub.w #1,D2			; and remember not to shift down as far
+	bne.s HALFLOOP			; loop unless we're down to no shift at all
+
+HALFDONE				; no tacky platitudes, please
+	move.w D4,srcOurs+oStride(A6)	; put back source stride
+	move.w D7,dstOurs+oStride(A6)	; and target stride
+
+;
+; make some stuff faster to access -- use the fact that (An) is faster to access
+; than d(An).  this means we'll misuse our frame pointer, but don't worry -- we'll
+; restore it before we use it again.
+;
+
+	move.w srcOurs+oStride(A6),A5	; make source stride faster to access, too
+	move.l A6,-(A7) 		; save framitz pointer
+	move.w dstOurs+oStride(A6),A6	; pick up destination stride
+	clr.l D6			; we do only AND.W x,D6 -- but ADD.L D6,x
+
+;
+; main loop: map the sequence element into rows and columns, check if it's in bounds
+; and skip on if it's not, flip the appropriate bit, generate the next element in the
+; sequence, and loop if the sequence isn't done.
+;
+
+;
+; check the row bounds.  note that we can check the row before extracting it from
+; D0, ignoring the bits at the bottom of D0 for the columns.  to get these bits
+; to be ignored, we had to make A4 one-too-high before shifting it up this far.
+;
+
+LOOP					; here for another time around
+	cmp.l A4,D0			; is row in bounds?
+	bge.s NEXT			; no: clip this
+
+;
+; map it into the column; check bounds.  note that we save this check for second;
+; it's a little slower because of the move and mask.
+;
+; chuck sagely points out that when the "bhi" at the end of the loop takes, we
+; know we can ignore the above comparison.  thanks, chuck.  you're a great guy.
+;
+
+LOOPROW 				; here when we know the row number is OK
+	move.w D0,D6			; copy the sequence element
+	and.w D5,D6			; find just the column number
+
+	cmp.w A2,D6			; too far to the right? (past oCols?)
+	bgt.s NEXT			; yes: skip out
+
+	move.l D0,D4			; we know element will be used; copy it
+	sub.w D6,D4			; remove column's bits
+	lsr.l D2,D4			; shift down to row, NOT right-justified
+
+;
+; get the source byte, and bit offset.	D4 has the bit offset in rows, and
+; D6 is columns.
+;
+
+	move.w A5,D1			; get the stride per row (in bits)
+	mulu D4,D1			; stride * row; find source row's offset in bits
+	add.l D6,D1			; add in column offset (bits)
+	add.l A0,D1			; plus base of bitmap (bits [sic])
+	move.b D1,D7			; save the bottom three bits for the BTST
+	lsr.l #3,D1			; while we shift down to a word address
+	move.l D1,A3			; and save that for the test, too
+	not.b D7			; get right bit number (compute #7-D7)
+
+;
+; find the destination bit address and bit offset
+;
+
+	move.w A6,D1			; extract cunningly hidden destination stride
+	mulu D1,D4			; stride*row number = dest row's offset in bits
+	add.l D6,D4			; add in column bit offset
+	add.l A1,D4			; and base address, also in bits
+	move.b D4,D6			; set aside the bit displacement
+	lsr.l #3,D4			; make a byte displacement
+	not.b D6			; get right bit number (compute #7-D6)
+
+	btst D7,(A3)			; test the D7th bit of source byte
+	move.l D4,A3			; point to target byte (don't lose CC from btst)
+	bne.s SETON			; if on, go set destination on
+	bclr D6,(A3)			; else clear destination bit
+
+;
+; find the next sequence element.  see knuth, vol ii., page 29 for sketchy details.
+;
+
+NEXT					; jump here if D0 not in bounds
+	lsr.l #1,D0			; slide one bit to the right
+	bhi.s LOOPROW			; if no carry out, but not zero, loop
+	eor.l D3,D0			; flip magic bits...
+	cmp.l D3,D0			; ...but has this brought us to square 1?
+	bne.s LOOP			; if not, loop back; else...
+	bra.s DONE			; ...we're finished
+
+SETON
+	bset D6,(A3)			; source bit was on: set destination on
+
+	; copy of above code, stolen for inline speed -- sorry.
+	lsr.l #1,D0			; slide one bit to the right
+	bhi.s LOOPROW			; if no carry out, but not zero, loop
+	eor.l D3,D0			; flip magic bits...
+	cmp.l D3,D0			; ...but has this brought us to square 1?
+	bne.s LOOP			; if not, loop back; else fall through
+
+
+;
+; here when we're done; the (0,0) point may not have been done yet.  this is
+; really the (0,left margin) point.
+;
+
+DONE
+	move.l (A7)+,A6 		; and restore stack frame pointer
+
+	move.l srcOurs+oBase(A6),A0	; set up base pointer for our source bits
+	move.l dstOurs+oBase(A6),A1	; and pointer for target
+
+	move.w srcOurs+oLbits(A6),D0	; pick up bit offset of left margin
+	move.w dstOurs+oLbits(A6),D1	; and ditto for target
+	not.b D0			; flip to number the bits for 68000
+	not.b D1			; ditto
+	bset D1,(A1)			; assume source bit was on; set target
+	btst D0,(A0)			; was first bit of source on?
+	bne DONE2			; yes: skip out
+	bclr D1,(A1)			; no: oops!  set it right, and fall through
+
+;
+; return
+;
+
+DONE2					; here when we're really done
+ERROR					; we return silently on errors
+	_showcursor			; let's see this again
+	movem.l (A7)+,D3-D7/A2-A5	; restore lots of registers
+	unlk A6 			; restore caller's stack frame pointer
+	move.l (A7)+,A0 		; pop return address
+	add.l #psize,A7 		; unstack parameters
+	jmp (A0)			; home to mother
+
+;
+; -----------------------------------------------------------------------------------
+;
+; table of (longword) masks to XOR in strange Knuthian algorithm.  the first table
+; entry is for a bit-width of two, so the table actually starts two longwords before
+; that.  hardware jocks among you may recognize this scheme as the software analog
+; of a "maximum-length sequence generator".
+;
+
+table	EQU  *-8			; first element is #2; stride is four bytes
+ DC.L	 $00000003			 ; 2
+ DC.L	 $00000006			 ; 3
+ DC.L	 $0000000C			 ; 4
+ DC.L	 $00000014			 ; 5
+ DC.L	 $00000030			 ; 6
+ DC.L	 $00000060			 ; 7
+ DC.L	 $000000B8			 ; 8
+ DC.L	 $00000110			 ; 9
+ DC.L	 $00000240			 ; 10
+ DC.L	 $00000500			 ; 11
+ DC.L	 $00000CA0			 ; 12
+ DC.L	 $00001B00			 ; 13
+ DC.L	 $00003500			 ; 14
+ DC.L	 $00006000			 ; 15
+ DC.L	 $0000B400			 ; 16
+ DC.L	 $00012000			 ; 17
+ DC.L	 $00020400			 ; 18
+;;; guys above here are ignored, since we don't expect to dissolve more than a mac screen
+
+;
+; -----------------------------------------------------------------------------------
+;
+; convert -- convert a parameter bitMap and rectangle to our internal form.
+;
+; calling sequence:
+;	lea bitMap,A0			; point to the bitmap
+;	lea rect,A1			; and the rectangle inside it
+;	lea ours,A2			; and our data structure
+;	bsr CONVERT			; call us
+;
+; when done, all fields of the "ours" structure are filled in:
+;	oBase is the address of the first byte in which any bits are to be changed
+;	oLbits is the number of bits into that first byte which are ignored
+;	oStride is the stride from one row to the next, in bits
+;	oCols is the number of columns in the rectangle
+;	oRows is the number of rows
+;
+; registers used: D0, D1, D2
+;
+
+CONVERT
+
+;
+; save the starting word and bit address of the stuff:
+;
+       move.w top(A1),D0		; pick up top of inner rectangle
+       sub.w bounds+top(A0),D0		; figure rows to skip within bitmap
+       mulu rowbytes(A0),D0		; compute bytes to skip (relative offset)
+
+       add.l baseaddr(A0),D0		; find absolute address of first row to use
+
+       move.w left(A1),D1		; pick up left coordinate of inner rect
+       sub.w bounds+left(A0),D1 	; find columns to skip
+       move.w D1,D2			; copy that
+       and.w #7,D2			; compute bits to skip in first byte
+       move.w D2,oLbits(A2)		; save that in the structure
+
+       lsr.w #3,D1			; convert column count from bits to bytes
+       ext.l D1 			; convert to a long value, so we can...
+       add.l D1,D0			; add to row start in bitmap to find 1st byte
+       move.l D0,oBase(A2)		; save that in the structure
+
+;
+; save the stride of the bitmap; this is the same as for the original, but in bits.
+;
+       move.w rowbytes(A0),D0		; pick up the stride
+       lsl.w #3,D0			; multiply by eight to get a bit stride
+       move.w D0,oStride(A2)		; stick it in the target structure
+
+;
+; save the number of rows and columns.
+;
+	move.w bottom(A1),D0		; get the bottom of the rectangle
+	sub.w top(A1),D0		; less the top coordinate
+	sub.w #1,D0			; get number of highest row (1st is zero)
+	bmi CERROR			; nothing to do?  (note: 0 IS ok)
+	move.w D0,oRows(A2);		; save that in the structure
+
+	move.w right(A1),D0		; get the right edge of the rectangle
+	sub.w left(A1),D0		; less the left coordinate
+	sub.w #1,D0			; make it zero-based
+	bmi CERROR			; nothing to do here?
+	move.w D0,oCols(A2)		; save that in the structure
+
+;
+; all done.  return.
+;
+	rts
+
+;
+; error found in CONVERT.  pop return and jump to the error routine, such as it is.
+;
+CERROR
+	tst.l (A7)+			; pop four bytes of return address.
+	bra.s ERROR			; return silently
+
+;
+; -----------------------------------------------------------------------------------
+;
+; log2 -- find the ceiling of the log, base 2, of a number.
+;
+; calling sequence:
+;	move.l N,D0			; store the number in D0
+;	bsr LOG2			; call us
+;	move.w D0,...			; D0 contains the word result
+;
+; registers used: D2, (D0)
+;
+
+LOG2
+	tst.l D0			; did they pass us a zero?
+	beq.s LOGDONE			; call log2(0) zero -- what the heck...
+	sub.l #1,D0			; so 2**n works right (sigh)
+	beq.s LOGDONE			; if D0 was one, answer is zero
+	move.w #32,D2			; initialize count
+LOG2LP
+	lsl.l #1,D0			; slide bits to the left by one
+	dbcs D2,LOG2LP			; decrement and loop until a bit falls off
+
+	move.w D2,D0			; else save our value where we promised it
+LOGDONE 				; here with final value in D0
+	rts				; and return
+
+ END	 ; procedure dissBits

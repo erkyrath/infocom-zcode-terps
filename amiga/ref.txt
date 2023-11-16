@@ -1,0 +1,69 @@
+This booklet tells you how to run your Infocom story on your computer, and provides a few other handy bits of information.
+
+I. What You Need
+Required:
+%	Apple Macintosh computer with 512K
+	or more of memory
+
+Optional:
+%	System Disk or other startup disk
+%	Blank 3-1/2 inch disks (for saving your 		position in the story)
+%	Compatible printer (for SCRIPTing)
+%	Second disk drive (for convenience 			when saving your position in the story)
+
+II. Copying Your Original   Disk      
+	It is always advisable to make a copy of the disk that came in your package. This ensures that you will not accidentally erase or damage the only copy you have of the story. See your hardware manual for instructions on how to copy disks.
+	You can move the story to a hard disk by copying each file (there may be just one) and folder, except for the System Folder, into a folder of your choice on the hard disk.
+	Remember, any copy of your original story disk may only be used in accordance with the licensing agreement found in your package.
+
+III. Getting Started
+	The System file included on this disk is recommended for use with the Macintosh 512K, XL, 512KE, and Plus. If you are using a different model (e.g. a Macintosh SE or II), or if you have a hard disk, you should start your computer with your usual system startup disk. Otherwise, it's OK to use the story disk as the startup disk.
+	Due to disk space limitations, the story disk may include a MiniFinder instead of the regular Finder. The MiniFinder is faster but does not have all of the Finder's features, such as copying and deleting files. To change to the regular Finder, insert a disk that has one and click on the Finder button.
+	To begin the story, just insert the story disk and double-click on the storybook icon.
+  
+IV. Talking to the Story
+	Whenever you see the prompt (>), the story is waiting for you to enter a command. If you make a mistake, use the backspace key to erase the error. After you have typed your command, press the Return key. The story will respond and the prompt (>) will reappear.
+	If a description will not fit on a screen all at once, [MORE] will appear at the bottom of the screen.  After reading the screen, press any key to see the rest of the description.
+
+V. The Status Line
+	At the top of the screen is an area reserved for the status line. This area is used to display your present location in the story and is updated after each move. The status line may also display (depending on the story) various other types of information including score, total moves, time, or character attributes.
+
+VI. SCRIPTing
+	You can use the SCRIPT command to print out a transcript of your moves at any point in the story. The SCRIPT function is an optional feature which is not necessary to complete the story and may not be available with all hardware.
+
+	1. Turn on the printer and make sure it is ready.
+	2. Type SCRIPT at the prompt (>) to start the transcript. To stop the transcript, type UNSCRIPT.
+	3. SCRIPT and UNSCRIPT may be used as often as desired.
+VII. Saving a Story Position
+	You can save your current position in the story to any disk, space permitting, including a hard drive. It may be convenient to use a separate disk just for your saves.
+
+	1. Type SAVE at the prompt (>). The standard dialog box for saving files will be displayed.
+	2. Select the disk you want to save to. If it is already named in the dialog box (at the upper right), skip to step 3. If you have a single disk drive, click on the EJECT button, remove the story disk from the drive, and insert the save disk. If you have two drives, insert your save disk in the second drive. If necessary, click on the DRIVE button until the name of the desired disk appears in the box.
+	3. Choose a file name under which to save your position and type it into the box. (The colon character (:) can't be used in a file name.) After typing in the file name, click on the OK button or press the Return key. If you want to cancel the save operation, click on the CANCEL button.
+	The disk drive will spin for several seconds and if all is well, the story will respond with a message such as COMPLETED. If it responds with FAILED, consult the Troubleshooting section.
+	After saving your story position, you may continue the story.
+
+VIII. Restoring a Saved
+	    Story Position
+	To return to a previously saved position in the story, type RESTORE at the prompt (>). A standard dialog box will appear, showing a list of your saved positions on the most recently used disk. If you want to restore from a different disk, change disks (or drives) as described in Section VII.
+	Click once on the name of the position you want to restore, then click on the OPEN button. You can also just double-click on the position name. If you want to cancel the restore operation, click on the CANCEL button.
+
+IX. Troubleshooting
+Load, SAVE, RESTORE and
+Other Problems
+	If the story fails to load properly, or SAVE/RESTORE or SCRIPT fails, check each of the following items. If none of these offers a solution, consult your Apple dealer for assistance.
+
+	1. Inspect all disks carefully for any visible damage.
+	2. For SCRIPTing, make sure the printer is connected properly, enabled for printing, not out of paper, etc.
+	3. Try again. The problem may be only momentary. If all else fails, you can call the Infocom Technical Hotline at (617)
+576-3190. Please note that this number is for technical problems only, not hints.
+	
+The $VERIFY Procedure
+	You can check to see if your disk is damaged by using the $VERIFY command.
+	1. Type $VERIFY at the story prompt (>) and press the Return key. If your story is currently frozen (i.e. you are unable to type from the  keyboard) you will have restart it first.
+	2. After you successfully issue the $VERIFY command, the disk will spin for a minute or so and a message similar to one of the following will appear:
+
+	GOODPThe disk has not been damaged and the data is intact. If you are having problems, they are most likely hardware related. It is also possible that there is a bug in the program. If you suspect that there is a bug call the Infocom Technical Hotline. 
+	NO GOODPThis indicates either disk damage or hardware trouble. Repeat the $VERIFY procedure several times. If possible, repeat the $VERIFY procedure on another computer (such as your dealerUs).  If you ever receive a positive reply, the data is intact and you must look elsewhere for any problems you are encountering.
+	If you repeatedly get a negative response on more than one computer, the disk has most likely been damaged. Please send the disk only to Infocom for testing and replacement. To return your disk follow the directions in the instruction manual.
+

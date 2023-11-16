@@ -1,0 +1,33 @@
+#define MAXARGS	4
+#define XMAXARGS 16
+
+    ZIPINT argcount;
+
+/* The OPCALL instruction (for DIP) has a special format:
+	OPCALL, MODEBYTE1, ..., MODEBYTEn, ARG1, ..., ARGn
+
+   There can be up to 4 mode bytes and up to 16 arguments.  Each mode
+   byte contains 4 argument specifiers, which are defined the same way as
+   those for "normal" extops.
+
+   Note that the argument specifier for "no more args" occurs only if
+   there are less than 16 arguments.  [Since the maximum number of locals
+   is 15, this ought to be the maximum number of arguments too, right?]
+*/
+	    argcount = 0;			/* init arg count */
+	    for (jx = 1; jx <= 4; jx++) {
+	      adrmode = nxtbyt();		/* get a mode byte */
+	      for (ix = 1; ix <= 4; ix++) {
+		temp = adrmode & 3;		/* extract two mode bits */
+		if (temp == 3) THEN 
+		  goto nomore;			/* last arg, exit both loops */
+		PUSH(temp);			/* save two mode bits */
+		argcount++;
+		adrmode >>= 2;			/* next two mode bits */
+		}
+	      }
+
+nomore:	    argblk[0] = argcount;
+	    for (ix = 1; ix <= argcount; ix++)	/* decode args in order */
+	      argblk[ix] = getarg(POP());	/* get arg and store */
+

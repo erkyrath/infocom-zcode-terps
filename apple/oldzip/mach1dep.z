@@ -1,0 +1,482 @@
+       C&O^u "(
+  .TITLE  "ZORK - MACHINE DEPENDENT - SECTION #1"
+ .PAGE
+ 
+         ;MACHINE-RELATED CONSTANTS MODIFIED 2-01-84
+ WLEFT   .EQU    20
+ WWIDTH  .EQU    21
+ WTOP    .EQU    22
+ WBOTM   .EQU    23
+ CH      .EQU    24
+ EH      .EQU    057B            ;II E CURSOR HORIZONTAL 
+ CV      .EQU    25
+ INVFLG  .EQU    32
+ PROMPT  .EQU    33
+ CSW     .EQU    36
+ MBASCAL .EQU    0FC22           ;MONITOR'S CALC BASE ADR FOR LINE ROUTINE
+ MCLEOL  .EQU    0FC9C           ;MONITOR'S CLEAR TO END OF LINE
+ MCLEOS  .EQU    0FC42           ;MONITOR'S CLEAR TO END OF SCREEN
+ MHOME   .EQU    0FC58           ;MONITOR'S HOME AND CLEAR SCREEN
+ MCOUT   .EQU    0FDED           ;MONITOR'S CHAR OUTPUT
+ MCOUT1  .EQU    0FDF0           ;MONITOR'S CHAR OUTPUT TO SCREEN
+ MRDKEY  .EQU    0FD0C           ;MONITOR'S GET AN INPUT CHAR ROUTINE
+ MGETLN1 .EQU    0FD6F           ;MONITOR'S GET AN INPUT LINE ROUTINE
+ BUFFER  .EQU    200             ;PAGE TWO FOR COUT/READBF STORAGE
+ 
+         ;SYSTEM-DEPENDENT INITIALIZATION
+	 
+ TOPPER  STA     WTOP
+	 STA     WTOP
+	 RTS                     ;ROUTINE TO STORE WTOP WITH IIE
+	 
+ SINIT:  LDA     #0C1
+	 STA     ALTCSW+1
+ 
+         LDA     #0              ;FIRST INITIALIZE SCREEN PARAMETERS
+         JSR     TOPPER          ;SET FULL HEIGHT OF SCREEN FOR NOW...
+0
+	 LDA     IIE
+	 BEQ     SCREW           ;DON'T DO #21 IF NOT IIE
+	 LDA     #21.            ;CNTL "Q"
+	 JSR     MCOUT           ;TURN OFF 80 COLUMN
+	 
+ SCREW   LDA     #0
+	 STA     IIE
+	 STA     WLEFT
+         STA     SCRINI          ;PRINTER WILL BE UNINITIALIZED
+	 
+	 LDA     #18             ;23 ACTIVE LINES ON SCREEN
+	 STA     WBOTM
+         LDA     #0BE            ;ASCII >
+	 STA     PROMPT
+	 LDA     #0FF
+	 STA     INVFLG
+	 
+	 JSR     MODCDE
+	 
+	 LDA     #03
+	 STA     LINCNT          ;LESSEN # OF LINES FOR LONG SCREENS
+	 
+	 LDA     #01
+	 JSR     TOPPER
+	 RTS        
+	 
+ SPLITF  .BYTE   0               ;WHICH WINDOW FLAG
+ ISPLIT  .BYTE   0               ;IS IT SPLIT FLAG
+ 
+ PISSER  LDA     IIE             ;TALK TO DAN OR MIKE
+	 BEQ     PISS
+	 LDA     #0D
+	 JMP     PIS
+ PISS    LDA     #8D
+ PIS     JSR     MCOUT
+	 RTS
+ 
+ SPLITT  LDA     ARG1+LO         ;GET NUMBER OF LINES FOR SCREEN
+	 BEQ     NORL            ;IF ZERO THEN RESTORE SCREEN
+	 PHA
+	 CLC
+	 ADC     #01             ;ONE LINES ADDITIONAL
+	 STA     WBOTM
+	 STA     ISPLIT          ;NON ZERO = SCREEN IS SPLIT
+	 JSR     MHOME           ;CLEAR FROM TOP TO BOTTOM
+	 JSR     PISSER          ;OUTPUT <CR>
+	 LDA     #18             ;RESTORE BOTTOM FOR SCROLL
+	 STA     WBOTM
+	 PLA                     ;GET NUMBER OF LINES AGAIN
+	 CLC
+	 ADC     #01             ;ADD ONE
+	 JSR     TOPPER          ;MAKE THAT THE TOP OF THE SECOND SCREEN
+	 LDA     #01
+	 STA     CH
+	 STA     EH
+	 LDA     #16
+	 STA     CV              ;RESTORE CURSOR AFTER MHOME CALL
+	 JSR     PISSER          ;<CR> TO MAKE CV WORK
+	 RTS                     ;BY GONE FOOL
+ 
+ NORL    LDA     #01             ;PUT CURSOR AT TOP OF SCREEN
+	 JSR     TOPPER
+	 LDA     #0              ;MAKE MORE COUNT ZERO
+	 STA     LINCNT
+	 STA     ISPLIT          ;ZERO = SCREEN IS NOT SPLIT
+ BYEBYE  RTS
+ 
+ SCRENN  LDA     ARG1+LO         ;GET WHICH SCREEN TO WORK IN
+	 PHA
+	 BNE     SSPL            ;SPLIT SCREEN
+	 LDA     #0              ;FLAG NOT SPLIT
+	 STA     SPLITF
+	 LDA     #01
+	 STA     CH
+	 STA     EH              ;PUT CURSOR AT BOTTOM OF SCREEN
+	 LDA     #16
+	 STA     CV
+	 PLA                     ;CLEAN UP STACK
+	 JMP     GONE1
+ 
+ SSPL    PLA                     ;GET IT AGAIN IN CASE
+	 CMP     #01
+	 BNE     BYEBYE
+	 LDA     #01
+	 STA     SPLITF          ;THIS SCREEN IS SPLIT
+	 LDA     #0              ;TRY IT WITH ZERO***
+	 STA     CH
+	 STA     EH
+	 STA     CV              ;PUT IT IN SPLIT SCREEN AT TOP
+	 
+ GONE1   JSR     PISSER          ;PUT OUT <CR>
+	 RTS
+ 
+ CLEARS: JSR     MHOME           ;HOME AND CLEAR
+	 LDA     ISPLIT          ;IS IT SPLIT
+	 BNE     EARS            ;YES THEN JUMP AROUND
+	 LDA     #01
+	 JSR     TOPPER          ;SET TOP STATUS LINE
+ EARS    LDA     #01
+	 STA     LINCNT
+	 RTS
+ 
+ 
+ RESTAR  .EQU    START           ;NOTHING FANCY FOR RESTART
+ 
+ MEMTOP: MOVE    #0C0,TEMP+HI    ;CALCULATE PAGE # OF TOP OF FREE MEMORY
+         MOVE    #0FF,TEMP+LO
+	 LDY     #0
+ MEMLOOP DEC     TEMP+HI
+	 LDA     @TEMP,Y         ;FETCH CONTENTS
+	 CMP     @TEMP,Y         ;TRY TO READ
+	 BNE     MEMLOOP         ;FAILED
+	 EOR     #0FF
+	 STA     @TEMP,Y         ;TRY TO WRITE
+	 CMP     @TEMP,Y
+	 BNE     MEMLOOP         ;FAILED
+	 EOR     #0FF            ;HOORAY, WE FOUND RAM
+	 STA     @TEMP,Y
+	 LDA     TEMP+HI         ;PAGE # RETURNED IN A
+	 RTS
+ 
+ COUT:   LDX     CHRPNT
+	 LDY     IIE             ;IIe FLAG IN Y-REG FOR U/L CASE TESTS
+	 CMP     #0D             ;CONTROL-M
+	 BNE     $3
+	 JMP     CR
+ $3      CMP     #20
+	 BCC     COUT1           ;IGNORE OTHER CONTROLS
+         CMP     #60             ;LOWER CASE?
+	 BCC     $1
+	 CMP     #80
+	 BCS     $1
+	 CPY     #01             ;CHECK TO SEE IF IIE FLAG IS SET
+	 BEQ     $1              ;YES, SO SKIP CONVERSION
+	 SEC
+	 SBC     #20             ;THEN CONVERT TO UPPER CASE
+ $1      ORA     #80
+         STA     BUFFER,X        ;OUTPUT CHARACTER (TO INTERMEDIATE BUFFER)
+ COUTSP  CPX     WWIDTH
+	 BCS     FLUSH
+         INX
+ COUT1   STX     CHRPNT
+	 RTS
+ 
+ FLUSH   LDA     #0A0            ;SCAN BACKWARDS FOR SPACE
+ FLUSH1  CMP     BUFFER,X
+	 BEQ     FLUSH2
+         DEX
+	 BNE     FLUSH1
+         LDX     WWIDTH
+ FLUSH2  STX     CPSAV           ;OUTPUT FIRST PORTION OF BUFFER
+	 STX     CHRPNT
+	 JSR     CR
+ FLUSH3  INC     CPSAV           ;SHIFT REST TO BEGINNING OF BUFFER
+	 LDX     CPSAV
+	 CPX     WWIDTH          ;FROM OLD CPSAV+1 TO WWIDTH
+	 BCC     $1
+	 BEQ     $1
+	 RTS
+ $1      LDA     BUFFER,X
+	 LDX     CHRPNT
+	 STA     BUFFER,X
+	 INC     CHRPNT
+	 LDX     CPSAV
+	 JMP     FLUSH3
+ 
+ LINOUT  LDY     #ZSCRIP+<LO^INVERT>    ;TEST IF SCRIPTING ON
+	 LDA     @ZCODEP,Y
+	 AND     #1
+	 BEQ     $1
+	 
+	 JSR     SCRIPT
+	 
+ $1      JSR     SCREEN
+	 RTS
+	 
+ SCRINI  .BYTE   0               ;SCRIPTING INITIALIZED?
+ 
+ SCRIPT  PUSHW   CSW             ;SAVE OUTPUT HOOK
+	 LDA     CH              ;AND CURRENT CURSOR POSITION
+	 PHA
+         MOVEW   ALTCSW,CSW      ;LOAD SCRIPTING HOOK
+         LDX     #0
+         LDA     SCRINI          ;MUST INITIALIZE INTERFACE?
+	 BNE     SCRIP1          ;NO, ALREADY DONE
+	 INC     SCRINI          ;YES, BUT DON'T COME HERE AGAIN
+	 LDA     #89             ;OUTPUT PRINTER SETUP SEQUENCE
+	 JSR     MCOUT
+	 TXA                     ;SAVE X FOR LATER
+	 TAY
+	 
+	 LDA     ALTCSW+1
+	 SEC
+	 SBC     #0C1
+	 TAX
+	 
+	 LDA     #91             ;SET FLAGS FOR COM CARD
+	 STA     779,X             ;IN SLOT 1
+	 LDA     #0B8
+	 JSR     MCOUT
+	 LDA     #0B0
+	 JSR     MCOUT
+	 LDA     #0CE
+	 JSR     MCOUT
+	 TYA                     ;GET X BACK FOR SCRIP1
+	 TAX
+	 
+ SCRIP1  CPX     CHRPNT
+	 BEQ     SCRIP2
+         LDA     BUFFER,X
+	 JSR     MCOUT           ;OUTPUT CHAR IN A
+	 INX
+	 JMP     SCRIP1
+	 
+ SCRIP2  MOVEW   CSW,ALTCSW
+	 PLA
+	 STA     CH
+	 STA     EH
+	 PULLW   CSW
+	 RTS
+	 
+ SCREEN  LDX     #0
+	 
+ SCREE1  CPX     CHRPNT
+	 BEQ     SCREE2
+         LDA     BUFFER,X
+	 JSR     MCOUT        ;OUTPUT CHAR IN A
+         INX
+	 JMP     SCREE1
+ SCREE2  LDX     #0
+	 STX     CHRPNT
+	 RTS
+ 
+ MORES   .ASCII  "[MORE]"
+ MOREL   .EQU    *-MORES
+ 
+ CR      LDA     SPLITF          ;ARE WE SPLIT??
+	 BNE     CRUD
+ 
+         INC     LINCNT
+  
+ CRUD    LDA     LINCNT
+	 CMP     WBOTM
+	 BCC     CR1
+	 MOVEI   MORES,TEMP      ;PRINT MORE PROMPT
+	 LDX     #MOREL
+	 LDA     #3F             ;USE INVERSE VIDEO
+	 STA     INVFLG
+	 JSR     PMSG
+	 LDA     #0FF            ;REVERT TO NORMAL VIDEO
+	 STA     INVFLG
+         JSR     MRDKEY
+	 LDA     #0
+	 STA     CH
+	 STA     EH              ;IIE'S CH
+	 JSR     MCLEOL
+	 LDA     WTOP
+         STA     LINCNT
+	 INC     LINCNT
+ CR1     LDA     CHRPNT
+	 PHA
+         JSR     LINOUT
+	 PLA
+	 CMP     WWIDTH
+	 BEQ     $1
+	 LDA     #8D
+	 JSR     MCOUT          ;OUTPUT <RETURN> TO SCREEN
+	 
+ $1      LDY     #ZSCRIP+<LO^INVERT>    ;TEST IF SCRIPTING ON
+	 LDA     @ZCODEP,Y
+	 AND     #1
+	 BEQ     $2
+         PUSHW   CSW             ;SAVE OUTPUT HOOK
+	 MOVEW   ALTCSW,CSW      ;LOAD SCRIPTING HOOK
+	 LDA     #8D
+	 JSR     MCOUT           ;OUTPUT <RETURN>
+	 MOVEW   CSW,ALTCSW
+	 PULLW   CSW
+ $2      LDX     #0
+	 JMP     COUT1
+ 
+ 
+ WSCOR   .ASCII  "SCORE: "
+ WSCORL  .EQU    *-WSCOR
+ WTIME   .ASCII  "TIME: "
+ WTIMEL  .EQU    *-WTIME
+ OLDRM   .BYTE   0
+ 
+ 
+ WHOLIN  JSR     LINOUT
+	 LDY     IIE            ;***
+	 CPY     #00
+	 BEQ     FFF
+	 
+	 LDA     EH             ;***
+	 PHA
+	 JMP     FFE
+	 
+ FFF     LDA     CH              ;***
+	 PHA
+	 
+ FFE     LDA     CV
+	 PHA
+	 LDA     #0
+	 STA     CH
+	 STA     EH
+	 STA     CV
+	 JSR     MBASCAL
+	 LDA     #3F             ;USE INVERSE VIDEO
+	 STA     INVFLG
+	 LDA     #ROOMG          ;GET ROOM
+	 JSR     VARGET
+	 LDA     TEMP+LO
+	 STA     OLDRM           ;YES, SAVE NEW ROOM
+@;*** ALWAYS REDISPLAY STATUS LINE
+@;IT DON'T MATTER TO ME!
+         JSR     PRNTDC
+         JSR     SCREEN
+	 JSR     MCLEOL
+ $10     LDA     IIE             ;GET THE 80 COL FLAG
+	 BEQ     $11             ;NOT 80 COLS, SO NYET SWEAT
+	 LDA     #60.            ;THIS IS WHERE TO PRINT THE SCORE/TIME
+	 STA     CH
+	 
+	 STA     EH              ;IIE'S CH
+	 
+	 JMP     $12             ;DONE WITH IIE FROBBIES
+ $11     LDA     #25.            ;OLD MIDDLE OF SCREEN
+	 STA     CH
+ $12     LDA     TIMEFL          ;TIME MODE?
+	 BNE     $1              ;YES
+	 MOVEI   WSCOR,TEMP      ;NO, PRINT SCORE HEADER
+	 LDX     #WSCORL
+	 JSR     PMSG
+	 LDA     #SCOREG         ;PRINT SCORE
+	 JSR     VARGET
+	 JSR     PRNTNC
+	 LDA     #02F            ;ASCII <SLASH>
+	 BNE     $2              ;BRANCH ALWAYS
+ $1      MOVEI   WTIME,TEMP      ;PRINT TIME HEADER
+	 LDX     #WTIMEL
+	 JSR     PMSG
+	 LDA     #SCOREG         ;PRINT HOUR
+	 JSR     VARGET
+	 LDA     TEMP+LO
+	 BNE     $8              ;00 IS REALLY 24
+	 LDA     #24.
+ $8      CMP     #12.            ;NOW CONVERT TO 12-HOUR TIME
+	 BMI     $3              ;BLE
+	 BEQ     $3
+	 SEC
+	 SBC     #12.
+	 STA     TEMP+LO
+ $3      JSR     PRNTNC
+	 LDA     #03A            ;ASCII <COLON>
+ $2      JSR     COUT
+	 LDA     #MOVESG         ;PRINT MOVES
+	 JSR     VARGET
+	 LDA     TIMEFL          ;TIME MODE?
+	 BEQ     $9              ;NO
+	 LDA     TEMP+LO         ;YES, CHECK FOR SINGLE-DIGIT NUMBER
+	 CMP     #10.
+	 BCS     $4              ;NO
+         LDA     #0B0            ;YES, PAD WITH LEADING ZERO
+	 JSR     COUT
+ $4      JSR     PRNTNC
+	 LDA     #0A0            ;SPACE
+	 JSR     COUT
+	 LDA     #SCOREG         ;HOUR AGAIN
+	 JSR     VARGET
+	 LDA     TEMP+LO
+	 CMP     #12.            ;PM?
+	 BPL     $6              ;YES
+	 LDA     #0C1            ;NO, USE A
+	 BNE     $7
+ $6      LDA     #0D0            ;P FOR PM
+ $7      JSR     COUT
+	 LDA     #0CD            ;M
+	 JSR     COUT
+	 JMP     $5
+ $9      JSR     PRNTNC
+ 
+ $5      JSR     SCREEN
+	 JSR     MCLEOL
+	 LDA     #0FF
+	 STA     INVFLG
+	 PLA                     ;RESTORE H&V
+	 STA     CV
+	 PLA
+	 STA     CH
+	 STA     EH              ;*** IIE'S CH
+	 JSR     MBASCAL
+         RTS
+ 
+ PMSG    LDY     #0
+ PMSGL   LDA     @TEMP,Y
+	 ORA     #80
+	 JSR     MCOUT
+	 INY
+	 DEX
+	 BNE     PMSGL
+	 RTS
+ 
+ READBF  JSR     LINOUT
+         LDA     WTOP
+	 STA     LINCNT
+	 JSR     MGETLN1         ;GET INPUT LINE
+	 INC     LINCNT
+	 LDA     #8D             ;TERMINATE WITH CR
+	 STA     200,X
+	 INX
+	 TXA
+	 PHA
+	 LDY     #ZSCRIP+<LO^INVERT>    ;TEST IF SCRIPTING ON
+	 LDA     @ZCODEP,Y
+	 AND     #1
+	 BEQ     $1
+	 TXA
+	 STA     CHRPNT          ;ECHO INPUT TO SCRIPT
+	 JSR     SCRIPT
+	 LDA     #0
+	 STA     CHRPNT
+ $1      PLA
+	 LDY     #0
+	 CMP     @ARG1,Y
+	 BCC     $2
+	 LDA     @ARG1,Y
+ $2      PHA
+         BEQ     READBD
+	 TAXREADBL  LDA     200,Y
+	 AND     #7F
+	 CMP     #41             ;CONVERT FROM UPPER CASE TO LOWER
+	 BCC     $1
+	 CMP     #5B
+	 BCS     $1
+	 ORA     #20
+ $1      INY
+	 STA     @ARG1,Y
+	 CMP     #0D             ;JUST STASHED <CR>?
+	 BEQ     READBD
+	 DEX
+	 BNE     READBL
+ READBD  PLA
+	 RTS
+	 

@@ -1,0 +1,130 @@
+.c;FORMATTING DISKS FOR THE IBM PC & TI PROFESSIONAL
+.s 2
+1.  Put the working disk in the left-hand drive (drive A) and turn on the
+power. (The machine may take as long as a minute to come on.)
+.s
+2.  Enter the date and time or simply hit Return twice to bypass.
+.s
+3.  You will see a prompt that looks like "A>".  Type "Format b:"
+.s
+4.  Place a blank disk in the right-hand drive (drive B).
+.s
+5.  Hit any key to begin the formatting process.
+.s
+6.  When the formatting process is complete, you will be asked if you wish to
+format another disk.  If you do, type "Y" and go to step four.
+.s 2
+NOTE:  Disks must be formatted on the machine for which the master is
+being made.  The procedure is the same for both machines, however.
+
+.pg
+.C;CREATING AN IBM/TI CREATE DISK FOR A NEW GAME
+.s 2
+1. Put the disk labelled "working disk" in Drive A (the left-hand
+drive) of the IBM PC.
+.s
+2. Turn on the IBM PC's power (the switch is on the right-side of the
+CPU).
+.s
+3. Enter the date or type Return twice to bypass it.
+.s
+4. You will see the "A>" prompt. Type "DISKCOPY A: B:".
+.s
+5. Put any existing create disk in Drive A.  Put any blank disk (it
+doesn't have to be formatted) in Drive B (the right-hand drive).
+.s
+6. Hit any key to start the copying procedure.
+.s
+7. When the screen says "copy completed", remove the disk from Drive B
+and label it as the IBM/TI Create Disk for the new game.
+
+.pg
+.c;TRANSFERRING A GAME FROM THE DEC-20 TO THE IBM PC
+.S 2
+NOTE:  Copying a game to the IBM is a two-step process.  The first step is
+transferring the game file to the create disk.  The second step is making a
+game disk from the create disk.
+.s
+NOTE:  IBM masters and TI masters are both made on the IBM PC from the
+same create disk. The only difference is step 20. In other words, to
+make masters of a game for both machines, you would only have to TFTP
+from the DEC-20 once.
+.s
+1.  Put the working disk in the left-hand drive (drive A).  This is the
+disk which says "working disk" AND NOTHING ELSE.
+.s
+2.  Put the create disk for that game in the right-hand drive (drive B).
+.s
+3.  Plug the TN20 line into the back of the IBM.
+.s
+4.  Turn on the IBM.
+.s
+5.  Enter the date and time or simply hit Return twice to bypass it.
+.s
+6.  You will get a prompt that looks like "A>".  Type "B:"
+.s
+7.  You will get a prompt that looks like "B>".  Type "erase game.zip".
+.s
+8.  When the prompt reappears, type "a:basica tftp/s:512/c:512".
+.s
+9.  You will be asked for the name of a file.  Type "game.zip".
+.s
+10. Type control-right-brace as instructed.  The IBM is now waiting to
+receive the file from the DEC-20.
+.s
+11. Go to a DEC-20 terminal and follow the instructions for running TN20.
+.s
+12. When the transfer is complete, go to the IBM and type
+control-right-brace as instructed.
+.s
+13. Type "system".
+.s
+14. The "B>" prompt will appear. Type "A:".
+.s
+15. You are now ready to begin phase two, making the game disk from the master
+disk.  When you see the "A>" prompt, remove the working disk from drive A.
+Take the create disk from drive B and put it in drive A. Put a blank,
+formatted disk in drive B.
+.s
+16. If you are making an IBM master, type "create".  If you are making a
+TI master, type "ticreate".  The copying process will take about a minute.
+.s
+17. When the copying process is complete, remove the create disk.  Put the
+newly-created game disk in drive A and boot it (by hitting the CTRL, ALT, and
+DEL keys at the same time).  When the game prompt appears, test it by typing
+"$verify".  The verification process should take about a minute.
+
+.pg
+.C;HOW TO BOOT DISKS ON THE IBM PC
+.s 2
+1. Put the game disk in the left-hand drive, Drive A.
+.s
+2. Turn on the power (the large red-orange toggle switch on the
+right-hand side of the CPU).  If the color monitor is attached instead
+of the regular monitor, you will have to turn that on as well.
+.s
+3. Wait a little while. The IBM PC will take up to a minute to come on,
+depending on how much memory is hooked up.
+.s
+4. If no back-up copy has been made of the game disk, you will be asked
+if you want to make it at this point. Type "N".
+.s
+5. If there is no write-protect sticker on the disk, you will be asked
+to put one on. These are the silver-colored peel-off squares. Put one
+over the notch on the upper-right corner of the disk.
+.s
+6. The game should appear almost instantly.
+.s
+7. To boot another disk, you don't need to turn the power off and on
+again. Just put the new disk in Drive A. Then hit the keys labelled
+CTRL, ALT, and DEL at the same time. (These keys are in the lower left
+and lower right corners of the keyboard). The new disk will boot almost
+instantly.
+
+.pg
+.C;HOW TO BOOT DISKS ON THE TI PROFESSIONAL
+.s 2
+1. Put the game disk in the left-hand drive, Drive A.
+.s
+2. Turn on the TI power using the toggle switch on the right side of the
+CPU. The game will boot in a matter of seconds.

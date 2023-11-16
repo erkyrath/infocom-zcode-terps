@@ -1,0 +1,123 @@
+.c;CREATING AN APPLE ZGAME: DISK FOR A NEW GAME
+.s
+Before transferring a game to the Apple, a ZGAME: create disk must exist.  If
+one does not yet exist for a given game, use this procedure to make one.  You
+will need a ZGAME create disk from a previous game.  The new create disk will
+be a clone of this one. This procedure should be done on the Apple IIe.
+.s
+1.  Put the disk labelled "PASCAL/APPLE" in the top drive.  Put a blank disk in
+the bottom drive.
+.s
+2.  Turn on the Apple. (The on-off switch is in the back.)
+.s
+3.  The screen will display a menu.  Type "X".
+.s
+4.  You will be asked what file to execute.  Type "FORMATTER" and hit return.
+.S
+5.  You will be asked what disk you want to format.  Type "5" (which for some
+obscure reason refers to the bottom drive) and hit return.
+.s
+6.  When the formatting procedure is done, you will asked again what disk you
+want to format.  Just hit the Return key to leave the format program.
+.s
+7.  The menu will appear again.  Type "F".
+.s
+8.  A different menu will appear.  Type "T".
+.s
+9.  Put the ZGAME: create disk for the old game in the top drive.
+.s
+10. You will be asked what file you wish to transfer.  Type "ZGAME:,BLANK:"
+and hit return.
+.s
+11. You will be asked two questions.  Type "Y" for both.
+.s
+12. After the transfer is completed, put the PASCAL/APPLE disk back in the top
+drive.
+.s
+13. Type "Q".  The disk in the bottom drive is now the ZGAME: create disk for
+the new game.  Label it as such.  You are now ready to transfer the game to
+the Apple.
+
+.pg
+.c;TRANSFERING A GAME FILE FROM THE DEC-20 TO THE APPLE IIe
+.s
+NOTE:  In order to transfer a game to the Apple, a ZGAME: create disk must
+exist for that game.  If one does not yet exist, follow the instructions on
+the previous sheet to make one.
+.s
+1. Connect the TN20 remote line to the Apple (the flappy plug in the back).
+You will need the adapter cable labelled "Apple/Osborne" to do this.
+.s
+2.  Put the disk labelled "PASCAL/APPLE" in the top drive.  Put the ZGAME: disk
+in the bottom drive.
+.s
+3.  Turn on the Apple.
+.s
+4.  You will see a menu.  Type "F" to enter the filer.
+.s 
+5.  You will see a different menu. Type "P" to set a prefix.
+.s
+6.  You will be asked for the name of a prefix. Type "ZGAME:" and hit
+return. Don't forget the colon.
+.s 
+7.  When the menu reappears, type "R" to remove the old game file.
+.s
+8.  You will be asked for the name of a file.  Type "GAME".  You will
+then be asked if you want to update the directory.  Type "Y".
+.s
+9.  When the menu reappears, type "Q" to leave the Filer.
+.s
+10. The original menu will return.  Type "X" to execute a program.
+.s
+11. You will asked for the name of the program.  Type "TFTPER" and hit
+return.
+.s
+12. You will be asked for the name of the file.  Type "GAME" and hit return.
+.s
+13. Go to a DEC-20 terminal and run TN20 (see separate instructions for
+the use of TN20).
+.s
+14. A line of A's should begin appearing on both the DEC-20 terminal and the
+Apple.  The transfer should take around ten minutes.  When the transfer
+is complete, log off the DEC-20.
+.s
+15. Go back to the Apple. The ZGAME: create disk now contains the game
+file and is ready to be used to make Apple versions of the game.
+
+.pg
+.c;MAKING COPIES OF GAMES FROM THE APPLE ZGAME: DISK
+.s
+1.  Put the disk labelled "PASCAL/APPLE" in the top drive.  Put the
+ZGAME: create disk for the appropriate game in the bottom drive.
+.s
+2.  Turn on the Apple.
+.S
+3.  A menu should appear on the monitor.  Type "X" to execute a program.
+.s
+4.  You will be asked what program you want to execute.  Type
+"ZGAME:CREATOR" and hit return.
+.s
+5.  You will be instructed to put the destination disk in drive #4.  Remove
+the PASCAL/APPLE disk from the top drive.  Put a blank disk in the top
+drive.  (It isn't necessary to use an Apple-formatted disk for the blank
+disk; the CREATOR program will format the blank disk itself). Close the
+door twice to make sure that the disk is seated properly.  Hit the
+return key.  Don't ask why the top drive is called drive #4.
+.s
+6.  The CREATOR program will format the blank disk, and then copy the
+game onto it from the create disk.  This will take about five minutes.
+.s
+7.  When the copying is complete, you will told to place the next destination
+disk in drive #4.  At this point, you can make another copy of the game (by
+going back to Step 5), or you can abort.
+.s
+8.  Test the new game disk(s) by booting them and typing "$VERIFY" at
+the game prompt (>).
+
+.pg
+.c;HOW TO BOOT DISKS ON THE APPLE II or APPLE IIe
+.s
+This is an easy one. Just put the game disk in the top drive (label
+facing up, oval cut-out toward the back).  Turn on the Apple monitor. 
+Finally, turn on the Apple itself (the on-off switch is in the back,
+toward the left side). The disk will take about 10 seconds to boot.

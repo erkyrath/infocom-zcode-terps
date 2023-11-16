@@ -1,0 +1,20 @@
+
+    I tried porting SPLIT.C on the Atari ST under two different
+compilers, Alcyon (developers) and Lattice.  Alcyon worked, Lattice didn't.
+
+Lattice
+-------
+    o The fopen/fread/fwrite group is oriented towards text files,
+    and seems to choke when dealing with binary, even when the fopen
+    call uses the argument "rb"/"wb".  A comment in the Lattice reference,
+    p103, about setting a global to force binary mode, seemed to have
+    no effect.
+
+    o Also, fprintf calls seem to choke on the "\n" character.
+
+Alcyon
+------
+    o Syntax change:  fopen(name, xb) --> fopenb(name, x)
+
+    o the linker names three undefined symbols (seem to be library
+    functions), but it does not seem to affect the program.

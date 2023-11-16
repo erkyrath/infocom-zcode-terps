@@ -1,0 +1,26 @@
+	
+Microcomputer specifications for Imps and others.
+
+		Preload*      Pure    	 Maximum Game Size
+**************************************************************
+
+48K Atari         37K  	      92K        	128K
+	    
+48K Apple II   	  36K         128K          	124K 
+		
+128K Macintosh	  60K         127K          	127K
+
+CBM 64            41K	      118K		118k
+		
+CBM Plus/4        35K	      118K		118k
+		
+TRS-80 CoCo 2     22K	      128K		128k
+ 		
+TI-99/4-A         22K         111K		111K
+		
+32K BBC Acorn     20k	       90K		 90k
+		
+CP/M-80 	  RAM - 9K    128K      	128k
+	       
+* The preload sizes shown leave room for just ONE swapping page.
+  Allow at least 4K for swapping, preferably a lot more.

@@ -1,0 +1,34 @@
+
+;COMPARISON OF PS:<MICROS.IBM>MSIBMZIP.ASM.2 AND PS:<MICROS.IBM>BOSZIP.ASM.1
+;OPTIONS ARE    /3
+
+**** FILE PS:<MICROS.IBM>MSIBMZIP.ASM.2, 1-68 (2759)
+	;
+**** FILE PS:<MICROS.IBM>BOSZIP.ASM.1, 1-68 (2759)
+	;	 	2 -- added boss key function to MCHRI
+***************
+
+**** FILE PS:<MICROS.IBM>MSIBMZIP.ASM.2, 1-1884 (50670)
+**** FILE PS:<MICROS.IBM>BOSZIP.ASM.1, 1-1885 (50712)
+;for the boss key, include the boss file
+INCLUDE	iboss.asm
+***************
+
+**** FILE PS:<MICROS.IBM>MSIBMZIP.ASM.2, 1-1921 (51609)
+**** FILE PS:<MICROS.IBM>BOSZIP.ASM.1, 1-1926 (51716)
+	CALL	boss
+	JNC	GETLLC1	;boss returns Carry Set if boss chr
+	MOV	AL," "
+GETLLC1:
+***************
+
+**** FILE PS:<MICROS.IBM>MSIBMZIP.ASM.2, 1-3178 (85794)
+**** FILE PS:<MICROS.IBM>BOSZIP.ASM.1, 1-3187 (85986)
+	CALL	HERALD		;put up the herald file
+***************
+
+**** FILE PS:<MICROS.IBM>MSIBMZIP.ASM.2, 1-4156 (119119)
+**** FILE PS:<MICROS.IBM>BOSZIP.ASM.1, 1-4167 (119352)
+	call	boss			; check for boss key
+***************
+

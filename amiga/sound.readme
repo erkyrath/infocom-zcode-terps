@@ -1,0 +1,99 @@
+
+/****************************************************
+
+Date and time of latest revision:
+
+
+Wednesday 10-Jun-87 13:37:37
+
+*******************************************************/
+
+
+USING THE AMIGA SOUND EFFECTS ROUTINE
+
+	There are three source routines enclosed for your edification:
+
+	1) ONOFF.C -- a shell program that produces a couple of sound
+		effects, each one at two separate lengths.  This is included
+		as an example of how to call sound effects and the sort of
+		error checking you might wish to do.
+	2) INITONOFF.C -- loads the sound effect files from disk into
+		memory.
+	3) AUDONOFF.C -- makes the actual noise.
+
+	ERRLIST.H is an include file that contains the six error codes
+returned from init().  It should be included in your main program.
+
+	We have also included INITONOFF.O and AUDONOFF.O as compiled by the
+Manx Aztec C compiler v. 3.40 for the Amiga.  The sound effect files are
+.DAT files set up by Russell.
+
+	If you are not using Aztec, you will probably wish to recompile
+INITONOFF.C and AUDONOFF.C using your own (Lattice?) compiler.  This should
+be a fairly straightforward (*) procedure.  We have made liberal use of the
+defines in "exec/types.h" and, to our knowledge, the declaration "int" appears
+nowhere in either of these files.  Furthermore, we have done a liberal amount
+of type-casting.  So it should suffice simply to recompile with Lattice, and
+then link the resulting object files with your program.
+
+	Linking in Aztec is fairly straightforward.  We use:
+
+	ln onoff.o initonoff.o audonoff.o -lm -lc
+
+	This produces an executable file called ONOFF.  In Lattice, if memory
+serves me, you'll have to link with Lstartup.obj, c.lib, and amiga.lib.  The
+Aztec library m.lib contains the floating point routines necessary for Russell's
+routine percalc() (in AUDONOFF.C); I don't know if Lattice has a comparable
+library, and it may eventuate that you have to rewrite this routine to use
+Amiga's floating point libraries.
+
+	As you can see from the sample program ONOFF.C, calling a sound is
+simple.  Use the routine init(), which returns a SHORT value:
+
+	error = init(soundname,toggle)
+
+	"error" is one of the six codes in ERRLIST.H; a non-zero value signals
+some problem with opening files or allocating memory.  "soundname" is a string
+containing the name of the sound effect file in question; this is declared as
+UBYTE *soundname.  "toggle" is a WORD: 1 = turn on sound, 0 = turn off sound.
+
+	Russell's sounds come in two categories: (1) sounds that play a finite
+number of times (usually once) and then turn themselves off; and (2) sounds
+that cycle indefinitely.  An indicator of the type of sound is built into
+the sound file, and is transparent to the user.  However, you should know that
+with this version of the sound tool, EVEN THOUGH THE SOUND TURNS ITSELF OFF,
+YOU ARE NOT DONE WITH IT.
+
+	When you want the sound "orgasm.dat", you turn the sound on with
+error = init("orgasm.dat",ON);.  The init() routine will then open the
+necessary files, allocate the necessary memory for the sound, read it into
+memory, and close the files; it will then call audion() (in AUDONOFF) to
+play the sound.
+
+	1) The sound may be an infinitely-cycling sound.  Control of the pro-
+gram will be returned to you, but the sound will go on forever; you can sit
+and listen to it for hours.  To get rid of it, you will want to transmit
+error = init("orgasm.dat",OFF), which will call audion() to turn off the
+sound, and will then free up the space in which the sound buffer is contained.
+
+	2) The sound may play only once, twice, etc.  In this case, you'll
+hear it once or twice, and then it will stop.  However, nothing has been
+automatically freed up; the next time you try to turn a sound on, your program
+might conceivably suffer a horrible death.  So, before you next call
+error = init("hackdeath.dat",ON), be sure to call error = init("orgasm.dat",OFF)
+so that all the allocated memory is released and nothing goes wrong.
+
+	Note that any sound, of any duration, may be turned off at any time.
+Even one-shot sounds may be turned off in the middle, if you so desire, by the
+call error = init("one_shot.dat",OFF), though it is usually better practice
+to let the little suckers run to completion.
+
+	If you have any questions, call Don Harlow, at Activision ext. 5478.
+Good luck!
+
+----------------------------------------------------------------------------
+
+(*) I have threatened Jeff Steinwedel with a horrible death should I ever again
+hear him tell anyone that I would be glad to take on some project that looks
+totally "straightforward".  When you find that this recompilation takes six
+man-days, you may wish to threaten ME with a similar death... -- DH

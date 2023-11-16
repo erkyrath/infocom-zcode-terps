@@ -1,0 +1,373 @@
+* FILE ZIP15.ASM
+
+* OBJECT OPERATIONS ************************************************
+
+        RORG
+        DEF  OPMOVE,OPREMO,OPQFSE,OPFSET,OPFCLE
+        DEF  OPLOC,OPQFIR,OPQNEX,OPQIN,OPGETP,OPPUTP,OPNEXT
+
+        REF  GTAWRD,PTRUE,PFALSE,PTAWRD,BYTVAL,PUTVAL
+        REF  OBJTAB,BUFFER,JSR,FATAL
+
+*---------------------------------------------------------------------------
+* OBJECT HACKERS
+
+* GIVEN OBJ NUMBER (NONZERO) IN R0 LOW,
+*    RETURN OBJECT LOCATION IN R0
+
+OBJLOC  ANDI R0,>00FF        CLEAR UNWANTED BITS
+        MOV  R0,R8
+        SLA  R0,3
+        A    R8,R0           MULTIPLY BY 9 THE LAZY WAY
+
+        A    @OBJTAB,R0      INDEX INTO OBJECT TABLE
+        AI   R0,53           SKIPPING DEFAULT PROP TABLE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GIVEN POINTER TO A PROPERTY IN R0,
+*    UPDATE IT TO POINT TO NEXT PROPERTY
+
+NXTPRP  MOVB *R0,R8          GET PROPERTY IDENTIFIER
+        SWPB R8
+        SRA  R8,5            EXTRACT PROPERTY LENGTH (MINUS 1)
+        ANDI R8,>0007        
+
+        A    R8,R0           ADD IT TO OLD POINTER
+        INCT R0              ADJUST FOR EXTRA LENGTH BYTE PLUS IDENTIFIER
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+*--------------------------------------------------------------------------
+
+* MOVE (OBJ1 INTO OBJ2)
+
+OPMOVE  DECT R6
+        MOV  R0,*R6
+        DECT R6
+        MOV  R1,*R6          SAVE THE OPERANDS
+
+        BL   @JSR
+        DATA  OPREMO         REMOVE OBJ1 FROM WHEREVER IT IS
+
+        MOV  @0(R6),R0       OBJ2
+        BL   @JSR
+        DATA  OBJLOC         FIND ITS LOCATION
+        MOV  R0,R3           SAVE
+
+        MOV  @2(R6),R0       OBJ1
+        BL   @JSR
+        DATA  OBJLOC         FIND ITS LOCATION
+        MOV  R0,R4           SAVE
+
+        MOV  *R6+,R1         RESTORE OBJ2
+        SWPB R1
+        MOVB R1,@4(R4)       PUT OBJ2 INTO OBJ1'S LOC SLOT
+
+        MOVB @6(R3),R2       GET CNTNTS OF OBJ2'S FIRST SLOT
+        MOV  *R6+,R1         RESTORE OBJ1
+        SWPB R1
+        MOVB R1,@6(R3)       MAKE OBJ1 FIRST CONTENT OF OBJ2
+
+        MOVB R2,R2           WERE THERE ANY OTHER CONTENTS?
+        JEQ  X151            NO
+        MOVB R2,@5(R4)       YES, CHAIN ONTO OBJ1'S SIB SLOT
+
+X151    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* REMOVE (OBJ FROM ITS PARENT)
+
+OPREMO  MOV  R0,R2
+        SWPB R2              SAVE OBJ NMBR IN R2 HIGH
+
+        BL   @JSR
+        DATA  OBJLOC         FIND ITS LOCATION
+        MOV  R0,R1           SAVE THAT
+
+        MOVB @4(R1),R0       GET ITS PARENT
+        JEQ  X154            IF NO PARENT, WE'RE DONE
+
+        SWPB R0              (POSITION THE ARG)
+        BL   @JSR
+        DATA  OBJLOC         FIND PARENT'S LOCATION
+        MOV  R0,R4           SAVE
+
+        MOVB @6(R4),R3       GET PARENT'S FIRST CONTENT
+        CB   R3,R2           IS IT OBJ?
+        JNE  X152            NO
+        MOVB @5(R1),@6(R4)   YES, CHANGE SLOT TO OBJ'S SIB
+        JMP  X153
+
+X152    MOV  R3,R0
+        SWPB R0              CURRENT SIBLING
+        BL   @JSR
+        DATA  OBJLOC         FIND ITS LOCATION
+        MOV  R0,R4           SAVE
+
+        MOVB @5(R4),R3       GET NEXT SIBLING IN CHAIN
+        CB   R3,R2           IS IT OBJ?
+        JNE  X152            NO, CONTINUE LOOP
+        MOVB @5(R1),@5(R4)   YES, CHANGE IT TO OBJ'S SIBLING
+
+X153    CLR  R0
+        MOVB R0,@4(R1)       OBJ NOW HAS NO PARENT
+        MOVB R0,@5(R1)       OR SIBLNG
+
+X154    MOV  *R6+,R11
+        B    *R11            RETURN
+
+*--------------------------------------------------------------------------
+* GET FLAGS WORD AND GENERATE BIT POINTER
+*   GIVEN: R0 LOW = OBJ #, R1 = FLAG #
+*   RETURNS: R2 = FLAG LOC, R3 = BIT PTR, R4 = FLAGS WORD
+
+GETFLG  BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+
+        CI   R1,16           SECOND WORD FLAG?
+        JLT  X155            NO
+        AI   R1,-16          YES, ADJUST FLAG NMBR
+        INCT R0              AND USE SECOND FLAG WORD
+
+X155    MOV  R0,R2           SAVE FLAGS LOCATION
+
+        BL   @JSR
+        DATA  GTAWRD         GET THE FLAG WORD
+        MOV  R0,R4           SAVE IT
+
+        LI   R3,>8000        POINT TO LOW FLAG
+        MOV  R1,R0           POSITION THE SHIFT COUNT
+        JEQ  X156            IF ZERO, DONE
+        SRL  R3,0            POINT TO CORRECT FLAG BIT
+
+X156    MOV  *R6+,R11
+        B    *R11            RETURN
+*--------------------------------------------------------------------------
+
+* FSET? (IS FLAG SET IN OBJ?)
+*    GIVEN: R0 LOW = OBJ #, R1 = FLAG #
+
+OPQFSE  BL   @JSR
+        DATA  GETFLG         ADDRESS THE PROPER BIT
+
+        CZC  R3,R4           IS THIS BIT SET?
+        JEQ  X157            NO, PREDICATE FALSE
+
+        B    @PTRUE          YES, PREDICATE TRUE
+X157    B    @PFALSE
+
+* FSET (SET A FLAG IN OBJ)
+OPFSET  BL   @JSR
+        DATA  GETFLG         ADDRESS THE PROPER BIT
+
+        SOC  R3,R4           SET THIS BIT IN FLAG WORD
+ 
+        MOV  R2,R0
+        MOV  R4,R1
+        B    @PTAWRD         STORE THE NEW FLAG WORD
+
+* FCLEAR (CLEAR A FLAG IN OBJ)
+OPFCLE  BL   @JSR
+        DATA  GETFLG         ADDRESS THE PROPER BIT
+
+        SZC  R3,R4           CLEAR THIS BIT IN FLAG WORD
+
+        MOV  R2,R0
+        MOV  R4,R1
+        B    @PTAWRD         STORE THE NEW FLAG WORD
+
+* LOC (RETURN CONTAINER OF OBJ)
+OPLOC   BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+        MOV  R0,R1
+
+        MOVB @4(R1),R0       GET LOC SLOT
+        B    @BYTVAL         RETURN THE BYTE VALUE
+
+* FIRST? (RETURN FIRST SLOT OF OBJ, FAIL IF NONE)
+OPQFIR  BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+        MOV  R0,R1
+
+        MOVB @6(R1),R0       GET "FIRST" SLOT
+        MOVB R0,R2           SAVE A COPY
+
+        BL   @JSR
+        DATA  BYTVAL         RETURN THE BYTE VALUE
+
+        MOVB R2,R2           WAS THE "FIRST" SLOT ZERO?
+        JEQ  JPF1            YES, PREDICATE FALSE
+
+JPT1    B    @PTRUE          NO, PREDICATE TRUE
+JPF1    B    @PFALSE
+
+* NEXT? (RETURN THE NEXT (SIBLING) SLOT OF OBJ, FAIL IF NONE)
+OPQNEX  BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+        MOV  R0,R1
+
+        MOVB @5(R1),R0       GET SIBLING SLOT
+        MOVB R0,R2           SAVE A COPY
+
+        BL   @JSR
+        DATA  BYTVAL         RETURN THE BYTE VALUE
+
+        MOVB R2,R2           WAS THE SIBLING SLOT ZERO?
+        JEQ  JPF1            YES, PREDICATE FALSE
+        JMP  JPT1            NO, PREDICATE TRUE
+
+* IN? (IS OBJ1 CONTAINED IN OBJ2?)
+OPQIN   BL   @JSR
+        DATA  OBJLOC         FIND OBJ1'S LOCATION
+        MOV  R0,R2
+
+        SWPB R1              R1 HIGH = OBJ2 NMBR
+        CB   @4(R2),R1       IS OBJ1'S PARENT OBJ2?
+
+        JEQ  JPT1            YES, PREDICATE TRUE
+        JMP  JPF1            NO, PREDICATE FALSE
+
+*---------------------------------------------------------------------------
+* GET POINTER TO FIRST PROP IN AN OBJ'S PROP TABLE
+* GIVEN OBJ # IN R0, RETURN POINTER IN R0
+
+GETPRP  BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+
+        AI   R0,7            POINT TO PROPERTY TABLE SLOT
+        BL   @JSR
+        DATA  GTAWRD         GET ITS LOCATION
+
+        AI   R0,BUFFER       ABSOLUTIZE IT
+        CLR  R8
+        MOVB *R0,R8          LENGTH OF SHORT DESC IN WORDS
+        
+        SWPB R8
+        SLA  R8,1            CONVERT TO BYTES
+
+        A    R8,R0           ADJUST POINTER TO SKIP IT
+        INC  RO              ALSO SKIP LENGTH BYTE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+*------------------------------------------------------------------------------
+
+* GETP (GET SPECIFIED PROPERTY OF OBJ, DEFAULT IF NONE)
+*    GIVEN: R0 LOW = OBJ #, R1 LOW = PROP #
+
+OPGETP  BL   @JSR
+        DATA  GETPRP         GET FIRST PROP POINTER
+
+        SWPB R1              (PREPARE FOR BYTE COMPARES)
+        JMP  X162            SKIP NEXT CALL FIRST TIME THROUGH LOOP
+
+X161    BL   @JSR
+        DATA  NXTPRP         POINT TO NEXT PROPERTY
+
+X162    MOVB *R0,R3          GET PROP NMBR (IN R3 HIGH)
+        ANDI R3,>1F00        CLEAN OFF LENGTH BITS
+
+        CB   R3,R1           COMPARE PROP NMBR WITH DESIRED ONE
+        JGT  X161            IF GREATER, LOOP (TABLE SORTED IN REVERSE)
+        JLT  X163            IF LESS, NO SUCH PROP HERE
+
+        MOVB *R0,R3          GOT IT, NOW FIND LENGTH OF PROP
+        INC  R0              POINT TO PROP VALUE
+
+        ANDI R3,>E000        ISOLATE LENGTH BITS
+        JNE  X164            1 MEANS WORD VALUE
+
+        MOVB *R0,R0          0 MEANS BYTE VALUE, GET THE BYTE
+        B    @BYTVAL         AND RETURN IT
+
+X163    SWPB R1              RESTORE PROP NMBR TO R1 LOW
+        DEC  R1
+        SLA  R1,1            CONVERT TO WORD OFFSET
+
+        MOV  @OBJTAB,R0
+        A    R1,R0           POINT INTO DEFAULT PROP TABLE
+
+X164    BL   @JSR
+        DATA  GTAWRD         GET THE WORD 
+
+        B    @PUTVAL         AND RETURN IT
+
+* PUTP (CHANGE VALUE OF A PROPERTY, ERROR IF BAD NUMBER)
+*    GIVEN: R0 LOW = OBJ #, R1 LOW = PROP #, R2 = NEW VALUE
+
+OPPUTP  BL   @JSR
+        DATA  GETPRP         GET FIRST PROP POINTER
+
+        SWPB R1              (PREPARE FOR BYTE COMPARES)
+        JMP  X165            SKIP NEXT CALL FIRST TIME THROUGH LOOP
+
+X165    BL   @JSR
+        DATA  NXTPRP         POINT TO NEXT PROPERTY
+
+X166    MOVB *R0,R3          GET PROP NMBR (IN R3 HIGH)
+        ANDI R3,>1F00        CLEAN OFF LENGTH BITS
+
+        CB   R3,R1           COMPARE PROP NMBR WITH DESIRED ONE
+        JEQ  X167            IF EQUAL, GOT IT
+        JGT  X165            IF GREATER, LOOP (TABLE SORTED IN REVERSE)
+
+        BL   @JSR
+        DATA  FATAL          OTHERWISE, FATAL ERROR
+        TEXT 'NO SUCH PROPERTY'
+        TEXT '$'
+        EVEN
+
+X167    MOVB *R0,R3          NOW FIND LENGTH OF PROPERTY
+        INC  R0              POINT TO PROPERTY VALUE
+
+        ANDI R3,>E000        ISOLATE LENGTH BITS
+        JNE  X168            1 MEANS WORD VALUE
+
+        SWPB R2              0 MEANS BYTE VALUE
+        MOVB R2,*R0          STORE THE NEW BYTE VALUE
+
+        MOV  *R6+,R11
+        B    *R11            AND RETURN
+
+X168    MOV  R2,R1
+        B    @PTAWRD         STORE THE NEW WORD VALUE
+
+* NEXTP (RETURN NUMBER OF PROP FOLLOWING GIVEN PROP IN OBJ)
+*     GIVEN: R0 LOW = OBJ #, R1 = PROP #
+
+OPNEXT  BL   @JSR
+        DATA  GETPRP         GET FIRST PROP POINTER
+
+        MOV  R1,R1           WERE WE GIVEN ZERO AS PROP?
+        JEQ  X172            YES, GO RETURN FIRST PROP NMBR
+
+        SWPB R1              (PREPARE FOR BYTE COMPARES)
+        JMP  X170            SKIP NEXT CALL FIRST TIME THROUGH LOOP
+
+X169    BL   @JSR
+        DATA  NXTPRP         POINT TO NEXT PROPERTY
+
+X170    MOVB *R0,R3          GET PROP NMBR (IN R3 HIGH)
+        ANDI R3,>1F00        CLEAN OFF LENGTH BITS
+
+        CB   R3,R1           COMPARE PROP NMBR WITH DESIRED ONE
+        JEQ  X171            IF EQUAL, GOT IT
+        JGT  X169            IF GREATER, LOOP (TABLE SORTED IN REVERSE)
+
+        BL   @JSR
+        DATA  FATAL          OTHERWISE, FATAL ERROR
+        TEXT 'NO SUCH PROPERTY'
+        TEXT '$'
+        EVEN
+
+X171    BL   @JSR
+        DATA  NXTPRP         POINT TO NEXT PROPERTY
+
+        MOVB *R0,R0          GET THE PROP IDENTIFIER
+        SWPB R0
+        ANDI R0,>001F        EXTRACT THE PROP NUMBER
+        B    @PUTVAL         AND RETURN IT
+
+        END

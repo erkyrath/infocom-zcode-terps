@@ -1,0 +1,53 @@
+	TITLE	"Apple ][ YZIP (c)Infocom","ProDOS EQUATES"
+	PAGE 
+
+;
+; some parameter structures
+;
+OPEN_PARM	EQU	0
+OP_PCOUNT	EQU	OPEN_PARM	; must be 3 for open
+OP_PATHNAME	EQU	OP_PCOUNT+1	; address of pathname
+OP_FILEBUFF	EQU	OP_PATHNAME+2	; address of file data buffer
+OP_REFNUM	EQU	OP_FILEBUFF+2	; file reference number
+OPEN_PSIZE	EQU	OP_REFNUM+1	; size of parameter buffer
+
+READ_PARM	EQU	0		; to read things
+RD_PCOUNT	EQU	READ_PARM	; param count (=4)
+RD_REFNUM	EQU	RD_PCOUNT+1	; ref num of file
+RD_BUFFER	EQU	RD_REFNUM+1	; where to
+RD_BUFFLEN	EQU	RD_BUFFER+2	; length of buffer
+RD_LENGTH	EQU	RD_BUFFLEN+2	; actual length of read
+READ_PSIZE	EQU	RD_LENGTH+2	; length of parm block
+
+CLOSE_PARM	EQU	0		; for closing file
+CL_PCOUNT	EQU	CLOSE_PARM	; paramter count (=1)
+CL_REFNUM	EQU	CL_PCOUNT+1	; refnum of file to be closed
+CLOSE_PSIZE	EQU	CL_REFNUM+1	; this is the size, thank you
+
+WRITE_PARM	EQU	0		; to write things
+WR_PCOUNT	EQU	WRITE_PARM	; parm count (= 4)
+WR_REFNUM	EQU	WR_PCOUNT+1	; file refnum
+WR_BUFFER	EQU	WR_REFNUM+1	; data buffer address
+WR_BUFFLEN	EQU	WR_BUFFER+2	; data buffer length
+WR_LENGTH	EQU	WR_BUFFLEN+2	; actual length written
+WRITE_PSIZE	EQU	WR_LENGTH+2	; length of parm block
+
+SETMARK_PARM	EQU	0
+SM_PCOUNT	EQU	SETMARK_PARM	; parm count (=2)
+SM_REFNUM	EQU	SM_PCOUNT+1	; file refnum
+SM_FPOS		EQU	SM_REFNUM+1	; 3 byte file pos 
+SETMARK_PSIZE	EQU	SM_FPOS+3	; length of parm block
+
+SETPREFIX_PARM	EQU	0	
+SP_PCOUNT	EQU	SETPREFIX_PARM	; parm count (=1)
+SP_PATHNAME	EQU	SP_PCOUNT+1	; pointer to path name
+SETPREFIX_PSIZE	EQU	SP_PATHNAME+2	; length of block
+
+SETEOF_PARM     EQU     0
+SE_PCOUNT       EQU     SETEOF_PARM     ; parm count (=2)
+SE_REFNUM       EQU     SE_PCOUNT+1     ; reference number
+SE_NEWEOF       EQU     SE_REFNUM+1     ; new EOF position
+SETEOF_PSIZE    EQU     SE_NEWEOF+3     ; length of parm block
+
+	END
+

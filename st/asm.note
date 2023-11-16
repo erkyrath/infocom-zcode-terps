@@ -1,0 +1,17 @@
+
+    The ZIP and EZIP interpreters for the Atari ST are combined
+at the (68K) source level, using "conditional assembly" directives
+wherever necessary.  These appear as follows:
+
+    IFEQ EZIP
+	*
+	*
+    ENDC
+
+    IFEQ CZIP	* classic zip
+	*
+	*
+    ENDC
+
+    Searching for these strings will pinpoint most of the differences
+between the two interpreters.

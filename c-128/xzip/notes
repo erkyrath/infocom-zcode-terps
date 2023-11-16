@@ -1,0 +1,40 @@
+
+To create a finished XZIP for C128:
+
+The XASM-ED.BAT (creates an error listing only) and the XASM-D.BAT (creates
+a full listing) files will take the sources BOOT.ASM and XZIP.ASM files and 
+create a final program file XZIP.BIN.
+
+This file must be transferred to the C128 as the Xzip interpreter. The game 
+should be split at 88064 and transferred .pre to side 1 .pur to side 2. If 
+the game has any alternate character sets, those files must be transferred 
+to the C128 disk on side 1 as first font and second font (2 set limit).
+
+
+Info on the 2500AD cross assembler & linker:
+
+The linker has 2 faults, 1) it cannot handle an org of a lesser location 
+after code at a higher location (org $4000  lda anything  org $400 oops)
+2) it fills in any space between code and a new higher org. 
+The C128 sources have been set up to function with separate assemblies to 
+handle the first problem and the program SPL.EXE has been written to handle 
+the second. SPL.EXE takes a file and splits out the code you tell it to, 
+recombining the 2 sections before and after the removed piece. Both the C128 
+and Apple XASM-D.BAT files use this file if you need an example of it.
+SPL.EXE can be found in the \6502\SPLIT directory.
+
+
+To translate Dec Rainbow Avocet sources to the 2500AD crossassembler:
+
+Only 3 things differ between the requirements of each and only 2 have to be 
+changed. 1) includ must become include
+	 2) HIGH must become > and LOW <
+	 3) SBTTL should become STTL except that the error created has no 
+	    impact on the code results and if you get an error the SBTTL 
+	    errors provide an excellent way of finding which source file the
+	    errors are in because the 2500AD does not provide that info like
+	    the Avocet does.
+Also after using the crossassembler the linker must be used and if you have 
+any gaps in your code you must use SPL.EXE to remove the $FF's the linker 
+forces in to fill in the space to create a continuous file.
+

@@ -1,0 +1,48 @@
+MAC SIGNATURES
+----------------------------------------------------------------------
+
+    The Macintosh interpreter, as of version D, should have associated
+with it a UNIQUE (for each game) "signature" and "file type."  These 
+four-character strings are used for two purposes:
+
+[]  by the Finder, to link a document (save file) with the application
+    that created it.  
+
+[]  by the File Selector filtering function (during a Restore), to
+    display names of save documents only.
+
+
+    The generic signature & file type (used in sources and by MACCOM)
+are INFO & ZSAV.  They occur in the following numbers and locations.
+
+		INFO			ZSAV
+		--------		--------
+GAME file	1 - Pascal code		1 - Pascal code
+		2 - resource		1 - resource
+					1 - 68K code
+
+DESKTOP file	2 times			1 time
+
+volume direc	1 time
+		--------		--------
+TOTALS		6			4
+
+
+    The generic strings should be replaced from among those listed
+below.  Since the interpreter is otherwise identical from game to
+game, the easiest way to accomplish this change is to use a disk editor
+to patch each create disk, preferably just before running TFTP.
+
+    The following strings are registered exclusively to Infocom in
+a database which is maintained by Macintosh tech support.  Contact Bill
+Dawson at (408) 973-3400 if more are needed.
+
+	INA0 to INA9	and	ZSA0 to ZSA9	(Tales of Adventure)
+	INM0 to INM9	and	ZSM0 to ZSM9	(Mystery)
+	INS0 to INS9	and	ZSS0 to ZSS9	(Science Fiction)
+	INZ0 to INZ9	and	ZSZ0 to ZSZ9	(Zork etc)
+
+    The last two letters correspond directly to Production Department
+inventory codes for each game.  
+
+    Also registered are INFO, ZSAV, and INFB (Infobase).

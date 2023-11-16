@@ -1,0 +1,101 @@
+O^{ c' PROGRAM Create;   {Create a 16 ZORK Diskette from constituent parts}
+ 
+ CONST   K = 1024;
+         PG = 256;
+ 
+ Type Byte = 0..255;
+         Buffer = Packed Array [0..8191] of Byte;   {32 sectors}
+ 
+ VAR Count, I: Integer;
+	 GameFile: File;
+         Bufptr, Bufptr2: Buffer;
+         Ch: Char;
+ 
+ FUNCTION FCallRWTS (Cmd: Integer; Bufptr: Buffer; Length: Integer;
+0Slot, Drive, Track, Sector: Integer):Boolean;
+	 External;
+ 
+ PROCEDURE Create1; FORWARD;
+ 
+ PROCEDURE Error (ErrMsg1, ErrMsg2: String);
+#BEGIN
+&Close (GameFile);
+&Writeln; Writeln (ErrMsg1, ErrMsg2);
+&Writeln; Writeln ('*** Create failed! ***'); Writeln;
+&Exit (Create1);
+#END;
+ 
+ PROCEDURE Load (Fname: String; Offset, LoadPt: Integer);
+#TYPE Kludge = RECORD CASE BOOLEAN OF
+3TRUE: (Int: INTEGER);
+3FALSE: (Ptr: ^CHAR);
+1END;
+#VAR T: Kludge;
+#BEGIN
+#Reset (GameFile, Fname);
+#T.Int := LoadPt;  {Start of code space}
+#IF BlockRead (GameFile, T.Ptr^, 99, Offset) = 0
+&THEN Error ('ERROR on reading ', Fname);
+#Close (GameFile);
+#END;   {of Load}
+ 
+ 
+ PROCEDURE Copy (Fname: String; Offset: Integer;    {Source}
+0Track, Sector: Integer;         {Destination}
+0PageSize: Integer                   {in pages});
+#VAR BlockSize: Integer;      {in blocks}
+#BEGIN
+#Reset (GameFile, Fname);   BlockSize := (PageSize+1) div 2;
+#IF BlockRead (GameFile, BufPtr, BlockSize, Offset) <> BlockSize
+&THEN Error ('ERROR on reading ', Fname);
+#IF NOT FCallRWTS (2 {Write}, BufPtr, BlockSize*2, 6*16, 1, Track, Sector)
+&THEN Error ('ERROR on writing ', Fname);
+#IF NOT FCallRWTS (1 {Read}, BufPtr2, BlockSize*2, 6*16, 1, Track, Sector)
+&THEN Error ('ERROR on writing (rereading) ', Fname);
+#IF NOT (BufPtr=BufPtr2)
+&THEN Error ('ERROR on writing (verifying) ', Fname);
+#CLOSE (GameFile);
+#WRITELN ('File "', Fname, '" copied.');
+#END;   {of Copy}
+ 
+ 
+ PROCEDURE Create1;
+ BEGIN
+#Load ('#5:RWTS', 0, 36*PG);  {Load into DISK space}
+#Writeln; Writeln ('Place Next Destination Diskette in #4');
+#Write ('Type RETURN when ready '); Readln;
+#IF NOT FCallRWTS (4 {Format}, BufPtr, 1, 6*16, 1, 1, 0)
+	 THEN Error ('ERROR on formatting ', 'game disk');
+#Writeln ('Game disk formatted.');
+#BufPtr2 := BufPtr;   {must start out identical}
+#Copy ('#5:BOOT', 0,             {To} 0, 0,      {Size} 1);
+#Copy ('#5:BOOT2.CODE', 1,       {To} 0, 1,      {Size} 1);
+#Copy ('#5:PRWTS', 0,            {To} 0, 2,      {Size} 8);
+#Load ('#5:PRWTS', 0, 36*PG);  {ReLoad into DISK space}
+#Copy ('#5:Z.CODE', 1,           {To} 1, 0,      {Size} 28);
+#Reset (GameFile, '#5:GAME');
+#Count := 3;
+#WRITE ('Copying game');
+#WHILE NOT EOF (GameFile) DO
+&BEGIN
+&IF BlockRead (GameFile, BufPtr, 16) = 0
+&     THEN Error ('ERROR on reading ', '#5:GAME');
+&IF NOT FCallRWTS (2 {Write}, BufPtr, 32, 6*16, 1, Count, 0)
++THEN Error ('ERROR on writing ', 'game');
+&IF NOT FCallRWTS (1 {Read}, BufPtr2, 32, 6*16, 1, Count, 0)
++THEN Error ('ERROR on writing (rereading) ', 'game');
+&IF NOT (BufPtr=BufPtr2)
++THEN Error ('ERROR on writing (verifying) ', 'game');
+&Write ('..');
+&FOR I := 1 TO 1000 DO BEGIN END;
+&Count := Count+2;
+&END;
+#Close (GameFile);
+#Writeln; Writeln ('Game copied successfully.');
+ END;   {of Create1}
+ 
+ 
+ BEGIN {Main Program}
+#WHILE 1>0 {i.e., forever} DO Create1;
+ END.
+ 

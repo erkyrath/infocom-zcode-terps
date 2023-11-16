@@ -1,0 +1,29 @@
+C128 Requirements for:
+
+Alternate character sets:
+
+The first character must be 32 (GOFF must be 32 or greater).
+The number of characters can therefore only be up to 96 (GCOUNT must be 96 
+or less).
+The GSIZE must be 8 x 8. Any other configuration is unmanagable.
+
+Two alternate character sets are possible. They must be created as two 
+separate file, both of which will be loaded into character memory at the 
+start of the game. Neither set can be expected to be displayed while the 
+output is in inverse mode. Any inverse of a char you wish must be explicitly 
+included in the character sets. 
+
+
+
+There is no capability for picture files.
+
+
+
+COLOR is possible. All the colors mentioned in the spec may be used for both 
+the foreground and the background, however, while all the colors may appear 
+on the screen together at once as the foreground, only 1 color at a time may 
+be the background color. Changing the background color will cause the entire 
+screen background to change to that color.
+
+
+

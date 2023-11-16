@@ -1,0 +1,41 @@
+
+HOW TO MAKE A MASTER GAME DISK FOR THE MACINTOSH
+-------------------------------------------------------------------
+
+For this procedure, you will need three disks:
+
+    []  a blank disk
+    []  the Mac Create disk  (Game, DiskUtil, Set File, Examine File)
+    []  the Mac Utility disk  (TFTP, Masterize)
+
+  1.  Create a new game disk by copying the entire Create disk onto the
+blank disk.  The recommended copier is DiskUtil (or another sector copier), 
+since using the Finder copier changes the desktop arrangement.  Eject 
+both disks, put away the Create disk and reboot.
+
+  2.  Put the Utility disk in Drive 1 and the new game disk in Drive 2.  
+Rename the game disk and game file  (e.g. "Game Disk" becomes "ZORK I Disk"
+and "Game" becomes "ZORK I").
+
+  3.  Run the TFTP program [*].  When a directory box appears, click on the 
+Drive button to show the game disk directory.  Select the game file and click
+on the Open button.  Set up the DEC 20, then press any key to start receiving.
+The download should take less than five minutes.
+
+      [*] For TFTP, a special Mac TFTP cable, with pin 20 cut, is required, 
+plus a modem eliminator cable.
+
+  4.  Run the Hancock program to signaturize the disk.  When it asks for 
+a code, use the two-character Production Department code for the game you
+are making (e.g., Z1, M3, S4, etc -- a full list is on our Order Forms).
+
+  5.  Use the Get Info menu command to Lock the game file against
+accidental deletion.
+
+  6.  If this game has a special boot screen, copy it to the game disk.
+Always rename it as StartUpScreen.
+
+  7.  Throw away the Production folder on the game disk, and empty the
+trash.  The game disk should be left in the "opened" position on the desktop.
+From the File menu, eject both disks from the machine.
+

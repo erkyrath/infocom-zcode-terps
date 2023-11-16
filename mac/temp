@@ -1,0 +1,269 @@
+
+*------------------------------*
+* UncompH (was uncompress_huff)
+*------------------------------*
+
+U_INB	EQU	0
+U_OUTB	EQU	4
+U_HTREE	EQU	8
+U_PICX	EQU	12	* pixel width
+U_MLEN	EQU	16	* after unhuff, before de-run
+U_OLEN	EQU	20	* "interrupt count"
+U_FCALL	EQU	24	* raised by caller, initially
+U_LCALL	EQU	25	* raised by callee, when done
+U_REGS	EQU	26
+
+*** ULONG /*int*/ uncompress_huff (inbuf, outbuf, huff_tree, midlen, pic_x)
+*** unsigned char *inbuf, *outbuf, *huff_tree;
+*** ULONG midlen, pic_x;
+
+* FUNCTION UncompH (ucr: uncompRecPtr): LONGINT;
+
+* THERE ARE TWO NEW PARAMETERS: A FIRST-CALL FLAG AND AN INTERRUPT COUNT.
+* AFTER AN INTERRUPT WE RETURN TO THE CALLER (SINCE THE NEXT STEP IS MODE-DEPENDENT).
+* ALL PARAMS ARE NOW PASSED IN A RECORD, SO THEY WILL REMAIN VALID ACROSS MULTIPLE 
+* CALLS TO UNCOMPH.
+
+* THE OUTPUT BUFFER LENGTH MUST BE >= (U_OLEN + U_PICX + 128).
+
+* ABOUT BUFFER SIZES
+* A nominal full-screen Color pic contains 320x200 or 64000 pixels, decompressed 
+* into as many bytes.  Large but not unaffordable on a MacII.  Post-processing 
+* consists of packing bytes into row-aligned nibbles.  Transparency is handled 
+* by the OS.  Stipples are handled by us as a special case.
+
+* A nominal full-screen Mono pic contains 480x300 or 144000 pixels.  Decompressing
+* this into as many bytes is only /barely/ affordable on a Mac 512K.  The best
+* alternative is probably to decompress only a few rows at a time, into a small
+* output buffer adjacent to inbuf, and call MonoPic repeatedly.  Post-processing 
+* consists of packing bytes into row-aligned bits, and handling transparency.
+
+* STEPS IN PICTURE DECOMPRESSION (undo in reverse order):
+*   1. Each line of the picture is exclusive-or'ed with the previous line.
+*   2. A run-length encoding is applied, as follows:  byte values 0
+* through 15 represent colors; byte values 16 through 127 are repetition
+* counts (16 will never actually appear)  Thus: 3 occurrences of byte 
+* value 2 will turn into 2 17 (subtract 15 from the 17 to find that the 
+* two should be repeated 2 MORE times).
+*   3. Optionally, the whole thing is Huffman-coded, using an encoding
+* specified in the header file.
+
+* This routine does all three steps simultaneously--unhuf, then undo rle and 
+* xor steps.  Stores extra line of 0s at beginning of outbuf, for xor step.
+* Returns number of decompressed bytes.
+   
+UncompH
+	MOVEM.L	D2-D7/A2-A4/A6,-(SP)	* [40 BYTES]
+	MOVE.L	40+4(SP),A6		* PARAMBLOCK PTR
+
+	TST.B	U_FCALL(A6)	* FIRST TIME THROUGH?
+	BEQ.S	UNCHX4		* NO
+	CLR.B	U_FCALL(A6)	* YES, RESET FLAG
+	MOVEQ	#0,D0		* [DEFAULT RETURN VAL]
+
+* LOAD REGS FROM PARAMBLOCK
+
+***	MOVE.L	U_ILEN(A6),D1	* [INLEN -- NO LONGER USED]
+***	BLE.S	UNCHX9		*   ERROR
+	MOVE.L	U_MLEN(A6),D3	* "midlen" (AFTER dehuff, but BEFORE derun)
+	BLE.S	UNCHX9		*   ERROR
+	MOVE.L	U_INB(A6),A4	* INBUF
+	MOVE.L	U_HTREE(A6),A0	* HUFFTREE (256 BYTES MAX)
+
+* ZERO FIRST LINE OF OUTBUF
+
+	MOVE.L	U_OUTB(A6),A1	* OUTBUF(1)
+	MOVE.L	A1,A2
+	MOVE.L	U_PICX(A6),D1
+	BLE.S	UNCHX9		* ERROR
+UNCHX2	CLR.B	(A2)+		* CLEAR OUTBUF(1), ADVANCE TO OUTBUF(2)
+	SUBQ.W	#1,D1
+	BGT.S	UNCHX2
+	
+	MOVE.L	U_OLEN(A6),D1
+	BLE.S	UNCHX9		* ERROR
+	MOVE.L	A2,A3
+	ADD.L	D1,A3		* OUTBUF(3) IS INTERRUPT POINT
+
+	BSR	UNCOMP		* DIVE IN
+	BRA.S	UNCHX9
+UNCHX4	BSR	UNCOMP2		* CONTINUE
+
+UNCHX9	MOVEM.L	(SP)+,D2-D7/A2-A4/A6
+	MOVE.L	(SP)+,A0	* RETURN ADDR
+***	ADDA.W	#20,SP
+	ADDQ.L	#4,SP		* FLUSH ARGS, PASCAL STYLE
+	MOVE.L	D0,(SP)		* RETURN RESULT, PASCAL STYLE
+	JMP	(A0)
+
+
+*------------------------------*
+* UNCOMP, UNCOMP2
+*------------------------------*
+
+* GIVEN 
+*	A1 -> OUTBUF1 (PREV ROW)	A2 -> OUTBUF2	A3 -> OUTBUF3 (END+1)	
+*	A4 -> INBUF	A6 -> PARAMS	A0 -> HUFFTREE	
+*	D3.L = MIDLEN [AFTER UNHUFF, BEFORE UNRUN]
+* USES  
+*	D4.B = INCHR	D5.B = CBIT	D7.L [not .B] = CNODE	D6.B = LASTPIX
+*	D1.B = 16	D2.B = 128+16
+* RETURNS 
+*	D0.L = #BYTES WRITTEN TO OUTBUF
+*
+* COMMENTED-OUT LINES BELOW REFLECT OPTIMIZATIONS FOR SPEED.
+
+UNCOMP	MOVEQ	#16,D1
+	MOVE.B	#128+16,D2
+	MOVEQ	#0,D7		* INIT CNODE
+
+UNCPX0	MOVEQ	#7,D5		* RESET CBIT 
+***	MOVE.B	#128,D5
+	MOVE.B	(A4)+,D4	* Get the next inchr
+
+* [innermost unhuff loop begins here -- 5 ops, 40 cycles]
+
+* Since the bit of interest runs from 7 down to 0, we can avoid an explicit 
+* bit test by shifting bits off the left end of the register, one at a time, 
+* into the Carry flag (Thanks Mike M).  The fast way to shift a register  
+* left by one is to add it to itself. 
+
+UNCPX1	ADD.B	D4,D4		* IF (chr & cbit) SET X FLAG		[4]
+
+* We can check the Carry flag but avoid an expensive branch by taking advantage 
+* of ADDX.  Also, doubling D7 here eliminates the need to do it separately later.
+
+	ADDX.B	D7,D7		* cnode = (cnode * 2) + X		[4]
+	MOVE.B	0(A0,D7.W),D7	* cnode = huff_tree[cnode]		[14]
+	BMI.S	UNCPX3		* if (cnode >= 128) IT'S A TERMINAL	[8/]
+
+* We /could/ avoid this conditional branch by unrolling 8 iterations of the loop,
+* but would have to know where to jump back in ... probably not worth it.
+
+	DBF	D5,UNCPX1	* cbit >>= 1  (next bit)		[10/]	[40 tot]
+	BRA.S	UNCPX0		* if done with this char, go to next
+
+
+* X21	ADD.B	D4,D4		* IF (chr & cbit) SET X FLAG		[4]
+*	ADDX.B	D7,D7		* cnode = (cnode * 2) + X		[4]
+*	MOVE.B	0(A0,D7.W),D7	* cnode = huff_tree[cnode]		[14]
+*	BPL.S	X22		* if (cnode >= 128) IT'S A TERMINAL	[10/]	[32 tot]
+*	BSR.B	UNCPX3		*	[18]  [16 RTS]
+* X22	ADD.B	D4,D4
+*	ADDX.B	D7,D7
+*	MOVE.B	0(A0,D7.W),D7
+*	BPL.S	X23
+*	BSR	UNCPX3
+* X23			etc
+
+* SLOWER LOOP, HERE FOR DOCUMENTATION ONLY ...
+
+* UNCPX1	
+***	MOVE.B	D4,D0
+***	AND.B	D5,D0
+*	BTST	D5,D4		* IF (chr & cbit)			[6]
+*	BEQ.S	UNCPX2		*					[8/10]
+*	ADDQ.B	#1,D7		*					[4]
+* UNCPX2	
+*	MOVE.B	0(A0,D7.W),D7	* THEN cnode = huff_tree[cnode + 1]	[14]
+***	CMP.B	#128,D7		* if (cnode < 128)
+***	BCC.S	UNCPX3	* BHS
+*	BMI.S	UNCPX3		* [FLAG /ALREADY/ SET]			[8/]
+*	ADD.B	D7,D7		* THEN cnode *= 2;			[4]
+***	LSR.B	#1,D5
+*	SUBQ.B	#1,D5		* cbit >>= 1  (next bit)		[4]
+*	BPL.S	UNCPX1	* bne	*					[10/]	[56/58 tot]
+*	BRA.S	UNCPX0		* if done with this char, go to next
+
+* [cnode >= 128]  here we undo both runlength and xor
+
+UNCPX3	SUB.B	D2,D7		* ELSE cnode -= (128+16)  (this is a terminal)
+	BPL.S	UNCPX4
+***	ADD.B	#16,D7
+	ADD.B	D1,D7		* [RESTORE TO RANGE 0..15]
+
+***	SUB.B	#128,D7
+***	CMPI.B	#16,D7		* if (cnode < 16)
+***	BCC.S	UNCPX4	* BHS
+
+* It's a color id, output/xor it
+***	MOVE.B	(A1)+,(A2)	* [SLOWER by 4 cycles!]
+***	EOR.B	D7,(A2)+
+	MOVE.B	(A1)+,D0	* *p++ = cnode ^ *outbuf++
+	EOR.B	D7,D0
+	MOVE.B	D0,(A2)+
+
+	MOVE.B	D7,D6		* lastpix = cnode;
+	BRA.S	UNCPX7
+
+* Otherwise, run/xor LAST color id
+
+UNCPX4
+***	SUBI.B	#15+1,D7	* for (j = 0; j < (cnode - 15); j++)
+UNCPX5	MOVE.B	(A1)+,D0	* *p++ = lastpix ^ *outbuf++
+	EOR.B	D6,D0	
+	MOVE.B	D0,(A2)+
+	DBF	D7,UNCPX5	* [USES D7.W]
+
+UNCPX7	SUBQ.L	#1,D3		* if (--midlen <= 0) break [DONE]
+	BEQ.S	UNCPX10
+
+	CMPA.L	A3,A2		* IF OUTLEN_INTERRUPT break
+	BCC.S	UNCPX20	* BHS
+
+UNCPX8	MOVEQ	#0,D7		* RESET cnode = 0
+***	LSR.B	#1,D5
+	SUBQ.B	#1,D5		* cbit >>= 1  (next bit)
+	BPL	UNCPX1	* bne	* STILL IN RANGE 7..0
+	BRA	UNCPX0		* if done with this char, go to next
+
+* HERE FOR FINAL EXIT
+
+UNCPX10	MOVE.L	A1,D0
+	SUB.L	U_OUTB(A6),D0	* RETURN #BYTES IN FINAL OUTBUF
+	
+	MOVE.B	#1,U_LCALL(A6)	* TELL CALLER WE'RE DONE
+	RTS
+
+* HERE FOR TEMPORARY EXIT
+
+UNCPX20	
+	MOVEM.L	D3-D6/A2-A4,U_REGS(A6)	* SAVE OUR STATE
+	MOVE.L	U_OLEN(A6),D0		* RETURN #BYTES IN FULL OUTBUF
+	RTS
+
+* HERE TO RESUME AFTER TEMPORARY EXIT
+
+UNCOMP2	
+	MOVEM.L	U_REGS(A6),D3-D6/A2-A4	* RESTORE CRITICAL VARS
+
+* COPY LAST ROW OF BYTES, PLUS ANY OVERRUN, BACK TO THE BASE OF THE BUFFER, 
+* SO XOR WILL KEEP WORKING.  WE COULD DO SLIGHTLY LESS WORK BY COPYING /EXACTLY/
+* ONE ROW'S WORTH TO /NEAR/ THE BASE, BUT COPYING THE EXTRA BYTES:
+*   - PREVENTS A PROBLEM IN THE UNLIKELY CASE OF OVERRUN > 1 ROW, AND ALSO
+*   - HELPS ENSURE BLOCKMOVE IS EVEN-ALIGNED.
+
+	MOVE.L	U_PICX(A6),D1
+	MOVE.L	U_OLEN(A6),D2
+	
+	MOVE.L	A3,A0
+	SUB.L	D1,A0		* SRC: LAST ROW
+	MOVE.L	A0,A1
+	SUB.L	D2,A1		* DST: BUFFER BASE
+	MOVE.L	A2,D0
+	SUB.L	A3,D0
+	ADD.L	D1,D0		* ROWBYTES, PLUS #BYTES OVERRUN
+	BSR	MOVMEM
+
+* NOTE: FOR THE QUICKEST BLOCKMOVE, BOTH SRC AND DST MUST BE EVEN-ALIGNED.  THIS MEANS
+* THE CALLER SHOULD ENSURE THAT U_OLEN IS EVEN, WHETHER OR NOT U_PICX IS.
+
+	SUB.L	D2,A2		* RESET OUTBUF PTRS: 1ST ROW + EXTRA
+	MOVE.L	A2,A1
+	SUB.L	D1,A1		* BASE + EXTRA
+
+	MOVE.L	U_HTREE(A6),A0	* RESTORE REMAINING REGS
+	MOVEQ	#16,D1
+	MOVE.B	#128+16,D2
+	BRA.S	UNCPX8		* PICK UP WHERE WE LEFT OFF
+

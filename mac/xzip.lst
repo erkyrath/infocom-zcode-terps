@@ -1,0 +1,5471 @@
+
+{=======================================================================}
+{									}
+{		  XZIP INTERPRETER FOR APPLE MACINTOSH			}
+{									}
+{      INFOCOM, INC. COMPANY CONFIDENTIAL -- NOT FOR DISTRIBUTION	}
+{									}
+{=======================================================================}
+
+{    WRITTEN BY:  Duncan Blanchard
+     HACKED BY:   Mike Morton
+
+YZIP MODIFICATION HISTORY:
+
+     23 Sep 88	 DBB	fixed bug in ShowGFXS (added sx, sy, etc), was causing 
+     			  StipPic to write past end of buffer & trash freemem chain,
+			  next SysBeep call caused a crash.
+
+XZIP MODIFICATION HISTORY:
+
+     01 Aug 87   DBB	adapted to run w/ 68K XZIP kernel (from Atari ST)
+     07 Oct 87   DBB   	totRows/totCols are now vars; vals are derived 
+     			  from window Resource info (can be patched with 
+			  ResEdit for big screens)
+			bolding - whole line at once
+     			rewrote FixMenus
+			XZIP 'B' frozen
+     16 Feb 88   DBB	added sound driver
+			XZIP 'C' frozen
+     02 May 88	 DBB	updated for YZIP
+			YZIP 'D' frozen
+		
+EZIP MODIFICATION HISTORY:
+
+     10 Nov 86	 DBB   when blinking cursor, check "whichscr", see if in split 
+		       screen
+
+THINGS TO DO OR THINK ABOUT DOING -- msm
+  find the bug which makes the printer print "T24" when we start scripting
+  forget about defining a Pascal type for highlighting, and use CONSTs (see note
+  under "type" section)
+  work on speeding up inverse-video for big sections of the screen (e.g., when 
+  AMFV goes into library mode)
+  allow selection, copy, cut, and paste (hard to do, but a real nice thing to do)
+  allow "copy screen to clipboard" (much easier; still useful)
+  detect when no Imagewriter is attached (I have no idea how to do this)
+
+ZIP MODIFICATION HISTORY:
+
+     added copy-protection, master disk checking
+     changed font menu, now built from all available fonts
+
+     07 Aug 84	       Version C frozen
+
+     15 Jan 85	 DBB   changed script, uses standard printer driver calls
+     21 Jan 85	 DBB   moved status display inside of main window
+     23 Jan 85	 DBB   added context-sensitive cursor (ibeam, watch)
+     01 Feb 85	 DBB   added font sizes
+     27 Feb 85	 DBB   scrolling calculated using destRect vs viewRect
+     27 Feb 85	 DBB   new dialogs for Master Copy and About Infocom
+     09 Mar 85	 DBB   SAVE disk ejected for single-drive users
+
+     11 Mar 85	       Version D frozen
+}
+
+PROGRAM MACZIP;
+
+{ The first two switches are now specified in the command line that invokes
+  the compiler.  Embedded names and range checking should be suppressed in
+  shipped code, but are useful for debugging. }
+
+	{cmdline $R-} {Turn on/off range checking}
+	{cmdline $D-} {Turn on/off procedure names in object code }
+
+{ Exporting of names is off initially, then changed below. }
+	{$Z-} {do/don't export all routine names}
+
+{ These switches had meaning only under the Lisa Workshop. }
+
+	{dead $M+} {Turn on/off Macintosh code generation }
+	{dead $U-} {Turn on/off the Lisa Libraries }
+	{dead $X-} {Turn on/off stack expansion }
+	{dead $ASM-} {no 68K assembly listing }
+
+	{$L-} {don't include lengthy interface files in listings }
+
+{ All code segmentation directives have been removed.  They were
+  originally meant to allow running on a 128K Mac, but that's no longer
+  a goal for XZIP.  Now all code should be read into memory at startup 
+  time.  Its total size is only about 20K anyway. }
+
+USES
+    {$LOAD pas.dump}  
+    { [speeds up compile, but may cause "symbol table full" error] }
+	MemTypes,
+	QuickDraw,
+	OSIntf,
+	ToolIntf,
+	PackIntf,
+	MacPrint,
+	PaletteMgr;
+    {$LOAD}
+
+	{$L+} { reenable listing for our code }
+	{xxx $D-} { syms ON.  here since -z doesn't seem to be working ... }
+
+CONST
+  appleMenu	= 1;		{ menu ID for DA menu }
+  fileMenu	= 256;
+  editMenu	= 257;
+  lastMenu	= 3;		{ number of menus }
+
+  CR	= 13;			{ carriage return }
+  BS	= 8;			{ backspace }
+
+{ game pseudo-characters }
+  ZCHR_CLICK1	= 254;
+  ZCHR_CLICK2	= 253;
+  ZCHR_MENUHIT	= 252;
+  
+  ZCHR_LOWEST	= 252;
+
+{ This constant is declared for this application to distinguish its own
+  window from others.  The number is stored in the window field windowKind.}
+  MyDocument	= 8;
+
+  cursOnTime	= 40;		{ cursor stays lit for 2/3 sec }
+  cursOffTime	= 20;		{ and off for 1/3 }
+  kbmax		= 20;		{ max number of faked keystrokes we'll queue }
+
+  hlPlain	= 0;		{ kernel highlighting args: plain }
+  hlInverse	= 1;		{	reverse video }
+  hlBold	= 2;		{	bold }
+  hlUnderline	= 4;		{	underlining }
+  hlMono	= 8;		{ 	[use monospace font] }
+{ hlAC		= 128; }	{ DEAD - XZIP hack: Alt Charset bit }
+
+{ flag bits in currentAttr }
+  WFWRAP	= 1;		{ WRAP BIT }
+  WFSCRL	= 2;		{ SCROLL BIT }
+  WFSCRP	= 4;		{ SCRIPT BIT }
+  WFBUFF	= 8;		{ BUFFER BIT }
+
+(**
+{ We pick large error numbers, since the kernel uses small ones. }
+  err_qoflo	= 1000;		{ errors: keystroke queue overflow }
+  err_erasetype	= 1001;		{ "erase" called with bogus type }
+  err_screen	= 1002;		{ operation isn't appropriate for screen 0 }
+ **)
+  item1	= 1;			{ menu items }
+  item2 = 2;
+  item3 = 3;
+  item4 = 4;
+  item5 = 5;
+  item6 = 6;
+  item7 = 7;
+  item8 = 8;
+  item9 = 9;
+
+  TOBACKUP	= 0;		{ for BlitBits calls }
+  TOSCREEN	= 1;
+
+{ GFXBIG_Y = 300; } {400;}	{ 200 x 2 }
+{ GFXBIG_X = 512; } {640;}	{ 320 x 2 }
+
+  GFXAM_Y	= 200;
+  GFXAM_X	= 320;		{ "raw" size of full-screen Amiga pics }
+  GFXAM_DEPTH	= 4;
+
+  GFXMAC_Y	= 300;
+  GFXMAC_X	= 480;		{ 1.5 x Amiga sizes }  
+
+TYPE 
+  BitMapPtr	= ^BitMap;	{ for PixMap type coercion in CopyBits }
+
+  STR32 = STRING[32];		{ parameters must be a simple type }
+  STR128 = STRING[128];
+
+VAR
+  myMenus:	ARRAY [1..lastMenu] OF MenuHandle;
+  dragRect:	Rect;		{ for dragging our window }
+
+  wRecord:	WindowRecord;	{ [same size for color or mono] }
+  myWindow:	WindowPtr;
+{ keep copy for typecasting convenience -- CAN'T, UNDEFINED IN TOOLINTF }
+(* myCWindow:	CWindowPtr; *)	
+  myCW,				{ true if using Color window/grafport }
+  myBig,			{ window size is 2x Amiga std }
+  myTiny:	Boolean;	{ window size is 1x Amiga std (for fun only) }
+
+  myActive:	BOOLEAN;	{ TRUE if my window currently on top }
+  myInBounds:	BOOLEAN;	{ FALSE if my window is dragged such that  
+				  content area is partly offscreen }
+ { Buffer for faking keydown events; used for menu commands like SAVE, etc. }  
+  keybuf:	array [1..kbmax] of char;  { circular queue of input chars }
+  keyhead,			{ first character position to look at }
+  keytail:	INTEGER;	{ next character position to write to }
+
+  scripting:	BOOLEAN;	{ is script active? }
+  printed:	BOOLEAN;	{ have we ever scripted? }
+  lCount:	INTEGER;	{ script 60 lines per page }
+
+  watchHdl:	CursHandle;	{ the wait cursor }
+  infocon:	handle;		{ the icon for Infocom's games}
+  apName:	STR255;		{ game name, for init & About }
+
+  cursing:	boolean;	{ are we blinking the cursor? }
+  curstate:	boolean;	{ if blinking, is the cursor on? }
+  cursrect:	rect;		{ if on, where is it? }
+  curstime:	longint;	{ when does cursor next change?}
+
+  wMarg:	INTEGER;	{ text inset, to keep things neat }
+
+{ note: these two pixmaps are inited to share the same buffer (baseAddr),
+  so as to conserve memory }
+  gfxPM:	PixMap;		{ offscreen pixmap/bitmap, for buffering pics }
+  altPM:	PixMapHandle;		{ offscreen pixmap/bitmap, for saving bits }
+  altValid:	Boolean;	{ TRUE when altPM is up-to-date, FALSE if stale }
+  altlen:	LONGINT;	{ physical length (bytes) of alt buffer }
+  altPtr:	Ptr;		{ [same as altPM.baseaddr] }
+  altGDev:	GDHandle;	{ special gDev for altPM }
+{ altPort:	GrafPtr; }
+  altCPort:	CGrafPort;
+
+  SysEnv:	SysEnvRec;	{ hardware environment info }
+  fDisplay:	boolean;	{ true if game used PICDISP }
+  gfxDebug:	boolean;	{ [for debugging only] }
+  
+	{$Z+} {Export following var names}
+
+  totRows {totLines},		{ logical screen dimensions (0-origin) }
+  totCols {totColumns},
+  firstRow,			{ logical window bounds }
+  lastRow,
+  firstCol,
+  lastCol,
+  curRow,			{ current cursor position (0-origin) }
+  curCol:	INTEGER;
+
+  lineHeight,			{ height of font, in pixels }
+  colWidth:	INTEGER;	{ width of font (or of digit '0') }
+
+  currenthl:	INTEGER;	{ current highlighting mode }
+  currentAttr:	INTEGER;		{ wrap, etc }
+{ currentFont:	INTEGER; }	{ [replaced by ZFont] }
+  stdFont:	INTEGER;	{ [mostly for debugging] }
+
+  filename,
+  backname:	STRING[64];	{ array [1..64] of char }
+  filevol,
+  backvol:	INTEGER;
+  filetype:	OSType;		{ 4 chars, default ZSAV }
+  actlen:	LONGINT;	{ actual bytes transferred during I/O }
+
+  margRight,			{ margin widths (default zero) }
+  margLeft:	INTEGER;
+  xmouse, 
+  ymouse,
+  bmouse,			{ nonzero if mouse button down }
+  mmouse:	INTEGER;	{ hi byte = menu, lo byte = item }
+ 
+  undoflag,			{ [addr as byte from 68K] }
+  lineflag,			{ set when reading a string (>1 char) }
+{ olineflg, }
+  menuflag,			{ set if game wants menu codes, not strings }
+  omenuflg:	BOOLEAN;
+
+  KYscancode:	CHAR;		{ globals set in MainEventLoop }
+  KYcmdkey:	BOOLEAN;
+  MSclicktime:	LONGINT;	{ time of last single-click (check for 2nd) }
+
+  mColor:	BOOLEAN;	{ set if color display available }
+
+  blittrap:	BOOLEAN;	{ set if trap occurred [update pending] }
+  trapAddr:	ARRAY [1..10] OF LONGINT;	{ original trap vectors, see 68K }
+  BlitBitsAddr: LONGINT;
+  
+  clipRgn1,
+  clipRgn2:	RgnHandle;	{ [globals only to avoid repeated allocs] }
+  
+	{$Z*} {Export following (all) routine names (but not vars)}
+	
+
+{=======================================}
+{ Misc Routines				}
+{=======================================}
+
+{-------------------------------}
+{ ScrnSize			}
+{-------------------------------}
+
+(* DEAD *)
+(* FUNCTION ScrnSize: INTEGER; *)	{ return rows/cols }
+
+{-------------------------------}
+{ ZFont				}
+{-------------------------------}
+
+CONST
+  ZSTD = 1;		{ "standard font" (now Geneva) }
+  ZGFX = 2;		{ "graphics font" -- NOT HANDLED HERE }
+  ZALT = 3;		{ BZ Font [currently 9-point] }
+  
+  ZMONO = -1;		{ Monaco }
+  ZTOGGLE = -2;		{ switch proportional/mono (for debugging) }
+
+{ Set the global (QD) font.  Note that if a game requests a monofont, 
+  this switch should happen immediately (rather that just before drawing), 
+  so as to affect subsequent text width calculations. }
+
+PROCEDURE ZFont (zid: INTEGER);
+BEGIN
+    CASE zid OF
+	ZSTD:	TextFont (stdFont {geneva});
+	ZALT:	TextFont (8);
+	ZMONO:	TextFont (monaco);
+	ZTOGGLE:
+	    BEGIN
+	    IF stdFont <> monaco
+		THEN stdFont := monaco
+		ELSE stdFont := geneva;
+		
+	    TextFont (stdFont);
+	    END;
+    END;	{ of cases }
+END;
+
+{-------------------------------}
+{ SetColor, MapColor		}
+{-------------------------------}
+
+CONST
+  zBLACK	= 2;
+  zRED		= 3;
+  zGREEN	= 4;
+  zYELLOW	= 5;
+  zBLUE		= 6;
+  zMAGENTA	= 7;
+  zCYAN		= 8;
+  zWHITE	= 9;
+
+{ VAR 
+  saveBackColor: LONGINT; }		{ hack: remember for Clear calls }
+
+FUNCTION MapColor (zcid: INTEGER): LONGINT;  { map Z id to Mac id, 0 if err/unchanged }
+VAR mcid: LONGINT;
+BEGIN
+{ in 'C' could use a simple static array instead of this code }
+  CASE zcid OF
+    zBLACK:	mcid := blackColor;
+    zRED:	mcid := redColor;
+    zGREEN:	mcid := greenColor;
+    zYELLOW:	mcid := yellowColor;
+    zBLUE:	mcid := blueColor;
+    zMAGENTA:	mcid := magentaColor;
+    zCYAN:	mcid := cyanColor;
+    zWHITE:	mcid := whiteColor;
+  OTHERWISE
+    mcid := 0;
+  END;
+  MapColor := mcid;
+END;
+
+FUNCTION SetColor (fore, back: INTEGER): INTEGER;  { return back/fore defaults }
+VAR
+  mcid: LONGINT;
+  cPix: RGBColor;
+  curColor: Boolean;
+BEGIN
+  SetColor := (zWHITE*256) + zBLACK;	{ Mac defaults: white under black }
+
+{ This var allows us to /avoid/ reading the screen color during Stipple or b/w mode
+   (can lead to black-on-black text).  Note that user can change mode on the fly. }
+  curColor := FALSE;
+  IF mColor
+    THEN IF myCW
+      THEN curColor := (CGrafPtr(myWindow)^.portPixMap^^.pixelSize > 1);
+
+{ On a mono Mac, all non-white colors map to black.  We now support this --
+  can be used to clear a screen to black, for example }
+{ IF NOT mColor
+    THEN EXIT (SetColor); }	{ all done if not using color hardware }
+
+  IF curColor AND (fore = -1) THEN	{ use screen color @ current cursor pos }
+    BEGIN
+    GetCPixel (curCol, curRow, cPix);
+    RGBForeColor (cPix);
+    END
+  ELSE
+    BEGIN
+    IF fore = 1 
+      THEN mcid := blackColor	{ default }
+      ELSE mcid := MapColor (fore);
+    IF mcid <> 0
+      THEN ForeColor (mcid);
+    END;
+
+  IF curColor AND (back = -1) THEN	{ use screen color @ current cursor pos }
+    BEGIN
+    GetCPixel (curCol, curRow, cPix);
+    RGBBackColor (cPix);
+    END
+  ELSE
+    BEGIN
+    IF back = 1 
+      THEN mcid := whiteColor	{ default }
+      ELSE mcid := MapColor (back);
+    IF mcid <> 0 THEN
+      BEGIN
+      BackColor (mcid);
+    { saveBackColor := mcid; }	{ remember this one }
+      END;
+    END;
+END;
+
+{-------------------------------}
+{ ZAlloc			}
+{-------------------------------}
+
+{ Allocate a block of requested length, return ptr, or zero if error.
+
+  If len is -1, return instead the length of free memory.  Notice that
+  for Mac this really means the length of the largest single free block --
+  68K initialization and paging isn't currently set up to deal with
+  noncontiguous free memory.  Hopefully the lossage will be minimal, since 
+  this function is normally called early on. }
+  
+FUNCTION ZAlloc (len: LONGINT): LONGINT;
+VAR
+  grow, maxblk: LONGINT;
+BEGIN
+  IF len = -1 THEN BEGIN
+    MaxApplZone;		{ grow appl heap zone to limit }
+    maxblk := MaxMem (grow);	{ purge and compact appl heap zone }
+    Zalloc := maxblk;		{ return biggest block }
+    END				{ (ignore grow; should now be zero) }
+  ELSE
+    ZAlloc := LONGINT (NewPtr (len));
+END;
+
+{-------------------------------}
+{ GTAWord			}
+{-------------------------------}
+
+{ pick up the word at the specified loc }
+
+FUNCTION GTAWord (loc: LONGINT): INTEGER;
+VAR p: ^INTEGER;
+BEGIN
+  p := Pointer (loc);
+  GTAWord := p^;
+
+(*  This code, intended to pick up only a byte, still tries to read a word, 
+    and crashes because of the odd address.  Why?
+  VAR p: ^char;
+  p := Pointer ($400009);
+  IF char (p^) = char ($FF) THEN ...
+*)
+END;
+
+{-------------------------------}
+{ OnLisa			}
+{-------------------------------}
+
+FUNCTION OnLisa: BOOLEAN;	{ check if running on Lisa [was in 68K] }
+CONST 
+  MACID = $400008;		{ magic ROM addr }
+VAR id: INTEGER;
+BEGIN
+  id := GTAWord (MACID);	{ machine id + ROM version }
+
+  IF BAND (id, $FF) = $FF	{ check /odd/ byte for Lisa-ness }
+    THEN OnLisa := TRUE		{ bingo }
+  ELSE OnLisa := FALSE;
+END;
+
+{-------------------------------}
+{ OnMac2			}
+{-------------------------------}
+
+FUNCTION OnMac2: BOOLEAN;
+CONST 
+  ROM85 = $028E;		{ a different magic addr (in RAM) }
+VAR id: INTEGER;
+BEGIN
+  id := GTAWord (ROM85);
+
+{ We want to write "IF id > $3FFF", but can't because the Pascal 
+  comparison is signed ... }
+
+  IF (id = $FFFF) OR (id = $7FFF)	
+    THEN OnMac2 := FALSE
+  ELSE OnMac2 := TRUE;		{ "Mac2 or later" }
+END;
+
+{-------------------------------}
+{ CalcRowBytes			}
+{-------------------------------}
+
+{ round UP; return padded length, always even }
+
+FUNCTION CalcRowBytes (bits, depth: INTEGER): INTEGER;
+BEGIN
+  CalcRowBytes := (((depth * bits) + 15) DIV 16) * 2;  
+END;
+
+{-------------------------------}
+{ CalcRow4Bytes			}
+{-------------------------------}
+
+{ round UP; return padded length, always multiple of 4 }
+
+FUNCTION CalcRow4Bytes (bits, depth: INTEGER): INTEGER;
+BEGIN
+  CalcRow4Bytes := (((depth * bits) + 31) DIV 32) * 4;  
+END;
+
+{-------------------------------}
+{ CalcPicBytes			}
+{-------------------------------}
+
+{ round UP; return unpadded length (bytes) }
+(** UNUSED
+FUNCTION CalcPicBytes (bits, depth: INTEGER): INTEGER;
+BEGIN
+  CalcPicBytes := ((depth * bits) + 7) DIV 8;  
+END;  **)
+
+{-------------------------------}
+{ PFatal			}
+{-------------------------------}
+
+{ call on the kernel to die -- not used these days }
+{ PROCEDURE PFatal (deathcode: INTEGER); EXTERNAL; }
+
+
+{$I Display.p}
+
+{$I MacAI.p}			{ "About Infocom" }
+
+{$I Input.p}
+
+{$I Disk.p}
+
+{$I Gfx.p}
+
+{$I Sound.p}
+
+{$I Init.p}
+
+{-------------------------------}
+{ Program Entry Point ...	}
+{-------------------------------}
+
+PROCEDURE ZSTART; EXTERNAL; {68K entry point}
+
+BEGIN
+  IF PInit <> noErr 		{ [need a dialog here for init errors] }
+    THEN QuitGame (0)
+    ELSE ZSTART;		{ jump into the 68k kernel }
+END.
+
+{-------------------------------}
+{ makeRect			}
+{-------------------------------}
+
+{ Given a range of lines and columns (0-origin, with endpoints+1), set a 
+  Quickdraw rectangle to correspond to that portion of the screen.  The row 
+  numbering is absolute, not relative within a particular screen.  This 
+  function is used an awful lot, e.g. for erasing lines, highlighting... }
+
+PROCEDURE makeRect (VAR rec: rect; t, b, l, r: INTEGER);
+BEGIN 
+  rec.top := t {* lineheight};		{ find the top of the top row }
+  rec.bottom := b {* lineheight};	{ and the bottom of the bottom row }
+  rec.left := (l {* colwidth}) + wMarg;	{ left edge of leftmost col, inset by margin }
+  rec.right := (r {* colwidth}) + wMarg;{ right edge of rightmost column, ditto }
+END;					{ procedure makeRect }
+
+{=======================================}
+{ CURSOR GENERATION			}
+{=======================================}
+
+{-------------------------------}
+{ StopCursor			}
+{-------------------------------}
+
+{ Stop the cursor.  If the cursor is blinking, we must check if it's actually 
+  on the screen right now, and erase it if it is. }
+
+PROCEDURE StopCursor;
+BEGIN 
+  IF cursing
+  THEN IF curstate		{ is the cursor on right now? }
+  THEN BEGIN 			{ yes: get rid of it }
+    setPort (myWindow);		{ make sure we're in the right place }
+  { eraseRect (cursrect); }
+    InvertRect (cursrect);	{ reverse it, transparently }
+  END;
+
+  cursing := false;		{ cursor is now off }
+END;				{ procedure StopCursor }
+
+{-------------------------------}
+{ StartCursor			}
+{-------------------------------}
+
+{ Start the cursor going.  This is also used to force the cursor to the 
+  beginning of its cycle (the off part).  That's why we shut it off, and then 
+  restart it -- the restart puts it at the beginning of the "off" cycle. }
+
+PROCEDURE StartCursor;
+BEGIN 
+  StopCursor;			{ if it's on, shut it off }
+
+  cursing := true;		{ now ensure it's blinking }
+  curstate := false;			{ but it's off for the moment }
+  curstime := tickCount + cursOffTime;	{ set "alarm" for when it should come on }
+END;					{ procedure StartCursor }
+
+{-------------------------------}
+{ SyncCursor			}
+{-------------------------------}
+
+{ SyncCursor is called when the cursor should stay blinking, but not where it 
+  is.  This is used whenever we print to screen 0. }
+
+PROCEDURE SyncCursor;
+BEGIN 
+  IF cursing			{ is the cursor running? }
+  THEN StartCursor;		{ yes: clear it and reset the timer }
+END;				{ procedure SyncCursor }
+
+{-------------------------------}
+{ CursAlarm			}
+{-------------------------------}
+
+{ Handle a cursor "alarm".  This means the "timer" for the cursor has expired 
+  and we must change the state. }
+
+PROCEDURE CursAlarm;
+BEGIN 
+{ cursor is now a Mac-style insertion bar (1 pixel wide), rather than a block.
+  We shift it right by one pixel to make it look nicer }
+  makeRect (cursrect, curRow, curRow+lineHeight, 
+  		curCol+1, curCol+2 {colWidth});  
+
+{ For unknown reasons, we must reset our port here sometimes -- for 
+  instance, if we try to blink right after we use PaintBehind to refresh 
+  after "About Infocom", the blink may be plotted through the wrong port. }
+{ setPort (myWindow); } { FIXED IN "ABOUTINFOCOM" }
+  
+  IF curstate THEN		{ currently on? }
+    BEGIN 
+    curstime := tickCount + cursOffTime;	{ next on }
+  { eraseRect (cursrect);  }			{ get rid of it }
+    END
+  ELSE  			{ currently off }
+    BEGIN
+    curstime := tickCount + cursOnTime;		{ next off }
+  { insetRect (cursrect, 1, 1);	  }		{ make it look nicer }
+  { paintRect (cursrect); }			{ paint it black, you devil }
+    END;
+
+{ we now make a transparent cursor, rather than a b/w one }
+
+  InvertRect (cursrect);	{ reverse it, transparently }
+  curstate := not curstate;	{ toggle to other state }
+END;				{ procedure CursAlarm }
+
+{-------------------------------}
+{ CycleCursor			}
+{-------------------------------}
+
+{ blink cursor as necessary (called repeatedly during input),
+  return status: 0 = no change, 1 = on, -1 = off }
+
+FUNCTION CycleCursor: INTEGER;
+BEGIN 
+  CycleCursor := 0;
+  IF cursing THEN			{ is our cursor enabled? }
+    IF tickCount > curstime THEN	{ yes: has the alarm gone off? }
+      BEGIN
+      CursAlarm;			{ yes: change cursor state }
+      IF curstate
+        THEN CycleCursor := 1
+        ELSE CycleCursor := -1;
+      END;
+END;
+
+{=======================================}
+{ DISPLAY ROUTINES			}
+{=======================================}
+
+{-------------------------------}
+{ ZCopyBits			}
+{-------------------------------}
+
+CONST
+  TOBACKGD = 13579;	{ magic value, indicates must switch GDevs }
+VAR
+  blackCColor, 
+  whiteCColor: RGBColor;
+
+{ This is a front end for CopyBits, to ensure that fore and back grafPort colors are 
+  temporarily reset to black and white.  This avoids an odd side-effect of CopyBits
+  that mangles colors (IM V-71).  We also temporarily reset the GDev, if requested,
+  to our alternate-screen gdev.
+  
+  The parameters to this routine resemble those of the real CopyBits,
+  with the following exceptions:
+      - The bitmaps are passed as type BitMapPtr.  If they were passed as type 
+  BitMap, the parameter received is still a pointer, but Pascal creates an implicit
+  local var and copies the structure content.  That's a particularly bad thing
+  to do to a BitMap, because on the MacII a bitmap can actually be a (larger) PixMap,
+  and would get chopped.  OS routines like CopyBits know internally how to tell 
+  the difference, but Pascal certainly doesn't.
+      - The rects are passed as VAR types, to prevent the same sort of local copying.
+  In their case, it's just for efficiency.
+      - Finally, the mode parameter can have a magic value; see below. }
+  
+PROCEDURE ZCopyBits (srcBits, dstBits: BitMapPtr; VAR srcRect, dstRect: Rect;
+			mode: INTEGER; maskRgn: RgnHandle);
+VAR
+	theCP: Boolean;				{ true if a thePort is color }
+	saveCFore, saveCBack: RGBColor;
+	saveFore, saveBack: LONGINT;		{ for mono window }
+	gdmode: INTEGER;			{ separate var for gdev hack }
+	gdh: GDHandle;
+	oldPort: GrafPtr;
+BEGIN
+	gdmode := mode;				{ extract magic val, if any }
+	IF gdmode = TOBACKGD THEN
+		mode := srcCopy; 		{ restore its (implicit) value }
+
+	{ Since this routine is called by the 68K vector intercept stuff, thePort might NOT
+	  be the same as myWindow.  In fact, myWindow could be mono and thePort could be color,
+	  if we exist on a color desktop and come here after an intercept. }
+
+	theCP := FALSE;
+      { IF BAND (thePort^.portBits.rowBytes, $0C000) = $0C000 THEN }	{ in a color port? }
+	IF thePort^.portBits.rowBytes < 0 THEN				{ (hi bit is enough) }
+		theCP := TRUE;
+
+	IF theCP {myCW} THEN
+		BEGIN
+		GetForeColor (saveCFore);
+		GetBackColor (saveCBack);
+		RGBForeColor (blackCColor);	{ IM: "avoid unwanted coloring" }
+		RGBBackColor (whiteCColor);
+		
+	{ Seems that a gdev change, if it happens, must come AFTER the color reset.
+	  Otherwise the save/restore of fore/back colors does not work right. }
+	
+		IF myCW THEN 
+		    IF gdmode = TOBACKGD THEN
+			BEGIN
+			gdh := GetGDevice;	{ save old }
+			SetGDevice (altGDev);
+			
+		{ Seems we must also change ports -- see comments in Init.p.  This probably
+		  makes the RGBForeColor, etc, calls redundant. }
+			GetPort (oldPort);
+			SetPort (GrafPtr (@altCPort));	
+			END;
+		END
+	ELSE
+		BEGIN
+		saveFore := thePort^.fgColor;	{ avoid reversed gfx ... }
+		saveBack := thePort^.bkColor;	{   in erased-to-black mode }
+		ForeColor (blackColor);
+		BackColor (whiteColor);
+		END;
+	
+(**	HideCursor;  **)			{ [done by CopyBits, if needed] }
+	CopyBits (srcBits^, dstBits^, srcRect, dstRect, mode, maskRgn);
+(**	ShowCursor;  **)
+
+	IF theCP {myCW} THEN
+		BEGIN
+		IF myCW THEN 
+		    IF gdmode = TOBACKGD THEN
+		        BEGIN
+			SetGDevice (gdh);	{ restore old }
+			SetPort (oldPort);
+			END;
+		RGBForeColor (saveCFore);
+		RGBBackColor (saveCBack);
+		END
+	ELSE
+		BEGIN
+		ForeColor (saveFore);
+		BackColor (saveBack);
+		END;
+END;
+
+{-------------------------------}
+{ BlitBits			}
+{-------------------------------}
+
+{ This routine copies data between on-screen and off-screen bitmaps.
+  'Row' indicates a single line to copy; negative means all lines. }
+
+PROCEDURE BlitBits (mode, row: INTEGER);	{ [also called from 68K] }
+VAR
+  r, noClipR: rect;
+{ gdh:		GDHandle; }
+BEGIN
+  IF row < 0 THEN
+    r := myWindow^.portRect		{ blit whole window }
+  ELSE
+    makeRect (r, row, row+lineHeight, firstCol, lastCol);
+
+  IF mode = TOBACKUP THEN
+    BEGIN
+  { a full-screen color copybits can cause a long pause; avoid it if unnecessary }
+    IF NOT altValid THEN		
+      BEGIN
+    { it turns out that copying anything that uses a custom palette TO an offscreen 
+    pixmap requires GDevice hacking.  The gdev stuff now lives in ZCopyBits and
+    is requested by a 'TOBACKGD' argument. }
+
+      ZCopyBits (@myWindow^.portBits, BitMapPtr(altPM^), 
+      			r, r, TOBACKGD {srcCopy}, NIL);
+      altValid := TRUE;
+      END
+    END
+  ELSE
+    BEGIN
+    IF NOT altValid THEN	
+    { This case occurs if we are called upon to restore a screen that was,  
+      for whatever reason, never saved.  It also seems to be triggered under 
+      Sys 6.0 by a palette change. }
+      BEGIN
+(*    SysBeep (4);  *)
+(*    EXIT (BlitBits);	*)	{ avoid trashing screen }
+
+    { fall thru with a zero-size rect, so at least screen palette is corrected }
+      r.bottom := r.top;
+      END;
+
+    { clipping should be handled by Caller }
+    ZCopyBits (BitMapPtr(altPM^), @myWindow^.portBits, r, r, srcCopy, NIL);
+
+{   SetRect (noClipR, $8001, $8001, $7FFF, $7FFF); }
+    END;
+END;					{ procedure BlitBits }
+
+{-------------------------------}
+{ UpdateMyWindow		}
+{-------------------------------}
+
+{ Redraw the window (normally called after an update event). }
+
+PROCEDURE UpdateMyWindow;	{ called by main loop, fsel, autodrag }
+BEGIN
+  SetPort (myWindow);		{ (make sure we draw in our window) }
+  BeginUpdate (myWindow);	{ clip to update region }
+  BlitBits (TOSCREEN, -1);
+  EndUpdate (myWindow);		{ restore normal visrgn }
+END;				{ procedure UpdateMyWindow }
+
+{-------------------------------}
+{ CheckMyUpdate			}
+{-------------------------------}
+
+{ This routine should now be called before /all/ output to our window.  
+  Happily, this is easy since output is currently bottlenecked to two routines:
+  DrawLine (for text) and opDisplay (for gfx).  It should also be called 
+  from the erase routines, ClearWindow and EraseLine.
+  See HANDLE_TRAP for related comments. }
+  
+PROCEDURE CheckMyUpdate;
+VAR 
+  ev: EventRecord;
+  junk: Boolean;		{ obsolete Toolbox var }
+  r: Rect;
+BEGIN
+(* problem: EventAvail apparently never reports Update events! *)
+(* junk := EventAvail (updateMask, ev);	{ call first; probably somewhat faster. }
+  IF ev.what = updateEvt THEN *)
+
+  junk := GetNextEvent (updateMask, ev);	{ THIS call clears the update area! }
+  IF ev.what = updateEvt THEN
+    BEGIN
+    IF WindowPtr(ev.message) = myWindow THEN
+      BEGIN
+      GetClip (clipRgn2);	{ save old (may be a YZIP window) }
+      r.top := $8001;		{ open wide }
+      r.left := $8001;
+      r.bottom := $7FFF;
+      r.right := $7FFF;
+      ClipRect (r);
+
+      UpdateMyWindow;
+      SetClip (clipRgn2);	{ undo the above }
+      END;
+(*  ELSE CheckMyUpdate;  *)	{ [somebody else's window?  careful of endless loops.] }
+    END;
+
+{ Notice that here we call the update routine BEFORE GetNextEvent is ever called,
+  and before a (presumably) posted update event is received.  It doesn't work;
+  we must apparantly go through GetNextEvent so that update region maintenance  
+  works correctly.  Otherwise the blit is suppressed (clipped?) and later the whole 
+  area is erased. }
+(**  
+  IF blittrap THEN		{ [dead var] }
+    BEGIN
+    UpdateMyWindow;
+    blittrap := FALSE;
+    END;  **)
+
+  { finally, the altscreen is about to become stale, since we're about to output 
+    something to the main screen. }
+  altValid := FALSE;		{ also in SetupInput }
+END;
+
+{-------------------------------}
+{ Timeout_Update, Timeout_Reset	}
+{-------------------------------}
+
+{ One more update hack -- this routine kicks in if a certain amount of time 
+  has elapsed without any input.  The idea is to save the screen bits before
+  various "screen saver" utilities wake up and wipe out the screen.
+  
+  This is only a stopgap fix, since a screen saver like 'Pyro' allows the user
+  to wipe out the screen at any time whatsoever. }
+
+CONST
+  TU_DELAY = 60*55;		{ 55 secs should pre-empt most screen savers }
+VAR
+  tick_lastinput: LONGINT;
+
+PROCEDURE Timeout_Update;
+BEGIN
+  IF tick_lastinput <> 0 THEN
+  IF tickCount > tick_lastinput + TU_DELAY THEN
+    BEGIN
+    BlitBits (TOBACKUP, -1);
+    tick_lastinput := 0; 	{ avoid a second save before next input }
+    END;
+END;
+  
+PROCEDURE Timeout_Reset;
+BEGIN
+  tick_lastinput := tickCount;
+END;
+
+{-------------------------------}
+{ ClearWindow  (was ClearLines)	}
+{-------------------------------}
+
+{ Clear the (active) window }
+
+PROCEDURE ClearWindow (arg: INTEGER);	{ if -1, clear entire screen }
+VAR
+  r: rect;
+BEGIN
+  CheckMyUpdate;		{ YZIP: call before changing screen }
+
+  IF arg = -1 THEN			{ calc total area affected }
+    r := myWindow^.portRect		{ "0,0,y,x" - includes wMarg }
+  { makeRect (r, 0, totRows, 0, totCols) }
+  ELSE
+    makeRect (r, firstRow, lastRow, firstCol, lastCol);
+
+(**   { this entire hack is unnecessary and dead }
+{ IF myWindow^.bkColor <> whiteColor }	
+{ [this fails if it's a CWindow, I think -- could call GetBackColor, but
+  only if on MacII ROMS }
+
+  IF saveBackColor <> whiteColor	{ special case (see SetColor) }
+{   THEN PaintRect (r)	}
+    THEN FillRect (r, black {a QD global})
+    { for color QD, prob should use FillCRect }
+    ELSE 
+**)
+  EraseRect (r);			{ erase to background color }
+END;
+
+{-------------------------------}
+{ EraseLine			}
+{-------------------------------}
+
+{ Erase within the current line of the (current) screen --
+  defaults bounds are the current column and the right edge of the screen. }
+
+PROCEDURE EraseLine (startCol {[absolute]}, len: INTEGER);
+VAR
+  endCol: INTEGER;	{ [absolute] }
+  r: rect;		{ area affected }
+BEGIN 
+  CheckMyUpdate;		{ YZIP: call before changing screen }
+
+  IF startCol = -1 THEN startCol := curCol;	
+  IF len = -1 
+    THEN endCol := lastCol
+    ELSE 
+      BEGIN
+      endCol := startCol + len;
+      IF endCol > lastCol		{ clip to YZIP window }
+        THEN endCol := lastCol;
+      END;
+
+{ in XZIP, the erased area should be filled with "the background color"
+  (rather than checking currenthl for inverse video). }
+
+  makeRect (r, curRow, curRow + lineHeight, startCol, endCol);
+  eraseRect (r);
+END;
+
+{-------------------------------}
+{ Hilight			}
+{-------------------------------}
+
+{ DEAD - vars set directly from 68K }
+
+{ Set highlighting.  We're passed an internal code, which we have to map to 
+  Pascal types... }
+
+{-------------------------------}
+{ Scroll			}
+{-------------------------------}
+
+{ Slide the screen, up or down (also called from kernel) }
+
+PROCEDURE Scroll (lines: INTEGER);  { arg now in pixels }
+VAR
+  sRect: rect;
+  jumps, extra, lh2: INTEGER;
+  scrlDown: BOOLEAN;
+
+{ we now use ScrollRect instead of CopyBits.  No maximum area is documented
+  (CopyBits suggests/warns 3K!), and it's presumably faster (if CopyBits 
+  really uses the stack as a buffer).  One disadvantage: it computes an update 
+  region that we don't use. }
+
+PROCEDURE doScrl (pix: INTEGER);
+VAR
+  rv: Boolean;				{ reverse-video flag }
+  saveFore, saveBack: LONGINT;		{ for mono grafPort/window }
+  savePat: Pattern;
+BEGIN
+WITH thePort^ DO	{ tighten things up }
+BEGIN
+  IF NOT scrlDown
+    THEN pix := -pix;
+    
+{ seems that to avoid "zebra scrolling" when text is white-on-black on Plus or SE,
+  we must normalize colors for ScrollRect like we do for CopyBits.  Also, must change 
+  bkPat to force black fills. [On a II, color or mono, ScrollRect seems to work fine 
+  by itself.] }
+
+  rv := FALSE;
+  IF NOT myCW AND ({thePort^.}bkColor <> whiteColor) THEN
+{ could we accomplish this by just changing pnMode? seem to always = patCopy }
+    BEGIN
+    saveFore := {thePort^.}fgColor;
+    saveBack := {thePort^.}bkColor;
+
+    ForeColor (blackColor);		
+    BackColor (whiteColor);
+    
+    savePat := {thePort^.}bkPat;
+    {thePort^.}bkPat := black;		{ (a QD global) }
+    rv := TRUE;
+    END;
+	
+  ScrollRect (sRect, 0, pix, {thePort^.}clipRgn {junkRgn} );
+
+{ must IMMEDIATELY hack this "borrowed" rgn back to its initial value 
+  (else subsequent calls to doScrl seem to act as Noops). }
+  SetRectRgn ({thePort^.}clipRgn, $8001, $8001, $7FFF, $7FFF);
+{ SetEmptyRgn (junkRgn); }
+
+  IF rv THEN	{ undo above changes }
+    BEGIN
+    ForeColor (saveFore);
+    BackColor (saveBack);
+    {thePort^.}bkPat := savePat;
+    END;
+
+(**  {ALTERNATE SCROLL, USING COPYBITS}
+VAR
+  oldrect, newrect: rect;	{ scrolling rectangles }
+  
+  makeRect (newRect, scr1Lines+1, totLines-1, 1, totColumns); { point to where scrolled text will go }
+  makeRect (oldRect, scr1Lines+2, totLines,   1, totColumns); { and where it's coming from }
+
+  { Do the actual scrolling on the screen, and erase the last line: }
+  copyBits (thePort^.portBits, thePort^.portBits, oldRect, newRect, srcCopy, NIL); { slide it up... }
+  eraseRect (lastRect);				{ ...and clear out the remaining line }
+**)
+
+END;  { WITH ... }
+END;
+
+BEGIN 
+  IF lines = 0 THEN
+    EXIT (Scroll);	{ noop }
+  makeRect (sRect, firstRow {was scr1Lines}, lastRow, firstCol, lastCol);
+  
+  scrlDown := FALSE;	{ assume scroll UP }
+  IF lines < 0 THEN
+    BEGIN
+    lines := -lines;	{ [must be + for calcs below] }
+    scrlDown := TRUE;
+    END;
+
+  IF lines <= lineHeight THEN	{ handle commonest case simply }
+    BEGIN
+    doScrl (lines);
+    EXIT (Scroll);
+    END;
+
+{ to make scrolls over a long distance look better, we break up the distance
+  into smaller "jumps".  Speed vs. looks compromise: /2/ rows per jump. }
+
+  lh2 := 2 * lineHeight;
+  jumps := lines DIV lh2;
+  extra := lines MOD lh2;
+  IF jumps > 0 THEN
+    BEGIN
+    jumps := jumps - 1;
+    extra := extra + lh2;	{ combine Extra w/ last full line }
+    END;
+
+  WHILE jumps > 0 DO
+    BEGIN
+    doScrl (lh2);
+    jumps := jumps - 1;
+    END; 
+  IF extra > 0 THEN
+    doScrl (extra);
+
+(**  IF NOT myInBounds THEN  **)
+(**    BlitBits (TOSCREEN, -1);	 **)		{ update screen }
+END;						{ procedure Scroll }
+
+{-------------------------------}
+{ ScrnCR			}
+{-------------------------------}
+
+VAR
+  wrapCol: INTEGER;	{ last cursor pixel pos, for ScrnBS }
+
+{ Handle a carriage-return, scrolling if necessary (i.e., if the cursor 
+  is at the bottom of the screen). }
+
+PROCEDURE ScrnCR;
+BEGIN 
+  wrapCol := curCol;	{ save (1 level only!), in case user backs-up }
+  
+  curCol := firstCol + margLeft;	{ reset the column }
+  curRow := curRow + lineHeight;	{ and bump the row }
+  
+  IF (lastRow - curRow) >= lineHeight THEN  { room for another line? }
+  BEGIN 
+(** IF NOT myInBounds THEN **)
+(**   BlitBits (TOSCREEN, curRow-lineHeight); **) { update only (previous) line }
+      EXIT (ScrnCR);
+  END;
+
+  curRow := curRow - lineHeight;	{ off bottom, backup cursor }
+  IF lastRow - curRow < lineHeight THEN
+    BEGIN
+    IF gfxDebug				{ signal an error ... }
+	THEN SysBeep (4);
+    curRow := lastRow - lineHeight;	{ make sure next output is onscreen }
+    END;
+  
+  IF BAND (currentAttr, WFSCRL) <> 0 THEN	{ scrolling enabled? }
+  BEGIN
+    Scroll (lineHeight {1});	{ yes }
+  END
+  ELSE BEGIN
+  { just leave cursor on bottom line }
+  { alternate hack: make sure that subsequent output is suppressed }
+  { curRow := totRows + lineHeight;	}
+  END;
+
+END;				{ procedure ScrnCR }
+
+{-------------------------------}
+{ ScrnBS			}
+{-------------------------------}
+
+{ ScrnBS handles a backspace (in any screen).  We back up one char (including 
+  backing up to a higher line), then erase the current char. }
+ 
+PROCEDURE ScrnBS (lastCh: Char);
+VAR
+  lastWidth: INTEGER;
+  BSrect: rect;    { rectangle used to blot out the character }
+BEGIN
+  lastWidth := CharWidth (lastCh);	{ support prop fonts! }
+  
+  IF curCol - lastWidth >= firstCol + margLeft THEN  { beginning of a line? }
+    curCol := curCol - lastWidth	{ no: just back up }
+  ELSE BEGIN
+    IF curRow - lineHeight < firstRow	{ yes: at the top of the screen? }
+      THEN EXIT (ScrnBS);		{ yes, can't move up any farther! }
+      
+    curRow := curRow - lineHeight;	
+  { curCol := (lastCol - colWidth) - margRight; }
+    curCol := wrapCol - lastWidth;	{ move to end of previous line }
+  END;
+
+{ we erase 1 extra pixel on the right, in case the char kerned
+  (e.g. 'r, 4, ^, _' in Geneva 12, 'f' in Geneva 9) }
+  makeRect (BSrect, curRow, curRow+lineHeight, 
+  		curCol, curCol+lastWidth+1);   
+  eraseRect (BSrect);		{ wipe out where last char was printed }
+
+(**  IF NOT myInBounds THEN **)
+(**    BlitBits (TOSCREEN, -1);	**) { update screen }
+END;				{ procedure ScrnBS }
+
+{-------------------------------}
+{ Showhighlight			}
+{-------------------------------}
+
+(** DEAD ROUTINE
+{ Do the actual highlighting for any part of the screen.  
+  Remember that the char must be on the screen before we highlight it.
+  We now support multiple hl combinations. }
+
+PROCEDURE Showhighlight (hlmode: INTEGER; hlrect: rect);
+VAR
+  boldrect: rect;		{ shifted over by one pixel }
+BEGIN 
+  IF hlmode = hlPlain 		{ nothing to do? }
+    THEN EXIT (Showhighlight);
+  IF hlmode = hlMono 		{ this one is also handled elsewhere }
+    THEN EXIT (Showhighlight);
+
+  IF BAND (hlmode, hlUnderline) <> 0 THEN	{ underlining? }
+      BEGIN 
+      hlrect.top := hlrect.bottom - 1;		{ one pixel high }
+      paintRect (hlrect);			{ like so }
+      END;
+
+{ IF BAND (hlmode, hlInverse) <> 0 THEN	}	{ reverse video? }
+{     invertRect (hlrect);		}	{ yepper }
+
+  IF BAND (hlmode, hlBold) <> 0 THEN	{ boldface, for telling boldfaced lies? }
+      BEGIN 			{ let's get detailed here... }
+      boldrect := hlrect;			{ start with the whole rect }
+      boldrect.right := boldrect.right - 1;	{ restrict the source rect for bolding on the right }
+      hlrect.left := hlrect.left + 1;		{ and start the destination one pixel-column late }
+
+{ It looks MUCH better if we OR the right-hand rect onto the left-hand one. 
+  This is because the left column of the character (as we spray it on the 
+  screen) is generally empty, and sliding to the left means that none of the 
+  character gets clipped, but chars DO touch.  Surprisingly, this looks OK. }
+
+      ZCopyBits (@thePort^.portBits, @thePort^.portBits, 
+	  hlrect, boldrect, srcOr, NIL);
+      END;
+END;		{ procedure Showhighlight }  **)
+
+{-------------------------------}
+{ DrawLine			}
+{-------------------------------}
+
+{ All text output to the screen should be channeled through this routine.
+  It is responsible for machine-dependent drawing and highlighting.
+
+  Since drawing only one char at a time on the Mac causes a noticeable 
+  degradation in speed, we now take a string argument.  It may hold anything 
+  from a single char to a whole line.  
+  
+  There are two restrictions:
+      (1) all chars in the string must be highlighted the same way
+      (2) the string cannot contain any formatting chars
+}
+
+PROCEDURE DrawLine (text: PTR; len, pixlen, outrow, outcol: INTEGER);
+VAR
+  xpos, ypos: INTEGER;		{ starting point }
+  linerect,			{ area of the screen where the string goes }
+  ulrect: rect;	
+{ pixlen: INTEGER; }
+BEGIN
+  CheckMyUpdate;		{ YZIP: call before any output }
+
+  xpos := wMarg + outcol;	{ align text with left edge }
+  ypos := outrow + lineheight;	{   and /bottom/ edge }
+{   xpos := wMarg + (outcol * colwidth); }
+{   ypos := (outrow + 1) * lineheight; }
+{   pixlen := len * colWidth; } 	{ now calc'ed elsewhere }
+{ This calc is somewhat redundant ...}
+  makeRect (linerect, outrow, outrow+lineHeight, outcol, outcol+pixlen);
+  
+{ Two problems with the Erase call below: 
+  (1)  It causes flashing, most visibly for areas that are mostly black
+  (e.g. inverse video text).  The following hack only partly solves this.
+
+  (2) It's redundant, the old stuff is drawn over anyway.  Unfortunately, 
+  text is drawn by default in srcOr mode.  In srcCopy mode "some extra 
+  blank space is appended to the end," see IM 1-153. If text were always 
+  drawn left-to-right it probably wouldn't matter, but CURSET makes odd 
+  cases possible.  Still, we /could/ block the extra spacing by clipping...
+  But also: we use 12-pixel line spacing, but Monaco-9 is only 11 high.
+}
+  IF BAND (currenthl, hlInverse) <> 0 THEN	{ special case hack: }
+    BEGIN
+    PaintRect (linerect);	{ fill with foreground (black) }
+    TextMode (srcBic);		{ and draw text in reverse }
+    END
+  ELSE
+    eraseRect (linerect);	{ erase to background (white) }
+
+{ IF currentFont <> 1 THEN  }
+  IF myWindow^.txFont = 8 {BZ Font} THEN  { handle this one specially, too }
+    BEGIN
+(** moveTo (xpos, ypos);
+    drawText (text, 0, len);
+    EXIT (DrawLine); **)
+    END
+  ELSE
+    BEGIN
+    xpos := xpos + 1;		{ otherwise, in one pixel to center(?) }
+    ypos := ypos - 3;		{ and up to get descenders }
+    END;
+
+  moveTo (xpos, ypos);
+  drawText (text, 0, len);	{ draw to screen }
+
+{ We now do bolding by drawing twice.  It looks the same as our former 'copybits' bolding,
+  and unlike before, works with colored text.  Caution: we now actually use one extra 
+  pixel on the left (which is where most fonts are padded), and also leave the QD cursor 
+  one pixel short of the string end. }
+
+  IF BAND (currenthl, hlBold) <> 0 THEN
+    BEGIN
+    moveTo (xpos-1, ypos);
+    drawText (text, 0, len);	{ just draw it a second time }
+    END;
+    
+  IF BAND (currenthl, hlUnderline) <> 0 THEN	{ underlining? }
+      BEGIN 
+  (*  ulrect := linerect;
+      ulrect.top := ulrect.bottom - 1;	*)	{ one pixel high }
+      linerect.top := linerect.bottom - 1;	{ NOTE: faster, but trashes the var }
+      paintRect (linerect);			{ like so }
+      END;
+
+  IF BAND (currenthl, hlInverse) <> 0 THEN
+    TextMode (srcOr);				{ LASTLY, restore normal mode }
+    
+{ Showhighlight (currenthl, linerect); }	{ DEAD }
+END;				{ procedure DrawLine }
+
+{-------------------------------}
+{ LineOut			}
+{-------------------------------}
+
+{ A front end for DrawLine.  Also bumps ahead our column global.
+
+  DEAD - we used to also "remember" each char.  Its value and highlight 
+  mode were saved away in a "screen content" data structure.
+  This routine is called when NEW text is being output, rather than old text
+  being redrawn (as after a Mac update event).  }
+
+PROCEDURE LineOut (text: PTR; len: INTEGER);
+VAR
+  maxlen: INTEGER;	{ in bytes (assumes mono font) }
+  pixlen: INTEGER;
+{ macFont: INTEGER; }
+BEGIN
+{ let OS clip - hard to recalc }
+(*  maxlen := ((lastCol - margRight) - curCol) DIV colWidth; *)
+(*  IF len {pixlen} > maxlen THEN  *)	
+(*    len := maxlen;   *) 	{ clip if too long (should never happen) }
+
+  IF len <= 0 
+    THEN EXIT (LineOut);
+
+(**  IF currentFont <> 1 THEN	{ now done in 68K }
+    BEGIN
+    macFont := myWindow^.txFont;
+    TextFont (8);		{ switch to our Alternate Charset [9-point!] }
+    END;  **)
+    
+{ YZIP -- add a "pixlen" parameter.  Quick & dirty fix -- it's now being
+  calc'ed TWICE (should pass this val down thru the various 68K routines). }
+  pixlen := TextWidth (text, 0, len);
+
+  DrawLine (text, len, pixlen, curRow, curCol);
+  curCol := curCol + pixlen {(len * colWidth)};  { advance column global }
+  
+(**  IF currentFont <> 1 THEN
+    BEGIN
+    TextFont (macFont);		{ return immediately to previous }
+    END;  **)
+END;				{ procedure LineOut }
+
+{-------------------------------}
+{ InsertString			}
+{-------------------------------}
+
+{ A front-end to LineOut; just takes a different format. }
+{ NOT BEING USED }
+
+(**
+PROCEDURE InsertString (msg: STR255);	{ display a short Pascal string }
+BEGIN
+  LineOut (Ptr (ORD (@msg)+1), LENGTH(msg));
+END;						{ procedure InsertString }
+**)
+
+{-------------------------------}
+{ CharOut			}
+{-------------------------------}
+
+{ Output a single character (may be a control char) to the screen.  
+  This is called mostly from the kernel, although we also use it to echo input 
+  and for other things.  We are below the switchyard which implements output 
+  redirection, and work ONLY for the screen.  The algorithm can be sketched as:
+
+    if the character is null, return
+    if the character is a control char (CR, BS), handle it and exit
+    if the character is normal, display it
+}
+
+PROCEDURE CharOut (twoCh: INTEGER);  { if BS, prev ch passed in high byte }
+VAR 
+  ch, oldCh: CHAR;
+  chPix: INTEGER;
+  dummy: STRING[2];
+BEGIN
+  ch := chr (BAND (twoCh, 255));  { extract current char [MUST MASK!] }		
+  IF ch = chr (0) THEN 		{ ignore nulls }
+    EXIT (CharOut);		{   (unlikely, but they mess up the screen) }
+
+  IF ch = chr (CR) THEN		{ carriage return? }
+    BEGIN 
+    ScrnCR;			{ yes, handle it }
+    EXIT (CharOut);		{ done }
+    END;
+  IF ch = chr (BS) THEN		{ backspace? }
+    BEGIN
+    oldCh := chr (BSR (twoCh, 8));  { yes, extract previous char }		
+    ScrnBS (oldCh);
+    EXIT (CharOut);		{ done }
+    END;
+  
+  chPix := CharWidth (ch);
+{ IF curCol >= lastCol - margRight }
+  IF curCol > lastCol - margRight - chPix { past edge? (can happen on input) }
+    THEN ScrnCR;		{ yes: force a CR }
+
+{ If we try to generate a direct pointer to our parameter (@ch), clever 
+  Pascal makes a word-aligned pointer, which is off by one byte ... }
+
+  dummy[0] := ch;		{ special case: a line of length 1 }
+  LineOut (@dummy, 1);		{ go draw it }
+
+(**  IF NOT myInBounds THEN **)
+(**    BlitBits (TOSCREEN, curRow); **) { update screen (this line only) }
+END;			{ procedure CharOut }
+
+{-------------------------------}
+{ CharWid			}
+{-------------------------------}
+
+{ return width of specified char -- called by 68K folding }
+(**  NOW TRAPPED DIRECTLY FROM 68K
+
+FUNCTION CharWid (ch: INTEGER): INTEGER;  
+BEGIN
+  CharWid := CharWidth (char(ch));
+END;
+**)
+{=======================================}
+{ DIALOG ROUTINES			}
+{=======================================}
+
+{ This overly complex routine tries to tell people who and where we are, 
+  and to try to show off a bit of screen graphics.  We create TWO bitmaps, 
+  in addition to the existing screen.  We squirrel away a portion of the 
+  screen in one bitmap, then do off-screen drawing in the other.  When done, 
+  we use the magic "dissolve" routine to bring in the new stuff, wait for 
+  them to gawk, then dissolve back the old stuff from the first bitmap.
+
+  If we run out of memory, we bag the offscreen bitmaps and draw directly 
+  on the screen, thus losing only the dissolve effect.  This will help us run 
+  under Switcher, although fitting on a 128K Mac seems hopeless at this point. }
+
+{ dissolver, like copyBits }
+PROCEDURE dissBits (srcBits, dstBits: bitMap; srcRect, dstRect: rect); external; 
+
+PROCEDURE AboutInfocom;
+CONST
+  lineoff = 14;			{ pixel height between lines of text }
+VAR
+  oldPort: grafPtr;		{ where was the old port? }
+  newPort: grafPort;		{ a new port to draw with }
+  bits: bitmap;			{ bitmap to draw in }
+  oldbits: bitmap;		{ stuff we steal from the screen }
+  r: rect;			{ rectangle in which we draw }
+  anevent: eventRecord;		{ dummy event for awaiting a key/mouse-down }
+  iconrect: rect;		{ a rect in which to frame our icon }
+  textPt: point;		{ where we're drawing }
+  uprgn: rgnHandle;		{ region of the screen we destroy }
+
+PROCEDURE say (message: str255);	{ skip to next line; print a line }
+  BEGIN;
+    textPt.v := textPt.v + lineoff;	{ move down one line }
+    moveTo (textPt.h, textPt.v);
+    drawString (message);		{ say it }
+  END;					{ procedure say }
+
+FUNCTION statpg: longint; external;
+FUNCTION statps: longint; external;
+
+BEGIN
+  setRect (r, 110, 90, 390, 190);	{ this is the rect we'll draw in }
+  bits.rowbytes := (((r.right-r.left)+15) div 16) * 2; { compute bytes per row (MUST be even!) }
+
+{ dissbits does not work correctly on the Mac2 (when screen memory uses >1 
+  plane); avoid calling it for now.  -dbb }
+  IF NOT OnMac2 THEN
+    bits.baseaddr := qdptr(newptr(bits.rowbytes*(r.bottom-r.top))) { try to get a bitmap }
+  ELSE bits.baseaddr := qdptr (0);
+  
+{ We must be very careful here, since EZIP has next to no space on a 128K Mac.
+  So if we can't get offscreen bitmaps to draw in, we just put the stuff 
+  straight on the screen, with no dissolve. }
+  IF bits.baseaddr <> qdptr (0)		{ did we get it? }
+  THEN BEGIN;
+    bits.bounds := r;			{ yes: set bounds }
+    oldbits := bits;	{ duplicate this for the bitmap used to save old stuff }
+    oldbits.baseaddr := qdptr(newptr(bits.rowbytes*(r.bottom-r.top))); 
+    			{ but get a different place for it }
+    IF oldbits.baseaddr = qdptr (0)	{ now, did THIS allocation fail? }
+    THEN BEGIN;				{ yes: we must toss the first bitmap }
+      disposptr(ptr(bits.baseaddr));	{ chuck the bitmap }
+      bits.baseaddr := qdptr (0);	{ forget that we had it, and flag problem for code below }
+    END;				{ of handling failed second allocation }
+  END					{ of handling successful first allocation }
+  ELSE oldbits.baseaddr := qdptr (0);	{ if we didn't get the first bitmap, don't get 2nd one }
+
+  getPort (oldPort);			{ remember where we are so we can return to this port }
+  openPort (@newPort);			{ start drawing in an alternate port }
+  IF bits.baseaddr <> qdptr (0)		{ did we get an offscreen place to draw? }
+  THEN setportbits(bits);		{ yes: make the new bitmap current (else use the screen) }
+  eraserect(r);				{ start off with a clean slate }
+
+  penSize (1, 1); frameRect (r);	{ a single-line border }
+  insetRect (r, 3, 3);			{ skip that line, and two more pixels }
+  penSize (2, 2); frameRect (r);	{ and a thicker border a bit farther in, like a dialog box }
+  insetRect (r, -3, -3);		{ undo insetting }
+
+  textFont (0); textSize (12);		{ slightly large system font }
+  textPt.h := r.left + 70; textPt.v := r.top + 16; { start out drawing near the top of the rectangle }
+  textFace ([outline]);			{ be flashy }
+  say (apName);				{ give the name of the game }
+  textPt.v := textPt.v + 4;		{ OUTLINE USES A LITTLE MORE SPACE }
+  textFace ([]);			{ neaten up now }
+  say ('Infocom, Inc.');		{ and where they can find us }
+  say ('125 CambridgePark Drive');	{ hope we don't move again soon }
+  say ('Cambridge, MA 02140  USA');	{ be international }
+
+  setRect (iconRect, r.left + 23, r.top + 30, r.left + 23 + 32, r.top + 30 + 32); { show off our icon }
+  plotIcon (iconRect, infocon);		{ ta da! }
+
+  setPort (oldPort);			{ switch back to the old port }
+
+  IF bits.baseaddr <> qdptr (0)		{ did we get an offscreen place to draw? }
+  THEN BEGIN;
+    ZCopyBits (@screenbits, @oldbits, r, r, srcCopy, NIL); { set aside the screen, quickly }
+    dissBits (bits, screenbits, r, r);	{ copy the new stuff in, slowly }
+  END;
+
+  flushEvents (mdownmask+keydownmask, 0); { don't allow type- or mouse-ahead to end this "dialog" }
+  repeat until getnextevent(mdownmask+keydownmask,anevent); { wait for a click or a key }
+
+  IF bits.baseaddr <> qdptr (0)		{ did we use an offscreen place to draw? }
+  THEN BEGIN;
+    dissBits (oldbits, screenbits, r, r); { copy back the old stuff, slowly }
+    disposptr(ptr(bits.baseaddr));	{ and toss the offscreen bitmap }
+    disposptr(ptr(oldbits.baseaddr));	{ and the one we saved stuff in, too }
+  END
+  ELSE BEGIN;				{ could't save offscreen stuff: have to redraw it }
+    upRgn := newRgn;			{ get a new region }
+    rectRgn (upRgn, r);			{ make it cover the rectangle we trashed }
+    paintBehind (windowpeek (frontWindow), upRgn); { make everyone redraw this }
+    disposeRgn (upRgn);			{ remember, only you can prevent memory fragmentation }
+    setPort (oldPort);			{ must do this (again) AFTER paintBehind }
+  END;					{ of neatening things up the hard way }
+END;					{ procedure AboutInfocom }
+
+{=======================================}
+{ (FAKED) INPUT ROUTINES		}
+{=======================================}
+
+{-------------------------------}
+{ PostKey			}
+{-------------------------------}
+
+{was $S KeySeg}
+{ This routine posts fake keydowns (e.g., "S-A-V-E" or "Q-U-I-T") which will 
+  be picked up by the main event loop.  We define our own circular character 
+  queue which is filled by PostKey and read by GetMyEvent. }
+
+PROCEDURE PostKey (ch: char);	{ fake a key, posting it in our internal queue }
+VAR oldtail: INTEGER;
+BEGIN 
+  oldtail := keytail;
+  keytail := keytail + 1;	{ calculate new roving pointer }
+  IF keytail > kbmax   		{ wrap around if needed }
+    THEN keytail := 1;
+  IF keytail = keyhead		{ if buffer (would be) full, undo & exit }
+    THEN keytail := oldtail	{   (so won't be confused with empty!) }
+    ELSE keybuf[oldtail] := ch;	{ else toss in the character }
+END;				{ procedure PostKey }
+
+{-------------------------------}
+{ unPostKey			}
+{-------------------------------}
+
+FUNCTION unPostKey: char;	{ check for faked keys, null if none }
+BEGIN
+  IF keyhead = keytail THEN
+    unPostKey := char (0)
+  ELSE BEGIN
+    unPostKey := (keybuf[keyhead]);	{ pull a char from buffer }
+    keyhead := keyhead + 1;		{ advance buffer's input ptr }
+    IF keyhead > kbmax  
+      THEN keyhead := 1;		{ make it wrap, if need be }
+    END;
+END;
+
+{-------------------------------}
+{ MenuString (TypeString)	}
+{-------------------------------}
+
+{ This routine reports, as game input, menu events that are of interest 
+  to the game.  For games that can handle it, we post a YZIP menu-event code 
+  (and save the menu/item ids, to be returned upon request).  For all other 
+  games, we post a string, pretending that it was typed. }
+
+PROCEDURE MenuString (msg: STR255);
+VAR
+  i: INTEGER;
+BEGIN 
+  IF menuflag THEN		{ post a special code }
+    PostKey (chr(ZCHR_MENUHIT))
+  ELSE				{ pretend they typed a short string }
+    BEGIN
+    FOR i := 1 to LENGTH (msg) DO	{ loop through the chars }
+      PostKey (msg [i]);
+    PostKey (chr (CR));			{ and finish off the line }
+    END;
+END;				{ procedure MenuString }
+{was $S}
+
+{-------------------------------}
+{ GetMyEvent			}
+{-------------------------------}
+
+{ GetMyEvent is a front end to the system's GetNextEvent.  It first checks to 
+  see if we have any keys queued, and if so uses them to generate fake events.  
+  Otherwise, it calls for real events from the system.  Note that we always 
+  do a getNextEvent with "everyEvent", although we could allow our caller to 
+  specify a mask, in which case we'd only want to return a character if 
+  "keyDownMask" was set in the passed mask. }
+
+FUNCTION GetMyEvent (VAR event: eventRecord): boolean;
+VAR ch: char;
+BEGIN 
+  ch := unPostKey;		{ first check for faked keys }
+  IF Ord (ch) = 0 THEN		{ none: so call for any real event }
+    GetMyEvent := GetNextEvent (everyEvent, event) 
+  ELSE 
+    BEGIN			{ we have a queued key, use it }
+    event.what := keyDown;	{ lie and say we got a keydown }
+    event.message := LONGINT (ch);
+    { Don't bother to fake the time or fill in the mouse location; could 
+      easily do so if needed. }
+    event.modifiers := 0;	{ no special keys were pressed for this char }
+    getMyEvent := true;		{ tell our caller that there was an event }
+    END;
+END;				{ function GetMyEvent }
+
+{=======================================}
+{ MAC EVENT HANDLING			}
+{=======================================}
+
+{-------------------------------}
+{ ToggleMenu			}
+{-------------------------------}
+
+{ enable/disable one item in any menu.
+  Special case: "item 0" affects all items in one menu, plus the menu title.
+  However, making the latter change visible requires a separate call to 
+  DrawMenuBar, which tends to cause a flash.  }
+
+PROCEDURE ToggleMenu (menu, item: integer; active: BOOLEAN);
+BEGIN 
+  IF active
+  THEN EnableItem (myMenus [menu], item)
+  ELSE DisableItem (myMenus [menu], item);
+END;						{ procedure ToggleMenu }
+
+{-------------------------------}
+{ ToggleEM			}
+{-------------------------------}
+
+{ enable/disable the five Editmenu items [leave divider off] }
+
+PROCEDURE ToggleEM (active: BOOLEAN);
+VAR i: INTEGER;
+BEGIN
+  ToggleMenu (3, 1, active);		{ skip divider }
+  FOR i := 3 TO 6 DO
+    ToggleMenu (3, i, active);
+END;					{ procedure ToggleEM }
+
+{-------------------------------}
+{ ToggleFM			}
+{-------------------------------}
+
+{ enable/disable the five Filemenu items [dividers always off] }
+
+PROCEDURE ToggleFM (active: BOOLEAN);
+VAR i: INTEGER;
+BEGIN
+(* ToggleMenu (2, 0, active); *)	{ (this greys the title, too) }
+  FOR i := 1 TO 7 DO
+    ToggleMenu (2, i, active);
+  ToggleMenu (2, 3, FALSE);		{ go back for dividers }
+  ToggleMenu (2, 5, FALSE);
+END;					{ procedure ToggleFM }
+
+{-------------------------------}
+{ FixMenus			}
+{-------------------------------}
+
+VAR
+  oldDimmed: BOOLEAN;
+
+{ enable/disable items in the File and Edit menus, as appropriate.  The
+  correct state is influenced by several global flags. }
+
+PROCEDURE FixMenus;
+VAR
+  dimmed: BOOLEAN;
+  tc: LONGINT;
+BEGIN
+{ if our window is active AND dragged partly offscreen, dim our (two)
+  menu titles (but only when state actually changes, to avoid unnecessary
+  flashing). }
+
+  dimmed := myActive AND (NOT myInBounds);
+  IF dimmed <> oldDimmed THEN
+    BEGIN
+    ToggleMenu (2, 0, oldDimmed {NOT dimmed});
+    ToggleMenu (3, 0, oldDimmed);
+    
+(** { synchronize w/ vert retrace, to avoid flashing.
+      [DOESN'T WORK - sync with vert retrace + 20 horiz retraces?] }
+    tc := TickCount;
+    WHILE tc = TickCount DO;
+**)
+    DrawMenuBar;
+    oldDimmed := dimmed;
+    END;
+
+  IF myActive THEN		{ our window is alive }
+    BEGIN
+    ToggleEM (FALSE);		{ in general, no edit stuff (EZIP/XZIP) }
+
+  { make cmd strings in menus available (1) during line input (OPREAD), 
+    and (2) during char input (OPINPUT), IF game handles menu/item codes }
+    
+    IF lineflag OR menuflag THEN	{ show menu cmds }
+      BEGIN
+      ToggleFM (TRUE);
+      IF undoflag THEN		{ special case: game supports UNDO }
+        ToggleMenu (3, 1, TRUE);
+      END
+    ELSE			{ suppress menu cmds }
+      ToggleFM (FALSE);
+    END
+
+  ELSE  {IF NOT myActive}	{ a DA is active; this case is easy }
+    BEGIN
+    ToggleEM (TRUE);		{ all edit items }
+    ToggleFM (FALSE);		{ no file items }
+    END;
+END;				{ procedure FixMenus }
+
+{-------------------------------}
+{ DoCommand			}
+{-------------------------------}
+
+{was $S CmdSeg}
+{ Given the result of tracking a menu, do the appropriate thing. }
+
+PROCEDURE DoCommand (mResult: LongInt);
+VAR
+  theMenu,			{ menu number }
+  theItem:   INTEGER;		{ item number within menu }
+  tm, ti:    INTEGER;
+  junk:      INTEGER;		{ throwaway result of opening desk accessory }
+  itemName:  STR255;		{ desk accessory name }
+  tempGP:    grafPtr;
+BEGIN
+  theMenu := HIWrd {HiWord} (mResult);
+  theItem := LOWrd {LoWord} (mResult);
+  
+  { remember (as one word), in case we must return it to game }
+  IF theMenu < FILEMENU
+    THEN tm := theMenu
+    ELSE tm := theMenu - (FILEMENU - 2);	{ map 256 up -> 2 up }
+  tm := tm - 1;					{ make 0-origin }
+  ti := theItem {- 1};				{ [JY wants this 1-origin] }
+  mmouse := BOR (BSL (tm, 8), ti);	
+  
+  SyncCursor;			{ if our cursor is on, force it to blink off for now }
+  CASE theMenu OF
+
+  appleMenu:
+    BEGIN
+    IF myActive AND myInBounds THEN	{ game window currently awake? }
+      BlitBits (TOBACKUP, -1);		{ save contents }
+    GetPort (tempGP);
+    
+    IF theItem = 1 THEN
+      AboutInfocom
+    ELSE
+      BEGIN
+      GetItem (myMenus[appleMenu], theItem, itemName);
+      junk := OpenDeskAcc (itemName);
+      END;
+
+    SetPort (tempGP);		{ cleanup after DA [also after our About] }
+    END;
+
+  fileMenu:
+    BEGIN
+    SetPort (myWindow);
+
+    CASE theItem OF
+      1: MenuString ('SAVE');
+      2: MenuString ('RESTORE');
+
+      4: BEGIN
+           IF NOT (scripting)		   { update the boolean later }
+             THEN MenuString ('SCRIPT')
+             ELSE MenuString ('UNSCRIPT');
+         END;
+
+      6: MenuString ('RESTART');
+      7: MenuString ('QUIT');
+      END;
+
+    END;
+
+  editMenu:
+    IF NOT SystemEdit(theItem-1) THEN	   { pass control to the system here ... }
+
+      BEGIN
+      IF theItem = 1 THEN	{ the only edit item XZIP handles is UNDO }
+        BEGIN
+        SetPort (myWindow);
+        MenuString ('UNDO');
+        END;			   
+      END;
+      
+  END;	  {case TheMenu}
+
+  HiliteMenu(0);			   { turn off menu highlighting }
+END;  { of DoCommand }
+{was $S}
+
+
+{-------------------------------}
+{ MainEventLoop			}
+{-------------------------------}
+
+{ Get and return a key (or mouse code).  If none, return zero.
+
+  Because ZIP's main interface to the world is through character I/O,  
+  the only time we service other processes is through this get-character 
+  routine.  This means that such desirable things as SystemTask get to 
+  run only when we're doing input. }
+
+FUNCTION MainEventLoop: CHAR;	
+VAR
+  myEvent:      EventRecord;
+  whichWindow:  WindowPtr;
+  topPeek:      WindowPeek;
+  code, n:      INTEGER;
+  downKey:      CHAR;
+  r, rScrn:	Rect;
+  junk:	        BOOLEAN;	{ obsolete var }
+BEGIN
+  MainEventLoop := CHR (0);	{ default return value }
+  SystemTask;			{ keep drone tasks happy }
+  IF cycleCursor < 0		{ blink as necessary }
+    THEN Timeout_Update;	{ [hack] }
+
+  junk := GetMyEvent (myEvent);	{ check for event (real or faked) }
+{ IF junk THEN }
+  IF myEvent.what <> nullEvent THEN
+    Timeout_Reset;		{ reset this timer after any event }
+
+  CASE myEvent.what OF
+
+{   nullEvent:  }
+
+    mouseDown:
+      BEGIN
+      code := FindWindow(myEvent.where,whichWindow);
+      CASE code OF
+
+	{ In the first two cases below, another window (DA, etc) MAY be 
+	  about to pop up over ours; in the third case, we may be dragged 
+	  partly offscreen.  Save our bits just in case.  (De-activate 
+	  events happen too late to save bits!) 
+	  [MultiFinder: is this technique sufficient ???] }
+	  
+        inMenuBar:
+	  BEGIN
+	{ To avoid a l-o-n-g pause, mainly in color environments, before a  
+	  menu drops down, we now do a Blit /after/ the selection, and then
+	  only if it's from the Apple/DA menu.  Note that the screen under 
+	  menus themselves is (always?) saved by the OS. 
+	  A worry: will controls added to the menu bar by Switcher/Multifinder
+	  avoid our blit and cause a problem? }
+	(** IF myActive AND myInBounds THEN
+	    BlitBits (TOBACKUP, -1);  **)
+
+          DoCommand (MenuSelect (myEvent.where));
+	  END;
+
+        inSysWindow:
+	  BEGIN
+	  IF myActive AND myInBounds THEN  { game window currently awake? }
+	    BlitBits (TOBACKUP, -1);		{ save contents }
+	    
+          SystemClick (myEvent,whichWindow);
+	  END;
+
+        inDrag:
+	  BEGIN
+	  stopCursor;				{ make sure it's off }
+	  IF myActive AND myInBounds THEN	{ is content complete? }
+            BlitBits (TOBACKUP, -1);
+
+          DragWindow (whichWindow,myEvent.where,dragRect);
+	  IF whichWindow = myWindow THEN
+	    BEGIN
+	  { check if window (content area) dragged partly off screen edge }
+	    IF myCW	{ careful, may be new-style (color) window }
+	      THEN rScrn := CGrafPtr(myWindow)^.portPixMap^^.bounds
+	      ELSE rScrn := myWindow^.portBits.bounds;
+	    UnionRect (myWindow^.portRect, rScrn, r);
+	    myInBounds := EqualRect (rScrn, r);
+
+	    FixMenus;		{ (1) dim/undim menus if dragged off edge ...}
+	  { overkill, see new MoveWindow }
+	  { HiliteWindow (myWindow, myInBounds); } { (2) also title bar }
+	    END;
+
+	  IF myActive AND myInBounds THEN	{ is my window alive? }
+	    startCursor;			{ start blinking again }
+	  END;
+
+        inGrow, inContent:
+          IF whichWindow <> FrontWindow THEN	{ did they click in an inactive window? }
+            SelectWindow (whichWindow)		{ yes: bring it to the front }
+
+          ELSE IF myWindow = FrontWindow THEN
+	    BEGIN	    	    
+	    IF (myEvent.when - MSclicktime) <= GetDblTime THEN
+	      BEGIN
+	      MSclicktime := 0;
+	      MainEventLoop := chr(ZCHR_CLICK2);	{ second click }
+	      END
+	    ELSE
+	      BEGIN
+	      MSclicktime := myEvent.when;
+	      MainEventLoop := chr(ZCHR_CLICK1);	{ first click }
+	      END;
+	    GlobalToLocal (myEvent.where);
+	    xmouse := ((myEvent.where.h - wMarg) {DIV colWidth}) + 1;  { 1-org }
+	    ymouse := (myEvent.where.v {DIV lineheight}) + 1;  { 1-org }
+	    END;
+        END;    { of code case }
+      END;    { of mouseDown }
+
+    keyDown, autoKey:
+      IF myWindow = FrontWindow THEN		{ ignore keystrokes outside our window }
+        BEGIN
+        downKey := CHR (BAND (myEvent.message, $FF));
+        KYscancode := CHR (BAND (BSR (myEvent.message, 8), $FF));
+
+        IF BAND (myEvent.modifiers, CmdKey) <> 0	{ Command key pressed? }
+	  THEN KYcmdkey := TRUE				{ save flag }
+	  ELSE KYcmdkey := FALSE;
+
+{ Cmd-numbers are Fkeys in Mac XZIP, so menu shortcuts must not be numbers. }
+
+	IF KYcmdkey AND ((downkey < '0') OR (downkey > '9'))
+	    THEN DoCommand (menuKey(downKey))		{ menu shortcut }
+	ELSE MainEventLoop := downKey;			{ return char val }
+        END;				{ of handling char in our window }
+
+    activateEvt:
+      BEGIN
+(**   topPeek := windowPeek (MyEvent.message);	{ current top window}
+      IF topPeek^.windowkind = MyDocument THEN	{ is something happening with my window? }
+**)
+      IF WindowPtr(myEvent.message) = myWindow THEN
+        BEGIN
+        myActive := ODD (myEvent.modifiers);
+        FixMenus;
+    (** IF NOT myInBounds THEN			DEAD, see MoveWindow
+	  HiliteWindow (myWindow, myInBounds);	{ force (back) to unhl'd }
+    **)
+        IF myActive AND myInBounds THEN	{ is my window becoming active? }
+          BEGIN
+	  IF myCW THEN
+	    ActivatePalette (myWindow);	{ >> necessary? << }
+          SetCursor (arrow);		{ always show an arrow }
+          startCursor;			{ start blinking again }
+          END
+        ELSE
+          BEGIN				{ no, my window is becoming inactive}
+          stopCursor;			{ turn off the cursor }
+     (**  too late! DA window is already up; our bits are gone  **)
+     (**  BlitBits (TOBACKUP, -1);	{ save contents }      **)
+          END;
+        END;				{ if window is ours }
+      END;				{ of activate event }
+
+    updateEvt: 
+      IF WindowPtr(myEvent.message) = myWindow THEN
+        BEGIN
+        UpdateMyWindow;
+        END;
+    END;				{ of event case }
+END;					{ function MainEventLoop }
+
+{-------------------------------}
+{ MagicInput			}
+{-------------------------------}
+
+{ Check for special input combinations [for debugging].  These are produced 
+  by holding down the mouse button and Shift key, then typing an odd character. 
+  Return the char unchanged if it's not magic, otherwise "dispatch" it 
+  and return 0. }
+
+FUNCTION MagicInput (ch: CHAR): CHAR;
+BEGIN
+  MagicInput := ch;
+  IF NOT Button 		{ not magic }
+      THEN EXIT (MagicInput);
+      
+  Case ch of
+      '~' :		{ toggle (current zwindow) between prop & mono fonts }
+	ZFont (ZTOGGLE);
+      '+' :		{ toggle gfx debugging [off initially] }
+	gfxDebug := NOT gfxDebug;
+      '_' :		{ trap to OS debugger (handy on Mac w/o prog switch }
+	Debugger; {INLINE $A9FF;}
+      OTHERWISE
+        EXIT (MagicInput); 	{ not magic }
+      END; {of Case}
+
+  MagicInput := chr(0);		{ was magic, return 0 }
+END;
+
+{-------------------------------}
+{ SetUpInput			}
+{-------------------------------}
+
+{ called from 68K, must bracket EventIn loops }
+
+PROCEDURE SetUpInput (start, multi: BOOLEAN);
+BEGIN
+  { this call fixes the case of somebody who pops up over us DURING input
+    (for example, MacroMaker with an error msg, after a recursive (!) macro has
+    run beyond a certain depth (12 or so). }
+  CheckMyUpdate;
+  
+  { the altscreen becomes stale as soon as we output anything to the main screen,
+    which usually happens soon after returning to 68K; never happens during
+    the input loop. }
+{ altValid := FALSE; }		{ now in CheckMyUpdate exclusively }
+  
+  IF start THEN
+    BEGIN
+(** IF NOT myInBounds THEN **)		{ was output going to altscreen? }
+(**   BEGIN
+(**   SetPort (myWindow); **)		{ ALWAYS use phys screen for input }
+(**   BlitBits (TOSCREEN, -1); **)	{ and update it }
+(**   END; **)
+    IF (multi = NOT lineflag)
+    OR (menuflag = NOT omenuflg) THEN	{ changed? }
+      BEGIN
+      lineflag := multi;	{ save as global, for window activate events }
+      omenuflg := menuflag;
+      FixMenus;
+      END;
+    StartCursor;
+    END
+    
+  ELSE				{ menus don't matter during output! }
+    BEGIN
+    StopCursor;
+(** IF NOT myInBounds THEN **)	{ currently dragged off edge? }
+(**   SetPort (altPort); **)	{ use altscreen for future output }
+    END;
+END;
+
+{-------------------------------}
+{ EventIn			}
+{-------------------------------}
+
+{ Get and return a single event (key or mouse), or null if none.
+  We don't resync the cursor like most input routines do, because we're 
+  called in a madly spinning loop which would just make the cursor look 
+  like it was turned off. }
+
+FUNCTION EventIn: CHAR;	{was MacttyIn}
+VAR 
+  ch: CHAR;
+  awake: BOOLEAN;
+  rScrn, rWind:	Rect;	{ in global coords }
+  newTop, newLeft: INTEGER;
+  
+{ local routine to force a a var to between two vals }
+PROCEDURE inBnds (VAR out: INTEGER; inLow, inHigh: INTEGER);
+BEGIN
+	IF out < inLow  THEN out := inLow;
+	IF out > inHigh THEN out := inHigh;
+END;
+
+BEGIN
+{ We avoid returning control to the kernel (i.e. we busy-wait):
+  - while our window is inactive, (to prevent any XZIP timeouts)
+  - while our window is dragged partly offscreen (to prevent any output, 
+  since output to the clipped section is lost forever, and the window can't  
+  be correctly updated when it's dragged back onscreen.
+  
+  Note: I tried re-directing all output in the above situation to an 
+  offscreen grafPort/bitMap, and blitting (the visible part) to the physical 
+  screen at each scroll, etc.  Two problems:
+  - game speed felt quite sluggish (2x slowdown, mostly due to the extra work
+  during scrolling)
+  - various odd cases, including input, are awkward to handle - see the 
+  BlitBits calls scattered around the code. }
+
+  REPEAT
+    ch := MainEventLoop;
+    awake := TRUE;		{ assume we're active }
+    
+    IF NOT myActive THEN
+      awake := FALSE
+    ELSE IF NOT myInBounds THEN
+  { window (content area) is dragged partly off screen edge }
+      BEGIN
+      awake := FALSE;
+      IF ch <> CHR (0) THEN	{ reject attempted input }
+      
+      { SysBeep (4); }
+{ alternate strategy: "auto-move" window so it's inbounds (just touching the
+  nearest edge(s) of the screen, rather than centered), then begin accepting
+  input as usual! }
+        BEGIN
+        awake := TRUE;
+	
+        IF myCW	{ careful, may be new-style (color) window }
+          THEN rScrn := CGrafPtr(myWindow)^.portPixMap^^.bounds
+          ELSE rScrn := myWindow^.portBits.bounds;
+	rWind := myWindow^.portRect;
+	
+	LocalToGlobal (rScrn.topLeft);
+	LocalToGlobal (rScrn.botRight);
+	LocalToGlobal (rWind.topLeft);
+	LocalToGlobal (rWind.botRight);
+
+	newTop := rWind.top;
+	newLeft := rWind.left;
+
+	inBnds (newTop, rScrn.top + 20 {menu}, 
+			rScrn.bottom - 5 {"corner"} - (rWind.bottom - rWind.top));
+	inBnds (newLeft, rScrn.left, 
+			rScrn.right - (rWind.right - rWind.left));
+(**	{ debugging -- was moving above top of screen [fixed] }
+	IF newTop < rScrn.top + 20 THEN		{ window un-draggable AND frozen! }
+		BEGIN
+		dbTicks := TickCount + (60*5);
+		WHILE TickCount < dbTicks DO;	{ 5-sec pause if bug detected ... }
+		END;
+**)
+	MoveWindow (myWindow, newLeft, newTop, 
+			FALSE {should already be frontmost!});
+
+        myInBounds := TRUE;
+        FixMenus;				{ undim menus}
+      { HiliteWindow (myWindow, myInBounds); }	{ and title bar }
+
+        UpdateMyWindow;			{ force Blit to happen RIGHT NOW }
+        startCursor;			{ start blinking again }
+        END;
+      END;
+  UNTIL awake;			{ if inactive, just spin }
+
+{ Got an input.  Map all special keys to their XZIP values 
+  [logically, mouse events should be mapped here too].  }
+
+{ First, filter out any odd Option-keys, since they're probably garbage.  
+  Note: There might be cases (like when game creates new vocabulary, 
+  or asks for player's name) where we would like to pass through odd keys 
+  and have them echoed on screen, but this is prevented elsewhere 
+  (by the "function key TCHAR" filter in the kernel).  }
+  
+  IF (ch > CHR(127)) AND (ch < chr(ZCHR_LOWEST)) THEN
+     ch := CHR(0);		
+
+  IF ch = CHR(3) THEN
+     ch := CHR(13);		{ make ENTER = RETURN }
+
+{ We recognize cursor keys from their keycodes, rather than scancodes.
+  The former aren't documented in IM but appear to be stable; the latter
+  are documented and do change (between the Plus and II).  }
+
+  CASE Ord (ch) OF		{ map Mac cursor keys to XZIP values: }
+    30:  ch := CHR(129);	{ up arrow }
+    31:  ch := CHR(130);	{ down }
+    28:  ch := CHR(131);	{ left }
+    29:  ch := CHR(132);	{ right }
+  END;			{ of CASE } 
+
+  IF (ch >= '0') AND (ch <= '9') THEN	{ number key? }
+    BEGIN
+    IF KYscancode >= CHR(64) THEN	{ XZIP: if from keypad, special }
+      BEGIN
+      ch := CHR(Ord (ch) + 97);		{ 48 ('0') maps to 145 ('K0'), etc }
+      END
+
+    ELSE IF KYCmdkey THEN		{ XZIP: check for "Function Keys" }
+      BEGIN
+      ch := CHR(Ord (ch) + 84);		{ 49 ('1') maps to 133 ('F1'), etc }
+      IF ch = CHR(132) THEN 
+         ch := CHR(142);		{ make F0 be F10 }
+      END;
+    END;
+
+{ Also, support REAL function keys on Extended keyboards.  Since our
+  application doesn't use Cut/Copy/Paste, and to avoid inconsistencies with
+  game manuals and DEFINE screens, we DON'T reserve F1-F4.
+  To ensure it's an fkey, we check that ch=16 /before/ checking the scancode; 
+  however, ch=16 isn't documented in IM.  Is there a safer method? }
+  
+  IF ch = CHR (16) THEN			
+  { [would prefer a C-style static array here, rather than code] }
+  CASE ord (KYscancode) OF		{ map Mac fkeys to XZIP values: }
+    $7A:  ch := CHR(133);		{ Mac F1 [F5] -> YZIP F1 }
+    $78:  ch := CHR(134);
+    $63:  ch := CHR(135);
+    $76:  ch := CHR(136);
+    $60:  ch := CHR(137);		{ Mac F5 -> YZIP F5 }
+    $61:  ch := CHR(138);
+    $62:  ch := CHR(139);
+    $64:  ch := CHR(140);
+    $65:  ch := CHR(141);
+    $6D:  ch := CHR(142);
+    $67:  ch := CHR(143);		{ YZIP F11 }
+    $6F:  ch := CHR(144);		{ YZIP F12 }
+(*  $69:  ch := CHR(141);
+    $6B:  ch := CHR(142);
+    $71:  ch := CHR(143);  *)		{ no YZIP F13-F15 }
+  END;			{ of CASE } 
+
+  ch := MagicInput (ch);		{ check for any debugging input }
+  EventIn := ch;
+END;					{ function EventIn }
+
+{-------------------------------}
+{ opMouseInfo			}
+{-------------------------------}
+
+{ Read current mouse position and status into globals }
+
+PROCEDURE opMouseInfo;
+VAR 
+  p: Point;
+  bttn: Boolean;
+BEGIN 
+  GetMouse (p);
+  bttn := Button;	{ [a Toolbox call] }
+  
+  (* GlobalToLocal (p); *)			{ [automatic] }
+  xmouse := ((p.h - wMarg) {DIV colWidth}) + 1;	{ 1-org }
+  ymouse := (p.v {DIV lineheight}) + 1;		{ 1-org }
+
+  IF bttn 
+    THEN bmouse := 1
+    ELSE bmouse := 0;
+END;
+
+{=======================================}
+{ DISK ROUTINES				}
+{=======================================}
+
+{-------------------------------}
+{ ZCreate			}
+{-------------------------------}
+
+{was $S SaveSeg}
+{ Create a Save file, assigning Creator and Filetype values }
+
+FUNCTION ZCreate (FName: STR255; VrefNum: INTEGER) : INTEGER;
+VAR
+  io:	     INTEGER;
+BEGIN
+{ First delete the file in case it existed in a previous incarnation.  
+  Otherwise the Finder info, if different than 'INFO' and 'ZSAV', won't be 
+  updated }
+  io := FSDelete (FName, VrefNum);
+  ZCreate := Create (FName, VrefNum, 'INFO', 'ZSAV');	{return result code}
+END;							{ function ZCreate }
+
+{-------------------------------}
+{ NewDefault			}
+{-------------------------------}
+
+{ File routines for XZIP.  All I/O functions (that return values) 
+  return 0 for okay and nonzero for an error (unless otherwise indicated). }
+  
+PROCEDURE NewDefault (okay: BOOLEAN);
+BEGIN
+  IF okay THEN
+    BEGIN
+    backname := filename;	{ save the new }
+{   backvol := filevol;  }	{ auto-handled within SF (OS) calls }
+    END
+  ELSE
+    BEGIN
+    filename := backname;	{ restore the old }
+{   filevol := backvol;  }
+    END;
+END;
+
+{-------------------------------}
+{ FileSelect			}
+{-------------------------------}
+
+FUNCTION FileSelect (partial, save: BOOLEAN): INTEGER;
+VAR
+  where: Point;
+  prompt: STRING[64];
+  typelist: SFTypeList;
+  reply: SFReply;
+
+BEGIN
+  where.v := 86;		{ std location to draw box }
+  where.h := 75;
+
+{ store filetype for Create, if needed }
+  IF partial
+    THEN filetype := 'PSav'	{ [lowercase since unregistered] }	
+  ELSE filetype := 'ZSAV';
+
+  BlitBits (TOBACKUP, -1);	{ save screen }
+
+  IF save THEN
+{ get a file name with which to make a save }
+    BEGIN
+    IF partial 
+      THEN prompt := 'Save as:'
+    ELSE prompt := 'Save current position as:';
+
+    SFPutFile (where, prompt, filename, NIL, reply);
+    END
+  ELSE
+{ get a file name from which to read an old save }
+    BEGIN
+    typelist[0] := filetype;
+    
+    { in general, no prompt used when in "selector" mode }
+    SFGetFile (where, '', NIL, 1, typelist, NIL, reply);
+    END;
+  
+  UpdateMyWindow;			{ redraw (area under box only) }
+(* beginUpdate (myWindow);
+  BlitBits (TOSCREEN, -1);
+  endUpdate (myWindow);  *)
+
+  IF reply.good THEN
+    BEGIN
+    filename := reply.fname;		{ put new name here}
+    filevol := reply.vrefnum;		{ and vol }
+    FileSelect := 0;
+    END
+  ELSE FileSelect := 1;		{ cancel }
+END;
+
+{-------------------------------}
+{ ExistFile			}
+{-------------------------------}
+
+{ Check if (full) name conflicts with an existing name }
+{ Mac: this functionality is handled by OS for Fsel; skip }
+
+FUNCTION ExistFile: INTEGER;	{ return 0 if no conflict }
+BEGIN
+  ExistFile := 0;
+END;
+
+{-------------------------------}
+{ CreateFile			}
+{-------------------------------}
+
+{ Create AND open file (return channel thru ptr) }
+
+FUNCTION CreateFile (VAR chan: INTEGER): INTEGER;
+VAR err, err1: INTEGER;
+  unusedvar: STRING[8];
+BEGIN
+  { "stick this string in again only to stay compatible w/ Hancock" }
+  unusedvar := 'xxZSAV';
+
+  err := Create (filename, filevol, 'INFO', filetype);
+  IF (err = noErr) OR (err = dupFNErr) THEN	{ [ignore "exists" error] }
+    BEGIN
+    err := FSOpen (filename, filevol, chan);	{ Mac OS: must open separately }
+    IF err <> noErr THEN
+      err1 := FSDelete (filename, filevol);	{ if any error, clean up }
+    END;
+  CreateFile := err;
+END;
+
+{-------------------------------}
+{ OpenFile			}
+{-------------------------------}
+
+{ Open file (return channel thru ptr) }
+
+FUNCTION OpenFile (VAR chan: INTEGER): INTEGER;
+BEGIN
+  OpenFile := FSOpen (filename, filevol, chan);
+END;
+
+{-------------------------------}
+{ CloseFile			}
+{-------------------------------}
+
+FUNCTION CloseFile (chan: INTEGER): INTEGER;
+VAR err: INTEGER;
+BEGIN
+  err := FSClose (chan);
+  IF err = noErr THEN
+    err := FlushVol (NIL, filevol);	{ most recently opened save vol}
+  CloseFile := err;
+END;
+
+{-------------------------------}
+{ DeleteFile			}
+{-------------------------------}
+
+FUNCTION DeleteFile: INTEGER;
+BEGIN
+  DeleteFile := FSDelete (filename, filevol);
+END;
+
+{-------------------------------}
+{ ReadFile			}
+{-------------------------------}
+
+{ (leave len of actual transfer in actlen) }
+
+FUNCTION ReadFile (chan: INTEGER; off, len: LONGINT; p: PTR): INTEGER;
+VAR err: INTEGER;
+BEGIN
+  err := SetFPos (chan, FSFROMSTART, off);
+  IF err = noErr THEN
+    BEGIN
+    err := FSRead (chan, len, p);	{ [bytes read returned in len] }
+    actlen := len;			{ move it here }
+    IF err = eofErr THEN 
+      err := noErr;			{ we'll accept a "read to eof" }
+    END;
+  ReadFile := err;
+END;
+
+{-------------------------------}
+{ WriteFile			}
+{-------------------------------}
+
+{ (leave len of actual transfer in actlen) }
+
+FUNCTION WriteFile (chan: INTEGER; off, len: LONGINT; p: PTR): INTEGER;
+VAR err: INTEGER;
+BEGIN
+  err := SetFPos (chan, FSFROMSTART, off);
+  IF err = noErr THEN
+    BEGIN
+    err := FSWrite (chan, len, p);	{ [bytes written returned in len] }
+    actlen := len;			{ move it here }
+    END;
+  WriteFile := err;
+END;
+
+{-------------------------------}
+{ CPFilter			}
+{-------------------------------}
+
+CONST
+  DISKHIT = 999;
+VAR 
+  adDrive: INTEGER;		{ result returned here }
+
+{ custom event-filtering proc for AwaitDisk dialog (necessary since ModalDialog normally 
+  calls GetNextEvent with a mask that /excludes/ disk events) }
+{ MUST BE DECLARED AT HIGHEST LEXICAL LEVEL, DUE TO COMPILER BUG }
+
+FUNCTION CPFilter (dp: DialogPtr; VAR ev: EventRecord; VAR iHit: INTEGER): BOOLEAN;
+VAR
+  downKey:  CHAR;
+  bool:	    BOOLEAN;
+BEGIN
+  CPFilter := FALSE;
+{}  IF ev.what <> nullEvent 		{ let ModalDialog handle most events }
+    THEN EXIT (CPFilter);  {}
+
+  bool := GetNextEvent (diskMask, ev);	{ if nothing else is happening ...}
+  CASE ev.what OF			{   check for a disk event }
+    diskEvt:
+      BEGIN
+      adDrive := LoWord (ev.message);	{ return this info in global }
+      iHit := DISKHIT;			{ signal a disk event }
+      CPFilter := TRUE;			{ tell ModalDialog to return the itemHit }
+      END;
+(*		 {OUR DIALOG WILL IGNORE THE RETURN KEY}
+    keyDown:
+      BEGIN
+        downKey := CHR (myEvent.message MOD 256);
+        IF (downKey = CHR (3)) OR (downKey = CHR (13)) THEN
+          BEGIN
+          iHit := 1;			{ user has hit CANCEL }
+          CPFilter := TRUE;		{ tell ModalDialog to return the itemHit }
+          END;
+      END;
+*)
+    END;	{ of cases }
+END;
+
+{-------------------------------}
+{ AwaitDisk			}
+{-------------------------------}
+
+{ conduct an "Insert disk containing <fname>" dialog }
+{ return driveNum/true, or false if user clicks CANCEL button }
+
+FUNCTION AwaitDisk (fname: STR255; VAR driveNum: INTEGER): BOOLEAN;  
+CONST
+  dlog257 = 257;  {dialog resource ID}
+
+VAR
+  dp: DialogPtr;
+  dStorage:  DialogRecord;
+
+  oldPort:	grafPtr;
+  itemHit:	INTEGER;
+  io:		OSErr;
+  done:		BOOLEAN;
+  items:	Handle;
+
+BEGIN
+  BlitBits (TOBACKUP, -1);		{ save screen }
+  SetCursor (arrow);
+  GetPort (oldPort);
+  
+  CouldDialog (dlog257);		{ make sure dialog info is in memory and locked }
+  io := Eject (NIL, 1);			{ eject/flush/offline any disk in Drive 1 }
+
+  dp := GetNewDialog (dlog257, @dStorage, POINTER (-1));
+  SetPort (dp);
+
+  ParamText (fname, '', '', '');	{ insert this string in subsequent dlog }
+  ShowWindow(windowPtr(dp));
+
+  done := FALSE;
+  REPEAT
+    ModalDialog (@CPFilter, itemHit);	{ wait for disk event OR cancel button }
+
+    IF itemHit = 1 THEN	 		{ cancelled by user, exit }
+      BEGIN
+      done := TRUE;
+      AwaitDisk := FALSE;
+      END;
+
+    IF itemHit = DISKHIT THEN		{ disk event detected }
+      BEGIN
+      driveNum := adDrive;		{ return result }
+      done := TRUE;
+      AwaitDisk := TRUE;
+      END;
+  UNTIL done;
+
+  items := DialogPeek(dp)^.items;
+  CloseDialog(dp);			{ remove the dialog }
+  If items <> NIL THEN
+    DisposHandle(items);		{ [this line from MacTerm] }
+  FreeDialog (dlog257);			{ unlock memory }
+
+  SetPort (oldPort);
+{ SetCursor (watchHdl^^); }		{ continue waiting (either load or cancel) }
+
+  UpdateMyWindow;			{ redraw (area under box only) }
+(* beginUpdate (myWindow);
+  BlitBits (TOSCREEN, -1);
+  endUpdate (myWindow); *)
+END;
+
+{-------------------------------}
+{ SearchOpen			}
+{-------------------------------}
+
+{ This routine, now called for all Sound, Graphics, and Game files, is a front end 
+  for FSOpen.  Search for a file, return channel and status.  There are several 
+  possible cases, checked in the following order:
+
+  (1) If subdir <> NIL, check for a separate directory (folder), directly
+  under the current (game) directory.  (This is the norm for Sound files.)
+  
+  (2) Check the current directory.  Note that under the old MFS, a Mac folder 
+  is part of the current directory.  We might still encounter MFS on 400K disks
+  or ramdisks. 
+
+  (3) Check any other disks in the standard two floppy drives (one of these 
+  may duplicate the previous case).  We no longer make any assumptions about the
+  disk names.
+  
+  (4) If all of the above fail, request correct disk from user and wait until
+  it's either provided or cancelled.
+}
+
+FUNCTION SearchOpen (subdir, name: STR128; VAR chan: INTEGER): OSErr;
+VAR
+  dfull, sfull: STR128;		{ full pathnames }
+  err: OSErr;
+  i, driveNum: INTEGER;
+BEGIN
+  SearchOpen := 0;		{ assume success }
+
+  IF subdir[0] <> chr(0) THEN
+    BEGIN
+    sfull := concat (':', subdir, ':', name);
+    IF FSOpen (sfull, 0, chan) = noErr	{ (1) look in subdir, if any }
+      THEN EXIT (SearchOpen);		{ success }
+    END;
+(**
+  IF FSOpen (name, 0, chan) = noErr	{ (2) look in game dir }
+    THEN EXIT (SearchOpen);		{ success }
+
+  IF FSOpen (name, 2, chan) = noErr	{ (3) check floppy drives }
+    THEN EXIT (SearchOpen);		{ success }
+  IF FSOpen (name, 1, chan) = noErr
+    THEN EXIT (SearchOpen);
+**)
+  FOR i := 0 TO 2 DO			{ [save some code] }
+    IF FSOpen (name, i, chan) = noErr
+      THEN EXIT (SearchOpen);
+(** 
+  dfull := concat ('Disk2:', name);
+  IF FSOpen (dfull, 0, chan) = noErr	{ (3) check alternate disk, if any }
+    THEN EXIT (SearchOpen);		{ success }
+{ dfull := concat ('Disk3:', name); }
+  dfull[5] := '3';
+  IF FSOpen (dfull, 0, chan) = noErr
+    THEN EXIT (SearchOpen);
+**)
+  WHILE AwaitDisk (name, driveNum) DO	{ false if Cancelled, else loop }
+    BEGIN
+    IF FSOpen (name, driveNum, chan) = noErr	{ (4) look on user disk }
+      THEN EXIT (SearchOpen);			{ success }
+    END;
+
+  chan := 0;			{ failed, make sure chan marked as unopened }
+  SearchOpen := -1 {err};	{ return (last) error }
+END;
+
+{-------------------------------}
+{ WaitCursor			}
+{-------------------------------}
+
+{ not used these days ... }
+{ display the "waiting" cursor }
+(***	
+PROCEDURE WaitCursor (start: BOOLEAN);	
+BEGIN
+  IF start  {begin waiting}
+    THEN SetCursor (watchHdl^^)		{ make cursor a wristwatch }
+    ELSE SetCursor (arrow);		{ else make cursor an arrow }
+END;					{ procedure WaitCursor }
+ ***)
+
+{was $S}
+
+
+{=======================================}
+{ SCRIPTING ROUTINES			}
+{=======================================}
+
+(*************** taken from CP/MacSC ***************)
+{was $S PrintSeg}
+
+{ Scripting is accomplished via low-level device calls that are advertised
+  as printer-independent (they actually do seem to work on a Laserwriter).  
+  Our one assumption is that each page contains 66 sixth-inch lines.  }
+
+{-------------------------------}
+{ ToggleScript			}
+{-------------------------------}
+
+PROCEDURE ToggleScript (active: BOOLEAN);   { adjust the Scripting menu item }
+VAR
+  command:    Str255;
+BEGIN
+  IF active
+    THEN Command := 'No Transcript' {'Stop Scripting'}
+    ELSE Command := 'Transcript' {'Script'};
+  SetItem (myMenus[2], item4, command);
+END;					    { procedure ToggleScript }
+
+{-------------------------------}
+{ PrPage			}
+{-------------------------------}
+
+PROCEDURE PrPage;	{ skip to top of next page }
+BEGIN
+  PrCtlCall (iPrDevCtl, lPrPageEnd, 0, 0);
+END;
+
+{-------------------------------}
+{ PrReturn			}
+{-------------------------------}
+
+PROCEDURE PrReturn;	{ print a carriage return (1/6 inch) }
+BEGIN
+  PrCtlCall (iPrDevCtl, lPrLFSixth, 0, 0);
+END;
+
+{-------------------------------}
+{ PrLine			}
+{-------------------------------}
+
+PROCEDURE PrLine (lineStart: PTR; length: INTEGER); { script line, add a CR }
+BEGIN
+  IF LCount = 0 THEN		{ if at top of page, skip 3 lines }
+    BEGIN
+    PrReturn; PrReturn; PrReturn;
+    END;
+
+  IF length > 128 THEN		{ make sure value is reasonable }
+    length := 128;
+  IF length > 0	THEN		{ "text stream" the line }
+    PrCtlCall (iPrIOCtl, LONGINT (LineStart), Length, 0);
+
+  PrReturn;			{ add a CR }
+  LCount := LCount + 1;
+  IF LCount >= 60 THEN		{ if page is full, skip to next }
+    BEGIN
+    PrPage;
+    LCount := 0;		{ reset our line counter }
+    END;
+END;
+
+{-------------------------------}
+{ PrInit			}
+{-------------------------------}
+
+PROCEDURE PrInit (active: BOOLEAN);	{ start/stop printing }
+VAR
+  dch: Handle;  {DCtlHandle;}
+BEGIN
+  scripting := active;			{ save state in global }
+  ToggleScript (active);		{ update the menu command }
+  
+{ When going inactive, we don't skip to the end of the page or anything else 
+  fancy, since scripting may be being turned off only briefly for table output, 
+  or some such thing.  (We ought to have a way to distinguish this case from 
+  a real script-off.) }
+
+  IF active				{ are we starting printing? }
+  AND NOT printed THEN			{ for the first time? }
+    BEGIN
+    printed := TRUE;			{ remember, so we pass this way but once }
+    PrDrvrOpen;				{ open the driver, reset the printer }
+
+  { we'd like to be able to trap printer errors, but IM is hazy about this.  
+    As an experiment, get a handle to the Printer Driver's device control entry.  }
+(*  dch := PrDrvrDCE; *)		{ doesn't seem to be useful }
+  { if a printer is online, but not ready (de-selected, out of paper, etc.),
+    this PrCtlCall hangs indefinitely until the error is corrected! }
+
+    PrCtlCall (iPrDevCtl, lPrReset, 0, 0);
+    LCount := 0;			{ initialize our line counter }
+    END;
+END;
+
+{-------------------------------}
+{ PrQuit			}
+{-------------------------------}
+
+{ This routine is called ONLY when the interpreter is about to shut down.
+  (Can't call it any sooner, because of how games may turn off scripting
+  only to pause it temporarily.)  On an Appletalked Laserwriter, 
+  it seems that no output at all is produced unless and until the driver 
+  is closed ...  }
+
+PROCEDURE PrQuit;	{ cleanup after printing }
+BEGIN
+  IF printed THEN	{ was print driver ever opened? }
+    BEGIN
+    PrPage;	 	{ skip to end of last page }
+    PrDrvrClose;	{ close the print driver }
+    END;
+END;
+
+
+{=======================================}
+{ GRAPHICS ROUTINES			}
+{=======================================}
+
+{ these routines work with compressed, multi-picture gfx files }
+
+CONST
+    MAXGFXCOLORS = 16;
+    GHEADLEN = 16;	{ length of gfx megafile header }
+
+{ header flag bits }
+
+    GF_EHUFF = $02;	{ dir entries include Huff ptrs (may be zero) }
+    GF_GHUFF = $04;	{ global Huff ptr is included in file header }
+
+{ define some "custom" flag bits (high so won't clash) }
+
+    GF_SPLASH = $80;	{ startup screen, displayed while game loads }
+
+{ entry flag bits }
+
+    GF_TRANS = $0001;	{ this pic uses Color 0 for "transparent" }
+    GF_PHUFF = $0002;	{ this pic is huffed }
+    GF_XOR = $0004;	{ this pic was XORed every second line }
+    GF_MONO = $0008;	{ this pic is mono, and scaled for a 480x300 screen (std Mac) }
+
+{ PICSET stuff }
+
+{ Note: could instead get picset buflen from gfx_Header (adjusted for each game), 
+  OR could set it arbitrarily large, based on available memory. }
+    PSDEFLEN = 5*1024;	{ default buflen }
+    MAXITEMLEN = 1024;	{ "prevent loading of inappropriate (too big) pics" }
+    
+    PSENTRYLEN = 6;	{ 3 words (for now), id/off/len }
+    PSINITMARK = 987;	{ magic number }
+	
+
+TYPE
+    WPtr = ^INTEGER;
+    LPtr = ^LONGINT;
+
+    gfx_Header =	{ file's master header }
+    RECORD		
+	gflags:	INTEGER;	{ file id (byte), global flags (byte) }
+	ghuffOff:
+		LONGINT;	{ global huff ptr [optional] }
+	npics,			{ number of local directory entries }
+	nxpics:	INTEGER;	{ [Mac: unused] }
+	entryLen,		{ length of each entry (12-14-16) }
+	cksum,
+	version:		{ current version of gfx file format }
+		INTEGER;	
+
+    { additional fields }
+	inited:	BOOLEAN;	{ true after successful init }
+	dirLen:	LONGINT;	{ length of entire directory }
+	LBYTES:	INTEGER;	{ #bytes to specify data len (starting at each dataOff) }
+    END;
+    
+    gfx_Entry =		{ one directory entry (in gfx megafile) }
+    RECORD
+	id:	INTEGER;
+	rx,
+	ry:	INTEGER;	{ raw size (from disk) }
+	eflags:	INTEGER;	{ flags for this entry  [vs. header flags] }
+	dataOff,
+	palOff,
+	huffOff:
+		LONGINT;
+    { additional fields }
+	mono,			{ [copy of GF_MONO flag] }
+	trans,			{ [copy of GF_TRANS flag] }
+	fstip:	BOOLEAN;	{ set if stippling active }
+	x,
+	y:	INTEGER;	{ internal size (after shrinking, stips) }
+	depth:	INTEGER; 	{ 4 (or 1 if stippled) }
+	rowBytes:  INTEGER;
+	dx,
+	dy:	INTEGER;	{ display size; may be scaled (1.5, 2.0) }
+    END;
+
+    RGB_24 = PACKED ARRAY[1..3] of char;	{ 24 bits }
+    gfx_Palette =	{ (potentially) shared color/stipple tables }
+    RECORD
+	pOff:	LONGINT;
+	pSiz:	INTEGER;
+	palette:
+		PACKED ARRAY[1..3*MAXGFXCOLORS] of char;
+	     {	PACKED ARRAY[1..MAXGFXCOLORS] of RGB_24;  }
+	sSiz:	INTEGER;
+	stips:	PACKED ARRAY[1..MAXGFXCOLORS] of char;	{ stipple id table }
+    { extended stipple table (shifted & packed Values - 4 sets of Words) }
+	exstips:
+		PACKED ARRAY[1..MAXGFXCOLORS*2*4] of char;
+    END;
+
+    gfx_Hufftree =	{ (potentially) shared huffman data }
+    RECORD
+	hOff:	LONGINT;
+	hufftree:
+		PACKED ARRAY[1..256{max}] of char;
+    END;
+
+    gfx_Picset =	{ picture buffering vars }
+    RECORD
+    	psInited: INTEGER;	{ marked after successful init }
+	psPtr: Ptr;		{ overall ptr; id stuff starts here }
+	psLen: LONGINT;		{ overall (allocated) len }
+	psData: Ptr;		{ data starts here [recalced for each picset] }
+	
+	p: Ptr;			{ search results returned here }
+	len: LONGINT;
+    END;
+
+    gfx_Data = 
+    RECORD		{ globals for data buffer }
+	pMin:	Ptr;
+	minSize,		{ fully compressed size }
+	midSize,		{ size AFTER dehuff, but BEFORE derun }
+	maxSize: LONGINT	{ fully decompressed size (expected) }
+	END;
+
+    uncompRec = 
+    RECORD		{ this block passed to UncompH }
+	inbuf,
+	outbuf,
+	huff_tree:	Ptr;
+	pic_x,				{ pixel width }
+	midlen,				{ after unhuff, before de-run }
+	outbuflen:	LONGINT;	{ "interrupt count" }
+	firstCall,			{ raised by caller, initially }
+	lastCall:	Boolean;	{ raised by callee, when done }
+	saveRegs:	ARRAY[1..16] OF LONGINT;	{ 16x4 bytes max }
+	END;
+    uncompRecPtr = ^uncompRec;
+
+VAR
+    gfxChan:	INTEGER;	{ gfx megafile }
+    dirPtr:	Ptr;		{ gfx directory, in core }
+    
+    gh:		gfx_Header;
+    ge:		gfx_Entry;
+    gp:		gfx_Palette;
+    gt:		gfx_Hufftree;
+    ps:		gfx_Picset;
+    gd:		gfx_Data;
+
+{-------------------------------}
+{ PutWord, PutLong		}
+{-------------------------------}
+
+{ Following are some useful, general-purpose routines }
+
+PROCEDURE PutWord (VAR p: Wptr; word: INTEGER);		{ store word, advance ptr }
+BEGIN
+	p^ := word;
+	p := WPtr (ORD4(p) + 2);
+END;
+
+(**
+PROCEDURE PutLong (VAR p: Lptr; long: LONGINT);		{ store long, advance ptr }
+BEGIN
+	p^ := long;
+	p := LPtr (ORD4(p) + 4);
+END;
+**)
+
+{-------------------------------}
+{ GetWord, GetWordB, GetLong	}	{ see also GTAWord }
+{-------------------------------}
+
+FUNCTION GetWord (VAR p: Wptr): INTEGER;		{ return word, advance ptr }
+BEGIN
+	GetWord := p^;
+	p := WPtr (ORD4(p) + 2);
+END;
+
+{ use this call if the word might be odd-aligned }
+(**
+FUNCTION GetWordB (VAR p: Wptr): INTEGER;		{ return word, advance ptr }
+BEGIN
+	GetWordB := BOR (BSL (Ptr(p)^, 8), 
+			 BAND (Ptr (ORD4(p)+1)^, 255));
+	p := WPtr (ORD4(p) + 2);
+END;
+
+FUNCTION GetLong (VAR p: Lptr): LONGINT;		{ return long, advance ptr }
+BEGIN
+	GetLong := p^;
+	p := LPtr (ORD4(p) + 4);
+END;
+**)
+
+{-------------------------------}
+{ RoundUp, RoundDown		}
+{-------------------------------}
+
+FUNCTION RoundUp (n: LONGINT): LONGINT;
+BEGIN
+	IF Odd (n) THEN RoundUp := n+1 ELSE RoundUp := n;
+END;
+
+FUNCTION RoundDown (n: LONGINT): LONGINT;
+BEGIN
+	IF Odd (n) THEN RoundDown := n-1 ELSE RoundDown := n;
+END;
+
+{-------------------------------}
+{ LongMult			}	{ "LongMul" causes a conflict }
+{-------------------------------}
+
+{ use this call if a product of two integers might exceed 32K, 
+  to prevent bad Pascal sign-extension }
+  
+FUNCTION LongMult (a, b: INTEGER): LONGINT;
+BEGIN
+	LongMult := LONGINT (a) * LONGINT (b);
+END;
+
+{-------------------------------}
+{ FSReadGFX, FSReadClr		}
+{-------------------------------}
+
+{ read from gfx file, starting from given offset (-1 means current) }
+
+FUNCTION FSReadGFX (off, len: LONGINT; p: Ptr): osErr;
+BEGIN
+	IF off <> -1 THEN
+  		IF SetFPos (gfxChan, FSFROMSTART, off) <> noErr THEN
+			BEGIN
+			FSReadGFX := -1;	{ report an error }
+			EXIT (FSReadGFX);
+			END;
+
+	FSReadGFX := FSRead (gfxChan, len, p);	
+END;
+
+{ a handy func to Read and right-justify a value, of len < n bytes,
+  into a n byte field.  The unused bytes are zeroed. }
+
+FUNCTION FSReadClr (off, len: LONGINT; p: Ptr; n: LONGINT): osErr;
+BEGIN
+	n := n - len;
+	WHILE n > 0 DO				{ clear the high bytes }
+		BEGIN
+		p^ := 0;
+		p := Ptr (ORD4(p) + 1);
+		n := n - 1;
+		END;
+
+	FSReadClr := FSReadGFX (off, len, p);	{ then read as usual }
+END;
+
+{-------------------------------}
+{ varCopy, varCopyClr		}
+{-------------------------------}
+
+PROCEDURE varCopy (p1, p2: Ptr; n: INTEGER);
+BEGIN
+	WHILE n > 0 DO
+		BEGIN
+		p2^ := p1^;
+		p1 := Ptr (ORD4(p1) + 1);
+		p2 := Ptr (ORD4(p2) + 1);
+		n := n - 1;
+		END;
+END;
+
+{ a handy func to Copy and right-justify a value, of len < ntot bytes,
+  into a ntot-byte field.  The unused bytes are zeroed. }
+
+PROCEDURE varCopyClr (p1, p2: Ptr; n, ntot: INTEGER);
+BEGIN
+	ntot := ntot - n;
+	WHILE ntot > 0 DO			{ clear the high bytes in dest }
+		BEGIN
+		p2^ := 0;
+		p2 := Ptr (ORD4(p2) + 1);
+		ntot := ntot - 1;
+		END;
+
+	varCopy (p1, p2, n);	{ then copy as usual }
+END;
+
+{-------------------------------}
+{ ReadGFXEntry			}
+{-------------------------------}
+
+FUNCTION binary_search (dir: Ptr; e_count, e_size, id: LONGINT): Ptr;  
+	C; EXTERNAL;
+
+{ read [into master record] a local directory entry }
+
+FUNCTION ReadGFXEntry (id: INTEGER): OsErr;
+VAR
+	pEnt, pRec: Ptr;
+	curDepth: INTEGER;
+
+PROCEDURE doCopy (n: INTEGER);
+BEGIN
+	WHILE n > 0 DO
+		BEGIN
+		pRec^ := pEnt^;
+		pEnt := Ptr (ORD4(pEnt) + 1);	
+		pRec := Ptr (ORD4(pRec) + 1);
+		n := n - 1;
+		END;
+END;
+PROCEDURE doZero (n: INTEGER);
+BEGIN
+	WHILE n > 0 DO
+		BEGIN
+		pRec^ := 0;
+		pRec := Ptr (ORD4(pRec) + 1);
+		n := n - 1;
+		END;
+END;
+
+BEGIN
+	ReadGFXEntry := -1;			{ default }
+	IF NOT gh.inited
+		THEN EXIT (ReadGFXEntry);	{ make sure file opened okay }
+
+	IF ge.id = id THEN			{ same id as last time? }
+		BEGIN
+		ReadGFXEntry := 0;		{ yes, all done }
+		EXIT (ReadGFXEntry);
+		END;
+		
+	pEnt := binary_search (dirPtr, gh.npics, gh.entryLen DIV 2, id);
+	IF pEnt = NIL
+		THEN EXIT (ReadGFXEntry);
+
+	pRec := @ge;
+	doCopy (8);				{ read first 4 fields }
+
+	ge.trans := BAND (ge.eflags, GF_TRANS) <> 0;
+	ge.mono := BAND (ge.eflags, GF_MONO) <> 0;
+
+	doZero (1);
+	doCopy (3);				{ read/align dataOff }
+
+	{ is there a palette entry? }
+	IF ge.mono THEN				{ NO [implied] }
+		BEGIN
+		doZero (4);
+		pEnt := Ptr (ORD4(pEnt) + 1);	{ skip over /single/ pad byte }
+		END
+	ELSE					{ Yes, read/align palOff }
+		BEGIN
+		doZero (1);
+		doCopy (3);
+		END;
+
+	IF BAND (gh.gflags, GF_EHUFF + GF_GHUFF) = GF_EHUFF {E on, G off?} THEN
+		BEGIN
+		doZero (2);
+		doCopy (2);			{ read/align local huff ptr }
+		ge.huffOff := 2 * ge.huffOff;	{ [make byte offset] }
+		END
+	ELSE
+		ge.huffOff := gh.ghuffOff;	{ else default to global ptr }
+
+	ge.y := ge.ry;		{ initially, set to AM values }
+	ge.x := ge.rx;
+	ge.depth := 4;  
+
+	IF ge.mono THEN		{ special pic (mono, sized) for std Mac? }
+		ge.fstip := FALSE
+	ELSE
+		BEGIN
+		IF myCW  			{ get current depth }
+			THEN curDepth := CGrafPtr(myWindow)^.portPixMap^^.pixelSize	
+			ELSE curDepth := 1;
+		{ detect if stippling needed }
+		ge.fstip := (curDepth = 1);
+		END;
+
+{ must be a multiple of /4/ for in-place stippling (divides it by 2) }
+	ge.rowbytes := CalcRow4Bytes (ge.rx, GFXAM_DEPTH);
+
+{ set dy/dx now, so PICINF will report correctly }
+
+	IF ge.mono OR myTiny THEN		{ scale 1x for display }
+		BEGIN
+		ge.dy := ge.ry;
+		ge.dx := ge.rx;
+		END
+	ELSE IF myBig THEN			{ scale 2x for display }
+		BEGIN
+		ge.dy := ge.ry * 2;
+		ge.dx := ge.rx * 2;
+		END
+	ELSE					{ scale 1.5x for display }
+		BEGIN
+		ge.dy := (ge.ry * 3) DIV 2;
+		ge.dx := (ge.rx * 3) DIV 2;
+		
+		IF ge.fstip THEN		{ must be even, round down }
+			BEGIN
+			ge.dy := RoundDown (ge.dy);	
+			ge.dx := RoundDown (ge.dx);
+			END;
+		END;
+
+	ReadGFXEntry := 0;			{ all okay }
+END;
+
+{-------------------------------}
+{ ReadGFXPalette		}
+{-------------------------------}
+
+PROCEDURE BuildStips (table1, table2: Ptr);
+	EXTERNAL;  {68K}
+PROCEDURE FillCSpec (CSpec: Ptr; ix: INTEGER; bytePal: Ptr);
+	EXTERNAL;  {68K}
+
+{ read and setup palette (color or stipple); also read huffman tree }
+
+FUNCTION ReadGFXPalette: OSErr;
+VAR
+	n: INTEGER;
+	p: Ptr;
+	myPal: PaletteHandle;
+	
+{ a local procedure }
+PROCEDURE doRead (off, n: LONGINT; p: Ptr);
+BEGIN
+	IF FSReadGFX (off, n, p) <> noErr THEN EXIT (ReadGFXPalette);
+END;
+
+BEGIN
+    ReadGFXPalette := -1;			{ default val }
+
+    IF (ge.palOff <> 0) AND (gp.pOff <> ge.palOff) THEN	  { get new palette }
+        BEGIN
+	gp.psiz := 0;				{ zero high byte }
+	p := Ptr (ORD4(@gp.psiz) + 1);	
+	doRead (ge.palOff, 1, p);		{ read low byte }
+	IF gp.psiz > MAXGFXCOLORS
+		THEN EXIT (ReadGFXPalette);
+	doRead (-1, 3*gp.psiz, @gp.palette);
+
+{ We ALWAYS read and process the stipple data.  It doesn't take much time, and 
+  it means we are always ready to switch into stipple mode if the user changes
+  the screen.  Note: when all games have their own b/w files, we should avoid 
+  this in b/w mode. }
+
+	gp.ssiz := 0;				{ zero high byte }
+	p := Ptr (ORD4(@gp.ssiz) + 1);	
+	doRead (-1, 1, p);			{ read low byte }
+	IF gp.ssiz > MAXGFXCOLORS
+		THEN EXIT (ReadGFXPalette);
+	doRead (-1, gp.ssiz, @gp.stips);
+	
+	{ use stipple palette to build extended/value table } 
+	BuildStips (@gp.stips, @gp.exstips);
+
+{ As of now, we process the color data ONLY if we're currently in color mode, 
+  not stipple mode.  Means that switching from stips to color in mid-game will
+  temporarily (until the next palette is read) display strange colors. }
+
+	IF NOT ge.fstip THEN		{ AND NOT ge.mono (implicit? }
+	{ use zcolor palette to build custom color table }
+		BEGIN
+		WITH gfxPM.pmTable^^ DO  { dereference outside of loop }
+			BEGIN
+			p := @gp.palette;
+		{ don't touch initial, final entries (set up during init)
+		  Final color table layout is: 1, 2-15, 0 (see IM V-158) }
+			FOR n := 1 TO MAXGFXCOLORS-2 DO	
+				BEGIN
+				{ first two args are 0-origin }
+				FillCSpec (@ctTable[n], n+1, p);				
+				p := Ptr (ORD4(p) + 3);	
+
+(**)			{ install in altscreen too, for Blits }
+			{ Otherwise, updates map all colors to Black ... }
+				altPM^^.pmTable^^.ctTable[n] := ctTable[n];
+(**)
+				END;
+
+		{ tell system that colors may have changed }
+      			ctSeed := GetCTSeed;
+(**)			altPM^^.pmTable^^.ctSeed := GetCTSeed;  (**)
+
+		{ if gp.psiz < 16, should it be copied into palette? }
+			END;
+	
+	{ go whap on palette -- install new colors with zero tolerance }
+		myPal := GetPalette (myWindow);	{ get default [from GetNewCWindow] }
+	(**)	SetPalette (myWindow, myPal, TRUE {FALSE}); (**)  { DO get color updates }
+
+		CTab2Palette (gfxPM.pmTable, myPal, pmTolerant, $0000);
+		ActivatePalette (myWindow);
+		END;
+	gp.pOff := ge.palOff;		{ remember which palette this is }
+	END;
+
+    IF BAND (ge.eflags, GF_PHUFF) <> 0 THEN 	{ is /this/ pic huffed? }
+	IF gt.hOff <> ge.huffOff THEN		{ tree not already loaded? }
+		BEGIN
+		doRead (ge.huffOff, 256 {max}, @gt.hufftree);
+		gt.hOff := ge.huffOff;		{ remember which tree this is }
+		END;
+
+    ReadGFXPalette := 0;			{ all okay }
+END;
+
+{-------------------------------}
+{ ReadGFXData			}
+{-------------------------------}
+
+FUNCTION searchPicset (id: INTEGER): osErr;
+	FORWARD;
+FUNCTION UncompH (p: uncompRecPtr): LONGINT; EXTERNAL;		{ now in 68K, for speed }
+(**
+FUNCTION uncompress_huff (inbuf, outbuf, huff_tree: Ptr; 
+	inlen, pic_x: LONGINT): LONGINT;  C; EXTERNAL;	{ dead }
+FUNCTION uncompress_nohuff (inbuf, outbuf: Ptr; 
+	inlen, pic_x: LONGINT): LONGINT;  C; EXTERNAL;  **)
+
+{ Read in (or find in PICSET) the data for one picture, then decompress it.
+  A single large buffer, allocated at startup and shared with BLITBITS, is used 
+  for all operations.  By avoiding dynamic allocations, we guarantee that 
+  PICDISP will never fail due to an out-of-memory error.  By sharing with BlitBits,
+  we minimize gfx memory appetite.
+  
+  The size of the buffer is equal to the maximum size of a decompressed picture
+  (plus one extra scanline).  (For a monochrome screen, the buffer also includes 
+  room for a /simultaneous/ full screen blit, used for Transparent mode.) 
+  The data (if not found in PICSET) is initially read into the high end 
+  of the buffer, then decompressed into the low end. }
+  
+FUNCTION ReadGFXData: OSErr;
+VAR
+	p:	Ptr;
+	dummy:	INTEGER;
+	max2:	LONGINT;		{ fully decompressed size (actual) }
+	ucr:	uncompRec;
+BEGIN
+	ReadGFXData := -1;			{ default val }
+
+	IF searchPicset (ge.id) = 0 THEN	{ first, check cache }
+		BEGIN
+		gd.pMin := ps.p;
+		gd.minSize := ps.len;
+		END
+	ELSE
+		BEGIN
+		IF FSReadClr (ge.dataOff, gh.LBYTES, @gd.minSize, 4) <> noErr	{ read size bytes }
+			THEN EXIT (ReadGFXData);
+		IF gd.minSize > altLen			{ fits in buffer? }
+			THEN EXIT (ReadGFXData);
+
+{ For YZIP, always call CheckMyUpdate before doing any output.  The case of graphics output
+  is tricky:
+    - must call /before/ gfx data is read into altbuf, since that action trashes the screen
+  image saved in the shared buffer!
+    - must call /after/ any call that could trigger a disk-swap request.  These include:
+        * ReadGFXEntry - "never" (directory always preloaded)
+	* ReadGFXPalette - "sometimes" (only if different than previous)
+	* 2-byte size word, above - "usually" (unless cached by OS)
+	
+    - in the nasty worst case, none of the above triggers the request, but reading the data
+  itself does.  Since caching is MRU (presumably?), this could happen only if the 'size word'
+  existed withing the same block as a more recent picture with a slightly lower id.  COULD 
+  test for this case by touching the next disk block with a special read:
+		dummy := FSReadGFX (ge.dataOff+512 (1K? 2K?), 2, @dummy);
+		
+  but this would routinely thrash (hiccup) the disk for every picture (or only pics that 
+  crossed tracks?  How about effect on load speed?)
+  Bottom line - we don't check for this, and hope it happens rarely or never.  The ultimate 
+  solution would be to have a completely independant buffer for gfx (or none at all, and output 
+  directly to screen -- difficult on Mac).
+}
+		CheckMyUpdate;			
+
+		{ make sure gd.pMin is word-aligned, for reading speed }
+		gd.pMin := Ptr (ORD4(altPtr) + (altLen - RoundUp(gd.minSize)));
+		{ read in the (compressed) data }
+		IF FSReadGFX (-1, gd.minSize, gd.pMin) <> noErr 	
+			THEN EXIT (ReadGFXData);
+		END;	{ of IF searchPicset ... }
+
+{ decompress (into bytes).  actual data starts at second row.
+  For now, we've stopped supporting the not-huffed case.  If this becomes a problem,
+  need only to create an UNCOMPNH based on UNCOMPH. }
+
+	gd.maxSize := LONGINT (ge.rx) * LONGINT (ge.ry);	{ in bytes }
+
+	IF BAND (ge.eflags, GF_PHUFF) = 0 THEN
+		BEGIN
+	(**	max2 := uncompress_nohuff (gd.pMin, altPtr, gd.minSize, ge.rx) **)
+		EXIT (ReadGFXData);		{ "not handled" }
+		END;
+
+	varCopyClr (gd.pMin, @gd.midSize, gh.LBYTES, 4);
+	gd.pMin := Ptr (ORD4(gd.pMin) + gh.LBYTES);
+
+{ [for mono, decompression and display processing are now combined, and handled elsewhere.] }
+	IF ge.mono THEN
+		BEGIN
+		ReadGFXData := 0;		{ [not an error] }
+		EXIT (ReadGFXData);
+		END;
+
+	IF gd.maxSize + ge.rx > altLen THEN	{ fits in buffer? }
+		BEGIN
+		IF gfxDebug			{ signal an error ... }
+			THEN SysBeep (4);
+		EXIT (ReadGFXData);		{ avoid a crash }
+		END;
+
+	WITH ucr DO
+		BEGIN
+		inbuf	:= gd.pMin;
+		outbuf	:= altPtr;
+		huff_tree  := @gt.hufftree;
+		pic_x	:= ge.rx;
+		midlen	:= gd.midSize {gd.minSize};
+		outbuflen  := altlen;	{ no interrupt for color }
+		firstCall  := TRUE;
+		lastCall   := FALSE;
+		END;
+
+	max2 := UncompH (@ucr);
+
+	IF max2 <> gd.maxSize THEN		{ /should/ be exact pic size }
+		BEGIN
+		IF gfxDebug
+			THEN SysBeep (4);
+		{ EXIT (ReadGFXData); }	{ [don't abort for this one] }
+		END;
+
+	ReadGFXData := 0;		{ return with no errors }
+END;
+
+{-------------------------------}
+{ CopyPic			}
+{-------------------------------}
+
+{ copy to OR from the screen }
+{ >> careful: pass Pixmaps by name not value, else chopped ! << }
+{ (pass rects by name, only to avoid making copies) }
+
+PROCEDURE CopyPic (srcBits, dstBits: BitMapPtr; VAR r1, r2: Rect);
+VAR
+	mode: INTEGER;
+BEGIN
+	mode := SRCCOPY;			{ default }
+	IF NOT (ge.fstip OR ge.mono) 		{ i.e., if color }
+	    THEN IF ge.trans	{ color 0 means "transparent" }
+		THEN mode := 36 {TRANSPARENT};
+		{ use transIndex (in ColorTable) instead ?? }
+	
+	{ draw (a piece of) the bitmap to the screen }
+	ZCopyBits (srcBits, dstBits, r1, r2, mode, NIL);
+END;
+
+{-------------------------------}
+{ ShowGFXM			}
+{-------------------------------}
+
+CONST
+	DECOMP_LEN 	= 8*1024;	{ ~16 rows x 480 }
+	DECOMP_MINLEN	= 4*1024;
+TYPE
+    MonoPicRec = 
+    RECORD		{ this block passed to Monopic }
+	srcX,			{ in pixels }
+	srcY,
+	dstRB:	INTEGER;	{ in bytes }
+	trans:	Boolean;	{ transparency flag }
+	psrc,			{ note: src rows are unpadded }
+	pdst:	Ptr;		{ [return updated ptr] }
+	END;
+    MonoPicRecPtr = ^MonoPicRec;
+
+PROCEDURE MonoPic (p: MonoPicRecPtr);  EXTERNAL;  {68K}
+(** PROCEDURE MonoPic (srcX, srcY, dstRB: INTEGER; src, dst: Ptr); EXTERNAL;  {68K} **)
+
+{ Display, in straight Mono, (a section of) a picture, data in altbuf;
+  position given in pixel units.
+  
+  Because a mono pic decompresses into so many bytes (144000 prior to MonoPic), we
+  now break up decompression and mono rendering into smaller chunks.  To minimize overhead
+  lossage,  chunks shouldn't be too small.  Our buffer is partitioned as follows:
+  
+  ---------------------------------------
+  |  Transbuf  (18000 bytes)		|
+  |					|
+  ---------------------------------------
+  |  Outbuf  (DECOMP_LEN or more)	|
+  ---------------------------------------
+  |  Inbuf  (18000 bytes or less)	|
+  |					|
+  ---------------------------------------	}
+
+PROCEDURE ShowGFXM (ypos, xpos: INTEGER);
+VAR
+	r1, r2:		rect;
+	pDecomp,			{ was pMax }
+	pTrans:		Ptr;
+	max2,				{ fully decompressed size (actual) }
+	decompLen,			{ space available for decompression }
+	decompLen1,			{   ... rounded down to exact multiple of picx }
+	decompRet,			{ #bytes returned in latest decomp buffer }
+	transLen:	LONGINT;	{ length of transparency buffer }
+	decompRows:	INTEGER;	{ #rows returned per UncompH call }
+	unroll:		Boolean;
+	ucr:	uncompRec;
+	mpr:	MonoPicRec;
+(**)	debug_ticks:	LONGINT;   (**)	{ FOR TIMING TESTS ONLY }
+BEGIN
+(**)	debug_ticks := TickCount;  (**)
+	
+	ge.depth := 1;  			{ adjust for mono }
+	ge.rowbytes := CalcRowBytes (ge.x, 1);	{ recalc this one }
+
+{ calc rects (for "straight mono", always scaled 1.00) }
+
+	SetRect (r1, 0, 0, ge.x, ge.y);
+	r2 := r1;
+(**	SetRect (r2, 0, 0, ge.dx, ge.dy);  **)	{ same }
+	OffsetRect (r2, wMarg + xpos, ypos);
+
+(**	rawlen {gd.maxSize} := LongMult (ge.x, ge.y); **)  { DON'T CARE, use chunks now } 
+	transLen := LongMult (ge.y, ge.rowbytes);
+	decompLen := altLen - (transLen + gd.minSize);
+	IF decompLen < DECOMP_MINLEN THEN  	{ minSize was too big! }
+		BEGIN
+		IF gfxDebug			{ signal an error ... }
+			THEN SysBeep (4);
+		EXIT (ShowGFXM);
+		END;
+
+{ allow one extra line for unEOR, plus 128 bytes max for unRun spillover }
+	decompRows := (decompLen - (ge.x + 128)) DIV ge.x;
+	IF decompRows > ge.y THEN		{ don't exceed actual pic height }
+		decompRows := ge.y;
+{ further strategy: if it's a "big" pic, then limit decompRows to a small number and 
+  incrementally "unroll" the actual display, to avoid a long dead moment.  The smaller
+  decompRows is, the smoother the unroll but the bigger the overhead.
+  
+  Experiments with "debug_ticks" (on a Mac 512K) show that dividing a 480x300 pic into
+  n-row chunks increases the total display time as follows:
+  	n=300	0
+  	n=4	0.23 sec
+	n=2	0.45 sec
+	n=1	0.90 sec	(ouch)
+}
+  	IF translen < (18000 DIV 4) THEN	{ is pic smaller than 1/4 screen? }
+		unroll := FALSE			{ don't bother to unroll }
+	ELSE
+		BEGIN
+		IF decompRows > 2 {4} THEN	{ n=2 looks quite smooth }
+			decompRows := 2 {4};
+		unroll := TRUE;
+		END;  
+	decompLen1 := LongMult (decompRows, ge.x);
+	
+	pTrans := altPtr;
+	pDecomp := Ptr (ORD4(altPtr) + transLen);
+
+	WITH gfxPM DO
+		BEGIN
+		baseAddr := pTrans;	{ set gfxPM base to Trans base }
+		rowBytes := ge.rowBytes;
+		bounds := r1;
+		END;
+
+	{ if Transparent, blit in (entire) old pic first }
+	IF ge.trans THEN
+		CopyPic (@thePort^.portBits, BitMapPtr(@gfxPM), r2, r1);
+	IF unroll THEN
+		BEGIN
+		r1.bottom := r1.top;	{ setup for unroll }
+		r2.bottom := r2.top;
+		END;
+
+	WITH ucr DO
+		BEGIN
+		inbuf	:= gd.pMin;
+		outbuf	:= pDecomp  {altPtr};
+		huff_tree  := @gt.hufftree;
+		pic_x	:= ge.rx;
+		midlen	:= gd.midSize {gd.minSize};
+		outbuflen  := decompLen1  {altlen};	{ interrupt point }
+		firstCall  := TRUE;
+		lastCall   := FALSE;
+		END;
+	WITH mpr DO
+		BEGIN
+		srcX := ge.x;
+		srcY := decompRows  {ge.y};
+		dstRB := ge.rowbytes;
+		trans := ge.trans;
+		psrc := Ptr (ORD4(pDecomp) + ge.rx);	{ 1st row is unEOR hack }
+		pdst := pTrans;		{ [returns updated ptr] }
+		END;
+
+	max2 := 0;
+	WHILE NOT ucr.lastCall DO
+		BEGIN
+		decompRet := UncompH (@ucr);
+		max2 := max2 + decompRet;
+		
+		IF ucr.lastCall THEN	{ final chunk probably has fewer rows ... }
+			mpr.srcY := decompRet DIV ge.x;
+		MonoPic (@mpr);
+
+		IF unroll THEN 		{ blit new pic to screen incrementally }
+			BEGIN
+			r1.top := r1.bottom;
+			r1.bottom := r1.bottom + mpr.srcY {decompRows};
+			r2.top := r2.bottom;
+			r2.bottom := r2.bottom + mpr.srcY;
+
+			CopyPic (BitMapPtr(@gfxPM), @thePort^.portBits, r1, r2);
+			END;
+		END;
+		
+	IF max2 <> gd.maxSize THEN		{ /should/ be exact pic size }
+		BEGIN
+		IF gfxDebug
+			THEN SysBeep (4);
+		{ EXIT (ReadGFXData); }		{ [but don't abort for this one] }
+		END;
+
+	IF NOT unroll THEN	{ blit new pic to screen, all at once }
+		CopyPic (BitMapPtr(@gfxPM), @thePort^.portBits, r1, r2);
+	
+(**)	debug_ticks := TickCount - debug_ticks;  (**)	{ time to decomp/display pic }
+END;
+
+{-------------------------------}
+{ ShowGFXS			}
+{-------------------------------}
+
+PROCEDURE Shrink75 (base: Ptr; cols100, cols75, rows75: INTEGER);
+	EXTERNAL;  {68K}
+PROCEDURE StipPic (srcX, srcY, 		{ color, 1 byte/pixel, [clipped if necessary] }
+	dstRB: INTEGER;			{ mono rowBytes -- SRCX/4, ROUNDED UP & EVEN }
+	src, dst, maps: Ptr;
+	trans: BOOLEAN);
+	EXTERNAL;  {68K}
+
+{ display in Mono/Stipples (a section of) a picture, data in altbuf;
+  position given in pixel units }
+{ MAY need to shrink (0.75 scaling), MUST stipple (auto 2.00 scaling) }
+
+PROCEDURE ShowGFXS (ypos, xpos: INTEGER);
+VAR
+	r1, r2: rect;
+	pMax, pStips: Ptr;
+	shrink: BOOLEAN;
+	tx, ty, trb: INTEGER;	{ intermediate vals }
+	rawlen,
+	stiplen: LONGINT;	{ length of stipple buffer }
+	sx, sy, srb: INTEGER;	{ final stipple vals }
+BEGIN
+	pMax := Ptr (ORD4(altPtr) + ge.rx);	{ start of byte data }
+
+{ If stippling AND 1.50 scaling, reduce to 0.75 FIRST (so QD won't mung stips) 
+  [if color, (would) never scale /down/, even for 1.50, just let QD expand]. }
+	shrink := {ge.fstip AND} NOT myBig;
+	
+	ty := ge.y;
+	tx := ge.x;
+	trb := ge.rowBytes;
+
+	IF shrink THEN
+	{ recalc "internal" pic size, based on previously calc'ed display size }
+		BEGIN
+		ty := ge.dy DIV 2;
+		tx := ge.dx DIV 2;
+	{ new rowBytes must also be multiple of /4/, for in-place stippling }
+		trb := CalcRow4Bytes (tx, GFXAM_DEPTH);
+		END;
+
+{ we now write into these 's' fields instead of the 'ge.' globals.  This is because
+  if ShowGFXS is called twice in a row for the same picture, the globals got mashed. 
+  [Removal of the (dead) 0.75 option would simplify things a lot.] }
+
+	sy := ge.dy;
+	sx := ge.dx;
+	srb := trb DIV 2;
+    (*  sdepth := 1; *)
+
+(**	ge.y := ge.dy;			{ and set final (post-stip) vals }
+	ge.x := ge.dx;
+	ge.depth := 1;  		{ adjust for depth=1 }
+	ge.rowbytes := trb DIV 2; **)
+
+{ calc rects (for stips, always scaled 1.00) }
+
+	SetRect (r1, 0, 0, sx, sy);
+	r2 := r1;
+	OffsetRect (r2, wMarg + xpos, ypos);
+
+	(* IF ge.fstip THEN *)
+
+	IF shrink THEN
+		BEGIN
+		Shrink75 (pMax, ge.rx, tx, ty);  { works w/ BYTES }
+		{ Clip75 ... alternate call }
+		END;
+		
+	rawlen {maxSize} := LongMult (ty, tx);		{ calc (shrunk) buflen; rows rounded DOWN }
+	stipLen := LongMult (sy, srb);
+
+	IF (rawlen + ge.rx) + stipLen > altLen THEN	{ too big! }
+		BEGIN
+		IF gfxDebug			{ signal an error ... }
+			THEN SysBeep (4);
+		EXIT (ShowGFXS);		{ avoid a crash }
+		END;
+
+	{ set gfxPM base to 2nd buffer }
+	pStips := Ptr (ORD4(altPtr) + (altLen - stipLen));
+
+	WITH gfxPM DO
+		BEGIN
+		baseAddr := pStips;	{ set gfxPM base to Stips base }
+		rowBytes := srb;
+		bounds := r1;
+		END;
+
+	{ if Transparent, first blit in old pic }
+	IF ge.trans THEN
+		CopyPic (@thePort^.portBits, BitMapPtr(@gfxPM), r2, r1);
+
+	{ stipple/pad to 2nd buffer }	      
+	StipPic (tx, ty, trb DIV 2, 
+		pMax, pStips, @gp.exstips, ge.trans);
+		
+	(* END  { IF ge.fstip THEN } *)
+
+	{ blit new pic out to screen }
+	CopyPic (BitMapPtr(@gfxPM), @thePort^.portBits, r1, r2);
+END;
+
+{-------------------------------}
+{ ShowGFX			}
+{-------------------------------}
+
+PROCEDURE SqzRow (src, dst: Ptr; rowPix {,rowBytes, rows}: INTEGER); 
+	EXTERNAL;  {68K}
+
+{ display in Color (a section of) a picture, data in altbuf;
+  position given in pixel units }
+
+PROCEDURE ShowGFX{Color} (ypos, xpos: INTEGER);
+VAR
+	r1, r2: rect;
+	pMax, pFinal: Ptr;
+	n: INTEGER;
+	p1, p2: Ptr;
+BEGIN
+	IF ge.mono THEN			{ neither stipple NOR scale }
+		BEGIN
+		ShowGFXM (ypos, xpos);
+		EXIT (ShowGFX);
+		END;
+
+	IF ge.fstip THEN		{ handle the stipple case separately, too }
+		BEGIN
+		ShowGFXS (ypos, xpos);
+		EXIT (ShowGFX);
+		END;
+
+	pMax := Ptr (ORD4(altPtr) + ge.rx);	{ start of byte data }
+
+	SetRect (r1, 0, 0, ge.x, ge.y);
+	SetRect (r2, 0, 0, ge.dx, ge.dy);	{ always scaled up 2.00 }
+	OffsetRect (r2, wMarg + xpos, ypos);
+
+	IF TRUE {NOT ge.fstip} THEN
+		BEGIN
+		pFinal := altptr;
+		p1 := pMax;			{ start of byte data }
+		p2 := pFinal;			{ start of nibble data }
+
+{ Squeeze bytes (16-color pixels) into nibbles, throwing away the high nibbles.
+  also shift picture to base of buffer, and pad each row }
+
+		FOR n := 1 TO ge.ry DO
+			BEGIN
+			SqzRow (p1, p2, ge.rx);
+			p1 := Ptr (ORD4(p1) + ge.rx);		{ advance ptrs }		
+			p2 := Ptr (ORD4(p2) + ge.rowBytes);	{ skip/pad }
+			END;
+		END;
+
+	WITH gfxPM DO
+		BEGIN
+		baseAddr := pFinal;	{ set gfxPM base to buffer base }
+		rowBytes := ge.rowBytes;
+		bounds := r1;
+
+		IF TRUE {NOT ge.fstip} THEN	
+		{ adjust some additional fields }
+			BEGIN
+			{ mark as a pixmap  [otherwise, /always/ 1 plane] }
+			rowBytes := rowBytes + $8000;  
+			END;
+		END;
+
+	CopyPic (BitMapPtr(@gfxPM), @thePort^.portBits, r1, r2);
+	
+(**	IF n = -999 THEN	{ for testing only -- see if this munges colors ... }
+		BEGIN
+		CopyPic (@thePort^.portBits, BitMapPtr(@gfxPM), r2, r1);
+		CopyPic (BitMapPtr(@gfxPM), @thePort^.portBits, r1, r2);
+		END;  **)
+END;
+
+{-------------------------------}
+{ EraseGFX			}
+{-------------------------------}
+
+{ clear a picture, position given in pixel units }
+
+PROCEDURE EraseGFX (ypos, xpos: INTEGER);
+VAR
+	r: rect;
+BEGIN
+	SetRect (r, 0, 0, ge.dx, ge.dy);
+	OffsetRect (r, wMarg + xpos, ypos);
+	EraseRect (r);
+END;
+
+{-------------------------------}
+{ opDisplay			}
+{-------------------------------}
+
+{ position given in pixel units, relative to current window, 0-origin }
+
+PROCEDURE opDisplay (id, ypos, xpos, erase: INTEGER);
+VAR
+	r: rect;
+	clip: Boolean;
+BEGIN
+	IF ReadGFXEntry (id) <> noErr THEN	{ call BEFORE erase or dy/dx refs! }
+		EXIT (opDisplay);
+
+	IF (ypos < -2) OR (xpos < -2) THEN	{ ERROR, force inbounds }
+		BEGIN
+		ypos := 0;
+		xpos := 0;
+		IF gfxDebug		{ signal an error ... }
+			THEN SysBeep (4);
+		END;
+
+{ -2 (after 0-origining) means only read palette/stipple info }
+	IF (ypos = -2) OR (xpos = -2) THEN 
+		BEGIN
+		{ to be implemented }
+		
+		EXIT (opDisplay);
+		END;
+
+{ -1 (after 0-origining) means use current position }
+	IF ypos = -1
+		THEN ypos := curRow
+		ELSE ypos := firstRow + ypos;	{ relative to current window }
+	IF xpos = -1
+		THEN xpos := curCol
+		ELSE xpos := firstCol + xpos;
+
+(** IF id > NPICS THEN
+	    EXIT (opDisplay);  **)	{ no errs for now }
+
+{ check size, clip to logical window (YZIP) if too big }
+	IF (ge.dy > lastRow - ypos {AFTER relativizing})
+	OR (ge.dx > lastCol - xpos {AFTER relativizing}) THEN
+		BEGIN
+		GetClip (clipRgn1);	{ save old }
+
+		r.top := firstRow;
+		r.left := firstCol;
+		r.bottom := lastRow;
+		r.right := lastCol;
+		ClipRect (r);
+		
+		clip := TRUE;
+		IF gfxDebug		{ signal an error ... }
+			THEN SysBeep (4);
+		END
+	ELSE	clip := FALSE;
+
+	IF erase <> 0 THEN		{ clear the (current) pic }
+		EraseGFX (ypos, xpos)
+	ELSE
+		BEGIN
+		IF ReadGFXPalette = noErr THEN 
+			BEGIN
+		(*	CheckMyUpdate;	*)		
+			IF ReadGFXData = noErr THEN 
+				ShowGFX (ypos, xpos);
+			END;
+		END;
+
+	IF clip THEN
+		SetClip (clipRgn1);	{ undo the above }
+END;
+
+{-------------------------------}
+{ opPicinf			}
+{-------------------------------}
+
+{ Fill in given table with size (in pixels) of the given picture.
+  If invalid id, return negative result }
+
+TYPE
+	ARRAY2 = ARRAY[1..2] OF INTEGER;
+
+FUNCTION opPicinf (id: INTEGER; VAR tbl: ARRAY2): INTEGER;
+BEGIN
+	opPicinf := 0;			{ assume no error }
+
+	IF id = 0 THEN		{ >> DEAD IN YZIP (supposedly) << }
+		BEGIN
+		tbl[1] := gh.npics;	{ [should be /highest/ id, actually] }
+		EXIT (opPicinf);
+		END;
+
+	{ otherwise, read just enough to return size }
+	IF ReadGFXEntry (id) = noErr THEN
+		BEGIN
+		tbl[1] := ge.dy {DIV lineheight};
+		tbl[2] := ge.dx {DIV colWidth};
+		END
+	ELSE
+		BEGIN	
+		opPicinf := -1;
+
+	{ provide some defaults for games that don't trap errors ... }
+		tbl[1] := 2*lineHeight;
+		tbl[2] := 2*colWidth;
+		END;
+END;
+
+{-------------------------------}
+{ getPicset			}
+{-------------------------------}
+
+{ Preload the requested set of pics (or as many as will fit)
+
+  Note: PICSET currently caches /compressed/ picture data, trading off space against
+  display speed (would reverse this to do animation, for example).  Also, palette data 
+  is not touched by the caching.  This is okay for most small pics since they share 
+  someone else's palette.
+
+  The format of the info at psPtr is as follows (all word entries -- must change off/len 
+  to longs if PSDEFLEN ever exceeds 32K!):
+	- #ids in picset
+	- 1st id
+	- starting offset (in bytes, relative to psData)
+	- length (in bytes)
+	- 2nd id, etc ... }
+
+PROCEDURE getPicset (tbl: WPtr; setCount: INTEGER);
+VAR
+	p1: WPtr;
+	p2: Ptr;
+	curCount, id: INTEGER;
+	headerLen, off,
+	avail,		{ space remaining in picset buffer }
+	curSize: LONGINT;
+
+FUNCTION psRead: osErr;
+BEGIN
+	psRead := -1;	{ default result }
+	IF avail <= 0
+		THEN EXIT (psRead);
+
+	{ get dataOff (write new routine? this one does some extra work) }
+	IF ReadGFXEntry (id) <> noErr
+		THEN EXIT (psRead);
+
+	{ read in the length of the (compressed) data }
+	IF FSReadClr (ge.dataOff, gh.LBYTES, @curSize, 4) <> noErr
+		THEN EXIT (psRead);
+	
+	IF curSize > MAXITEMLEN THEN	{ exceeds our absolute max }
+		EXIT (psRead);		{   [picset isn't for full screens] }
+
+	IF curSize > avail THEN		{ not enough room left! }
+		BEGIN
+		IF avail < 256 THEN	{ avoid further disk hits; }
+			avail := 0;	{ return errs for remaining pics in set }
+		EXIT (psRead);
+		END;
+
+	{ read (compressed) data into the picset buf }
+	IF FSReadGFX (-1, curSize, p2) <> noErr 
+		THEN EXIT (psRead);
+		
+	psRead := 0;	{ all okay }
+END;
+
+BEGIN
+	IF ps.psInited <> PSINITMARK		{ valid buffer? }
+		THEN EXIT (getPicset);
+
+	p1 := WPtr (ORD4(ps.psPtr) + 2);		{ reserve 1 word for #ids }
+	headerLen := 2 + (PSENTRYLEN * setCount);
+	p2 := Ptr (ORD4(ps.psPtr) + headerLen);
+	ps.psData := p2;				{ data starts here, save ptr }
+
+	avail := ps.psLen - headerLen;
+	IF avail <= 0
+		THEN EXIT (getPicset);
+
+	curCount := 0;
+	WHILE setCount > 0 DO
+		BEGIN
+		{ get next id in set }
+		id := GetWord {GetWordB} (tbl);		{ now guaranteed even-aligned ... }	
+
+		IF psRead = noErr THEN
+			BEGIN
+			PutWord (p1, id);
+
+			off := ORD4(p2) - ORD4(ps.psData);
+			PutWord (p1, off);		{ picbuf offset }
+		{	PutLong (LPtr(p1), off);  }
+
+			PutWord (p1, curSize);		{ length (in bytes) }
+		{	PutLong (LPtr(p1), off);  }
+			
+			curSize := RoundUp (curSize);	{ KEEP p2 EVEN ALIGNED, FOR I/O SPEED }
+			p2 := Ptr (ORD4(p2) + curSize);
+			avail := avail - curSize;
+			curCount := curCount + 1;
+			END
+		ELSE
+		{ if any error, write nothing to header }
+			BEGIN
+			{ if debug then Sysbeep (4); }
+			END;
+		setCount := setCount - 1;
+		END;
+
+	p1 := WPtr (ps.psPtr);		{ [use local var, don't bump global!] }
+	PutWord (p1, curCount);		{ store the success count }
+END;
+
+{-------------------------------}
+{ searchPicset			}
+{-------------------------------}
+
+{ Check the current picset for the given id; 
+  return zero if found (and return ptr/len in globals) }
+  
+FUNCTION searchPicset (id: INTEGER): osErr;
+VAR
+	p1: WPtr;
+	setCount: INTEGER;
+	temp: INTEGER;
+BEGIN
+	searchPicset := -1;			{ default }
+	
+	IF ps.psInited <> PSINITMARK
+		THEN EXIT (searchPicset);
+		
+	p1 := WPtr (ps.psPtr);
+	setCount := GetWord (p1);			{ id/off/len triples follow }
+
+	WHILE setCount > 0 DO
+		BEGIN
+		IF GetWord (p1) = id THEN		{ found it, return info }
+			BEGIN
+		{ CAUTION: the following two items get sign-extended.
+		  Could save off/len as LONGS instead }
+			ps.p := Ptr (GetWord (p1) + ORD4(ps.psData));
+			ps.len := GetWord (p1);
+			
+			searchPicset := 0;		{ success }
+			EXIT (searchPicset);
+			END
+		ELSE
+			BEGIN
+			p1 := WPtr (ORD4(p1) + (PSENTRYLEN-2));	{ skip to next triple }
+			setCount := setCount - 1;
+			END;
+		END;
+END;
+
+{-------------------------------}
+{ InitGFX			}
+{-------------------------------}
+
+{ open gfx megafile, also alloc mem and read in directory }
+
+FUNCTION InitGFX (start: BOOLEAN): OSErr;
+VAR
+	err: osErr;
+	gfxName: STR255;
+BEGIN
+	InitGFX := -1;		{ default }
+	gh.inited := FALSE;
+	dirPtr := NIL;
+	
+	IF start THEN
+		BEGIN
+		gh.npics := 0;		{ [default val, for PICINF] }
+	
+	{ for a small window use mono gfx, for a big window use color gfx (if big mono, 
+	  we currently stipple --  should probably open a small window instead ) }
+		IF myBig 
+			THEN gfxName := 'CPic.Data'
+			ELSE gfxName := 'Pic.Data';
+
+		IF SearchOpen ('', gfxName, gfxChan) <> 0 THEN
+				EXIT (InitGFX);
+
+	{ read [id and] global flags }
+		IF FSReadGFX (-1, 2, @gh.gflags) <> noErr 
+			THEN EXIT (InitGFX);
+
+	{ read global huff ptr (if any) }
+		IF FSReadClr (-1, 2, @gh.ghuffOff, 4) <> noErr
+			THEN EXIT (InitGFX);
+		gh.ghuffOff := 2 * gh.ghuffOff;	{ make byte offset }
+
+	{ read local [and extern] pic counts }
+		IF FSReadGFX (-1, 4, @gh.npics) <> noErr
+			THEN EXIT (InitGFX);
+
+	{ read length of each directory entry (12-14-16, etc) }
+		IF FSReadClr (-1, 1, @gh.entryLen, 2) <> noErr
+			THEN EXIT (InitGFX);
+
+(**	{ read graphics checksum }	{ NEED TO SKIP A BYTE AFTER ENTRYLEN }
+		IF FSReadGFX (-1, 2, @gh.cksum) <> noErr 
+			THEN EXIT (InitGFX);
+**)
+	{ read graphics version byte }
+		IF FSReadClr (12, 1, @gh.version, 2) <> noErr
+			THEN EXIT (InitGFX);
+		IF gh.version >= 1
+			THEN gh.LBYTES := 3
+			ELSE gh.LBYTES := 2;	{ this case just for backward compatibility }
+
+	{ alloc directory buffer, and read in directory
+		pro: avoids disk hits for PICINF (and PICDISP prep)
+			300 pics/file => 8 hits/pic (binary search)
+			30 pics/set => 30*8 hits
+		con: 300 pics/file * 16 bytes => 4.8K mem
+			disk hits reduced by caching (newer Systems), 30*8 -> ~8
+	}
+		gh.dirLen := gh.npics * gh.entryLen;
+		dirPtr := NewPtr (gh.dirLen); 
+		IF dirPtr = NIL
+			THEN EXIT (InitGFX);
+
+		IF FSReadGFX (GHEADLEN, gh.dirLen, dirPtr) <> 0 
+			THEN EXIT (InitGFX);
+
+		gp.pOff := 0;		{ mark these recs as empty }
+		gt.hOff := 0;
+
+		gh.inited := TRUE;	{ init successful }
+
+	{ and init picset stuff (a failure here is not currently reported) }
+		WITH ps DO
+			BEGIN
+			psLen := PSDEFLEN;
+			psPtr := NewPtr (psLen);	{ separate buffer }
+
+			IF psPtr <> NIL THEN
+				BEGIN
+				WPtr(psPtr)^ := 0;	{ start with an empty set }
+				psInited := PSINITMARK;	{ success }
+				END;
+			END;
+
+	{ finally, show a boot screen, if requested & exists  [NOT IN SPEC] }
+
+	(**	IF BAND (gh.gflags, GF_SPLASH) <> 0	{ check flag }
+			THEN opDisplay (1, 0, 0, 0);	{ show 1st pic (center it?) }
+	**)	END
+
+	ELSE { cleanup } 	
+		BEGIN
+		IF gfxChan <> 0 THEN	{ this IS necessary under MultiFinder }
+			BEGIN
+			InitGFX := FSClose (gfxChan);
+			gfxChan := 0;
+			END;
+
+(**		IF dirPtr <> NIL THEN	{ NOT NECESSARY? [nor for 68K allocs] }
+			BEGIN
+			DisPosPtr (dirPtr);
+			dirPtr := NIL;
+			END;
+
+		IF ps.psPtr <> NIL THEN
+			BEGIN
+			DisPosPtr (ps.psPtr);
+			ps.psPtr := NIL;
+			END;
+**)
+		END;
+
+	InitGFX := 0;		{ all okay }
+END;
+
+{=======================================}
+{ SOUND ROUTINES			}
+{=======================================}
+
+{ Because our main code segment otherwise exceeds 32K, place most of the 
+  sound stuff in a separate segment.  It's not used these days anyway. }
+{$S Snd}
+
+TYPE
+{ this is useless in Pascal; still sign-extends into longints }
+{ UInteger = 0..65535;  }	{ 16-bit unsigned }
+  UInteger = INTEGER;		{ just mask where necessary, sigh }
+
+{ the following record def combines two adjacent byte members, because
+  of the vagaries of Pascal packing }
+
+  SHeader = PACKED RECORD  	{ sound file header format: }
+	flen:	UInteger;	{ len (bytes) of file following }
+	rp:	UInteger;	{ repeat count / midi pitch }
+	rate:	UInteger;	{ original sampling rate }
+	unused:	UInteger;
+	dlen:	UInteger	{ len (bytes) of data following }
+    END;
+  SHeaderPtr = ^SHeader;
+  
+CONST
+  ASHLEN = 10;			{ length, Activision sound header }
+  MSHLEN = 6;			{ length, Mac sound header }
+  MSLEN = MSHLEN + (64 * 1024);	{ max length, plus header }
+
+VAR
+  sheadp:	SHeaderPtr;
+  soundp:	FFSynthPtr;
+  mfchan:	INTEGER;
+  dfchan:	INTEGER;
+  mpitch:	Byte;
+  sreps:	INTEGER;	{ repeat count (and 'done' signal) }
+  uservol:	INTEGER;	{ user's original volume setting, 0..7 }
+
+{-------------------------------}
+{ InitMidi			}
+{-------------------------------}
+
+{ open control file (combined midi & name files in Amiga format),  
+  return (1) midi pitch and (2) data file name
+    
+  If no control file exists, return default values. This lets us
+  purposely omit control files for many sounds.  }
+
+FUNCTION InitMidi (id: INTEGER; VAR dfname: STR128): OSErr;
+CONST
+  MPADJUST = $18;	{ mystery pitch adjustment }
+{ midi file offsets }
+  MFLEN = 0;		{ total length of triplets (normally 9) }
+  TRIPL1 = 2;		{ midi chan, pitch, vol }
+  TRIPL2 = 5;
+  TRIPL3 = 8;
+  MFMAX = 64;		{ max length of the above (let's say) }
+{ name file offsets }
+  M1COUNT = 0;		{ number of data files (Mac: always 1) }
+  M1CHAN = 1;
+  M1NAME = 2;		{ name of first data file (asciz) }
+
+VAR
+  idstr: STR255;	{ Pascal typing forces 255 }
+  mfname, temp: STR128;
+  mfdata: Packed Array [1..MFMAX] of SignedByte;
+  n: LONGINT;
+  mfln, i, err: INTEGER;
+
+BEGIN
+  NumToString (id, idstr);
+  dfname := concat ('S', idstr);	{ default is Sn }
+  mpitch := $4A - MPADJUST;		{ default is $32 }
+
+  mfname := concat ('M', idstr);
+  err := SearchOpen ('Sound', mfname, mfchan);
+
+  IF err <> 0 THEN
+  BEGIN
+    InitMidi := err;
+    EXIT (InitMidi);
+  END;
+
+{ read in length of midi file }
+  n := 2;
+  err := FSRead (mfchan, n, @mfln);
+  IF err <> 0 THEN
+  BEGIN
+    InitMidi := err;
+    EXIT (InitMidi);
+  END;
+  IF mfln > MFMAX - 2 THEN		{ be safe }
+  BEGIN
+    InitMidi := -1;
+    EXIT (InitMidi);
+  END;
+
+{ read in rest of midi file, plus start of name file }
+  n := mfln + 2;
+  err := FSRead (mfchan, n, @mfdata[1]);
+  IF err <> 0 THEN
+  BEGIN
+    InitMidi := err;
+    EXIT (InitMidi);
+  END;
+
+{ read in name (of data file) }
+  n := 1;
+  i := 0;
+  REPEAT
+    i := i + 1;
+    err := FSRead (mfchan, n, @temp[i]);
+    IF err <> 0 THEN
+    BEGIN
+      InitMidi := err;
+      EXIT (InitMidi);
+    END;
+  UNTIL temp[i] = Chr (0);
+  temp[0] := Chr (i - 1);
+
+  dfname := temp;			{ return val }
+  mpitch := mfdata[2] - MPADJUST;	{ return val }
+
+  InitMidi := 0;	{ all okay, return 0 }
+END;
+
+{-------------------------------}
+{ CntCalc			}
+{-------------------------------}
+
+{ sr = original sampling rate;
+  midv = desired midi pitch;  refv = reference midi pitch
+ "count" = sr * (CHROMA ^ delta) * 44.93 / 1000000  }
+  
+FUNCTION CntCalc (sr: UInteger; midv, refv: SignedByte): Fixed;
+VAR
+  val, base, base12: Fixed;
+  delta, i: SignedByte;
+  
+{ Note: fixed point constants are not possible since the format is "known"
+  only to the Toolbox, not the compiler.  The constants below could be
+  computed once at startup for more speed.
+CONST
+  CHROMA = 1.05946309; } { 12th root of 2 (equal-tempered scale) }
+
+BEGIN					{ sr in range 9K..19K approx }
+  val := FixMul (FixRatio (sr,10000), FixRatio (4493,10000));
+
+  delta := midv - refv;			{ if zero, we're done }
+  IF delta > 0 THEN
+    base := FixRatio (10595,10000)	{ base := CHROMA; }
+
+  ELSE IF delta < 0 THEN
+  BEGIN
+    base := FixRatio (10000,10595);	{ base := 1 / CHROMA; }
+    delta := -delta;
+  END;
+
+{ compute CHROMA ^ delta.  Could use a lookup table for more speed. }
+  WHILE delta > 0 DO
+  BEGIN
+    val := FixMul (val, base);
+    delta := delta - 1;
+  END;
+
+  CntCalc := val;
+END;
+
+{-------------------------------}
+{ InitData			}
+{-------------------------------}
+
+{ open file, read sound data into global buffers }
+
+FUNCTION InitData (VAR dfname: STR128): OSErr;
+VAR
+  n: LONGINT;		{ len passed, actual len /returned/ here }
+  p: Ptr;		{ ptr to unsigned byte (see mem mgr) }
+  sr: UInteger;
+  dpitch: Byte;
+  err: OSErr;
+
+BEGIN
+  err := SearchOpen ('Sound', dfname, dfchan);
+  IF err <> 0 THEN
+  BEGIN
+    InitData := err;
+    EXIT (InitData);
+  END;
+  
+  n := ASHLEN;
+  err := FSRead (dfchan, n, Ptr(sheadp));	{ get data header }
+  IF err <> 0 THEN
+  BEGIN
+    InitData := err;
+    EXIT (InitData);
+  END;
+
+{ to make sure that we have a valid sound data file, compare the two lengths
+  [any unwanted sign extension doesn't change result here!] }
+  IF sheadp^.flen <> (sheadp^.dlen + 8) THEN
+  BEGIN
+    InitData := -1;			{ bad data file }
+    EXIT (InitData);
+  END;
+
+  n := BAND (sheadp^.dlen, $0FFFF);	{ 64K max, unsigned }
+  p := Ptr (ORD4(soundp) + MSHLEN);	{ leave space for Mac header }
+  err := FSRead (dfchan, n, p);		{ get data }
+  IF err <> 0 THEN
+  BEGIN
+    InitData := err;
+    EXIT (InitData);
+  END;
+
+  sr := sheadp^.rate;
+  dpitch := BAND (sheadp^.rp, $0FF);	{ extract low byte }
+  soundp^.count := CntCalc (sr, mpitch, dpitch);
+  soundp^.mode := ffMode;		{ free-form synthesizer }
+
+  InitData := 0;		{ all okay }
+END;
+
+{-------------------------------}
+{ InitCleanUp			}
+{-------------------------------}
+
+PROCEDURE InitCleanUp;		{ just close any open files }
+VAR
+  err: OSErr;
+BEGIN
+  IF mfchan <> 0 THEN
+    err := FSClose (mfchan);
+  IF dfchan <> 0 THEN
+    err := FSClose (dfchan);
+END;
+
+{-------------------------------}
+{ StartSnd			}
+{-------------------------------}
+
+PROCEDURE StartActual; FORWARD;
+
+PROCEDURE StartSnd (zvol, reps: INTEGER);
+VAR
+  zvol2, v: INTEGER;		{ zvol in 0..8, zvol2 in 0..7 }
+BEGIN
+  IF zvol < 0 THEN		{ if -1, default to max }
+    zvol := 8;
+
+{ get user's initial setting (each time, since may be changed) }
+  IF uservol < 0 THEN		{ reading user's setting (not ours)? }
+  BEGIN
+    GetSoundVol (uservol);	{ yes }
+    IF uservol = 0 THEN		{ turned off completely? }
+    BEGIN
+      uservol := -1;
+      EXIT (StartSnd);		{ yes, abort (before file stuff) }
+    END;
+  END;
+
+{ make zvol2 proportional to user's setting, rounding UP (only 0 -> silence) }
+  v := uservol * zvol;
+  zvol2 := BSR (v, 3);		{ zvol2 := v DIV 8;  }
+  IF BAND (v, 7) > 0 THEN	{ IF (v MOD 8) > 0 THEN  }
+    zvol2 := zvol2 + 1;
+  SetSoundVol (zvol2);
+
+  IF reps < 0 THEN				{ if -1, use midi val }
+    sreps := BAND (BSR (sheadp^.rp, 8), $0FF)	{ extract high byte }
+  ELSE
+    sreps := reps;
+
+  StartActual;
+END;
+
+{-------------------------------}
+{ StopSnd			}
+{-------------------------------}
+
+VAR
+  sActFlag: BOOLEAN;	{ make sure only one stop per start }
+
+PROCEDURE StopSnd;	{ immed abort (could wait until end of cycle?) }
+BEGIN
+{ seems we must call StopSound (KillIO) even if the count indicates that
+  the sound expired by itself -- otherwise tightly chained sounds can fail
+  and produce only an electric humming noise }
+
+  IF sActFlag THEN
+  BEGIN
+  { IF sreps >= 0 THEN  ... }
+    sreps := -1;		{ FIRST set flag }
+    StopSound;			{ THEN call -- also executes completion }
+    sActFlag := FALSE;
+  END;
+
+  IF uservol >= 0 THEN		{ skip if already restored }
+  BEGIN
+    SetSoundVol (uservol);	{ restore user's vol setting }
+    uservol := -1;
+  END;
+END;
+
+{-------------------------------}
+{ ComplSnd			}
+{-------------------------------}
+
+{ completion routine for asynchronous sound driver call,
+  action to take is determined by the reps-remaining counter:
+     0 = repeat indefinitely
+    -1 = finished (may be set externally)
+     otherwise update the counter, and if still positive start next loop }
+
+PROCEDURE ComplSnd;
+BEGIN
+  SetUpA5;	{ since we're an interrupt, and use globals }
+
+  IF sreps > 1 THEN
+    sreps := sreps - 1		{ more reps left, update counter }
+
+  ELSE IF sreps = 1 THEN
+    sreps := -1;		{ last rep, finished }
+
+  IF sreps >= 0 THEN
+    StartActual;		{ not finished, start next loop }
+
+  RestoreA5;			{ never call EXIT from above routine }
+END;
+
+{-------------------------------}
+{ StartActual			}
+{-------------------------------}
+
+PROCEDURE StartActual;
+VAR
+  n: LONGINT;
+BEGIN
+  sActFlag := TRUE;	{ set /before/ asynchronous start call }
+
+{ the "record len" parameter for a free-form synthesizer should 
+  cover /only/ the data area and not the 6-byte header, despite
+  implications otherwise in IM.  Otherwise the first few random bytes 
+  following the data produce a nasty noise spike.  }
+  
+{ n := BAND (sheadp^.dlen, $0FFFF) + MSHLEN; }
+  n := BAND (sheadp^.dlen, $0FFFF);
+  StartSound (Ptr(soundp), n, @ComplSnd);
+END;
+
+{$S}	{ back to Main segment }
+
+{-------------------------------}
+{ BellSound			}
+{-------------------------------}
+
+PROCEDURE BellSound (id: INTEGER);	{ beep or boop }
+CONST
+  buffSize = 4;
+VAR
+  swBuff: ARRAY [1..buffSize] OF INTEGER;  { square wave rec, 1 element }
+BEGIN
+  IF id = 1 THEN 
+  BEGIN
+    SysBeep (8);	{ normal beep }
+    EXIT (BellSound);
+  END;
+
+  IF id = 2 THEN 
+  BEGIN
+    IF OnLisa THEN 
+      SysBeep (16)	{ Lisa's boop -- only certain way to make sound }
+    ELSE
+(***  SysBeep (16);	{ Mac: but avoid MPW 1.0 sound driver bug } ***)
+    BEGIN		{ Mac: real boop }
+      swBuff[1] := swMode;	{ mode is square wave }
+      swBuff[2] := $B97;	{ middle C }
+      swBuff[3] := 128;		{ amplitude 0-255 }
+      swBuff[4] := 8;		{ duration in ticks }
+      StartSound (@swBuff, 2*buffSize, Ptr(-1));	{ synchronous }
+    END;
+  END;
+END;
+
+{-------------------------------}
+{ ZSound			}
+{-------------------------------}
+
+CONST
+  S_INIT = 1;
+  S_START = 2;
+  S_STOP = 3;
+  S_CLEANUP = 4;
+
+VAR				{ more globals }
+  lastID: INTEGER;
+  sInited, sStarted: BOOLEAN;
+  sReported: BOOLEAN;
+
+PROCEDURE ZSound (id, action, vol, reps: INTEGER);
+VAR
+  dfname: STR128;	{ sound data file name }
+  tempvol, err: INTEGER;
+
+BEGIN  
+  IF (id = 1) OR (id = 2) THEN	{ beep/boop }
+  BEGIN
+    { can't beep/boop if it would collide with another sound (ongoing) }
+    IF (NOT sStarted ) OR (sreps < 0) THEN
+      BellSound (id);
+    EXIT (ZSound);
+  END;
+
+  IF sheadp = NIL THEN		{ make sure buffers exist }
+    EXIT (ZSound);
+  IF soundp = NIL THEN
+    EXIT (ZSound);
+  IF OnLisa THEN 		{ for id > 2, can't be a Lisa }
+    EXIT (ZSound);
+
+  IF id = 0 THEN		{ use MRU effect }
+  BEGIN
+    IF lastID = 0 THEN		{ none, exit }
+      EXIT (ZSound)
+    ELSE id := lastID;
+  END
+  ELSE IF id <> lastID THEN	{ first clean up old, if any }
+  BEGIN
+    ZSound (lastID, S_CLEANUP, vol, reps);	{ (recurse) }
+    lastID := id;
+  END;
+
+  IF (action = S_INIT) OR (action = S_START) THEN
+  BEGIN
+    IF uservol < 0 THEN		{ reading user's setting (not ours)? }
+    BEGIN
+      GetSoundVol (tempvol);	{ yes (use temp so no side effects) }
+      IF tempvol = 0 THEN	{ turned off completely? }
+        EXIT (ZSound);		{ yes, abort (before file stuff) }
+    END;
+
+    IF NOT sInited THEN
+    BEGIN
+      err := InitMidi (id, dfname);	{ if error, just use defaults }
+      err := InitData (dfname);
+      IF err <> 0 THEN
+      BEGIN
+        InitCleanUp;			{ Mac: close files immed }
+        EXIT (ZSound);
+      END;
+      sInited := TRUE;
+    END;
+  END;
+  
+  IF action = S_START THEN
+  BEGIN
+    StopSnd;				{ Mac: reset if in middle }
+    StartSnd (vol, reps);
+    sStarted := TRUE;
+    sReported := FALSE;
+  END;
+
+  IF (action = S_STOP) OR (action = S_CLEANUP) THEN
+    IF sStarted THEN
+    BEGIN
+      StopSnd;
+      sStarted := FALSE;
+    END;
+  
+  IF action = S_CLEANUP THEN
+  BEGIN
+    IF sInited THEN
+    BEGIN
+      InitCleanUp;
+      sInited := FALSE;
+    END;
+    lastID := 0;		{ back to original state }
+  END;
+END;
+
+{-------------------------------}
+{ EndZSound			}
+{-------------------------------}
+
+{ polled continuously from 68K, returns TRUE upon expiration of a sound }
+
+FUNCTION EndZSound: BOOLEAN;
+BEGIN
+  EndZSound := FALSE;			{ default }
+  IF sStarted THEN			{ started & finished? }
+    IF sreps < 0 THEN
+      IF NOT sReported THEN		{ previously reported? }
+      BEGIN
+        sReported := TRUE;		{ report once (max) per sound }
+        EndZSound := TRUE;
+
+      { also, restore 'uservol' here for good measure (otherwise may not 
+        happen until game ends/starts next sound) }
+        IF uservol >= 0 THEN		{ skip if already restored }
+        BEGIN
+          SetSoundVol (uservol);	{ restore user's vol setting }
+          uservol := -1;
+        END;
+      END;
+END;
+
+{-------------------------------}
+{ ZSInit			}
+{-------------------------------}
+
+{ one-time initialization of sound stuff }
+{ [ought to check FSOUN bit before making the allocs.] }
+
+{ Note: this entire sound module will probably be replaced by the Bogas
+  stuff we licensed. }
+
+PROCEDURE ZSInit;
+BEGIN
+{ to avoid eventual memory fragmentation problems, we allocate buffers 
+  for sound stuff just once, permanently }
+  sheadp := SHeaderPtr (NewPtr(ASHLEN));
+  soundp := FFSynthPtr (NewPtr(MSLEN));
+  
+  mfchan := 0;		{ mark as unopened }
+  dfchan := 0;
+  lastID := 0;
+  
+  sInited := FALSE;
+  sStarted := FALSE;
+  sActFlag := FALSE;
+  
+{ if negative, the user's original volume setting resides in its normal 
+  low-memory global }
+  uservol := -1;
+END;
+
+
+
+{=======================================}
+{ INITIALIZATIONS			}
+{=======================================}
+
+{-------------------------------}
+{ SetUpMenus			}
+{-------------------------------}
+
+{was $S InitSeg}
+PROCEDURE SetUpMenus;		{ Once-only initialization for menus }
+VAR
+  index: INTEGER;
+BEGIN
+  myMenus[appleMenu] := GetMenu(appleMenu);
+  AddResMenu (myMenus[appleMenu], 'DRVR');	  { desk accessories }
+
+  myMenus[2] := GetMenu (fileMenu);
+  myMenus[3] := GetMenu (editMenu);
+
+  FOR index := 1 TO lastMenu DO
+    InsertMenu (myMenus[index], 0);
+
+  DrawMenuBar;
+END;				{ procedure SetUpMenus }
+
+{-------------------------------}
+{ MacInit, OpenDFile		}
+{-------------------------------}
+
+(**  DEAD
+{ open data file (must be non-empty); return chan, 0 if error }
+
+FUNCTION OpenDFile (fname: STR255): INTEGER;
+VAR
+  chan, io:   INTEGER;
+  flen: LONGINT;
+BEGIN
+  OpenDFile := 0;			{ assume failure }
+  IF FSOpen (fname, 0, chan) = noErr
+    THEN IF GetEOF (chan, flen) = noErr 
+      THEN IF flen <> 0
+        THEN OpenDFile := chan		{ success }
+	ELSE io := FSClose (chan);	{ empty -- close it immediately }
+END;  **)
+
+{ separate from Pinit only because it returns vals to the kernel }
+
+PROCEDURE MacInit (VAR dataRefNum: INTEGER; VAR apParam: HANDLE);
+
+TYPE FndrInfo = RECORD		{ predecessor of 'AppFile' record; not predefined }
+		  msg:     INTEGER;
+		  count:   INTEGER;
+		  
+		  { 1st document }
+		  vRefNum: INTEGER;	{ volume reference number }
+		  fType:   osType;	{ file type }
+		  versNum: INTEGER;	{ version number (HIGH BYTE) }
+		  fName:   Str255;	{ file name }
+		  
+		  { more documents ... we currently handle only one }
+                END;
+     FIPtr = ^FndrInfo;
+     FIHdl = ^FIPtr;
+VAR
+  dumRefNum,
+  n, err: INTEGER;
+  c1, c2: char;
+{ name2: STR128;	}
+{ count, junk: INTEGER;	}
+{ dfRec: AppFile;	}
+BEGIN
+  GetAppParms (apName, dumRefNum, apParam);  { get apname; return params }
+
+{ Case 1: Originally, the game file was stored in the data fork of the 
+  interpreter.  The advantage is that it presents a single face (icon) to the 
+  user.  Disadvantages: It's a bit awkward to work with in-house, since game 
+  files and interpreters get updated constantly.  It's a bit inconsistent, 
+  now that we have separate graphics and sound files.  Also, it prevents the 
+  user from putting the interpreter alone on the system disk, as suggested 
+  (under certain circumstances) in the latest Mac refcard. }
+  
+(** DEAD
+  dataRefNum := OpenDFile (apName);	{ check/open connected data fork }
+  IF dataRefNum <> 0 THEN
+    EXIT (MacInit);			{ done }
+**)
+
+{ Case 2: For PDL, we now check if a story data file (as opposed to a pic file 
+  or a save) was clicked on.  If so, we override the default.  It can have 
+  any name and be in any directory. }
+(**
+  WITH FIHdl(apParam)^^ DO
+    BEGIN
+    IF count > 0 THEN
+    IF fType = 'INsf' THEN	{ Story file can be either 'INsf' or 'INdf' }
+      BEGIN
+      err := FSOpen (fname, vRefNum, dataRefNum);
+      EXIT (MacInit);		{ done }
+      END;
+    END;   { WITH ... }
+**)
+
+{ Currently, we distinguish story files from picture and sound files by 
+  checking for a special '.zip' name extension, rather than another special
+  filetype.  Reasons are:
+    - There seems to be no good way to update old (in-house) Desktop files, 
+  short of periodically changing our working signature (#).  Cutting our  
+  Desktop BNDL with ResEdit then copying over the new appl does NOT ensure the 
+  desired update.  Rebuilding the entire desktop wouldn't either, and has 
+  undesirable side effects.  
+    - It seems that although two filetypes can share an icon/mask 
+  pair in the appl resource file, the pair gets cloned when it's installed 
+  in a new (end-user) Desktop file.  Wasteful for normal users.
+  
+    (#) This has become a problem with the new PSav icon, also.
+}
+  WITH FIHdl(apParam)^^ DO
+    BEGIN
+    IF count > 0 THEN
+    IF fType = 'INdf' THEN		{ check #1 (not a Save?) }
+      BEGIN
+      n := INTEGER (fName[0]);
+      c1 := fName[n-3];
+      c2 := fName[n-2];
+      IF c1 = '.' THEN			{ check #2 (two chars should suffice) }
+        IF (c2 = 'z') OR (c2 = 'Z') THEN 
+	  BEGIN
+          err := FSOpen (fname, vRefNum, dataRefNum);
+          EXIT (MacInit);		{ done }
+	  END;
+      END;
+    END;   { WITH ... }
+  
+(** { use apParam instead, since we already have it }
+  CountAppFiles (junk, count);
+  IF count > 0 THEN
+    BEGIN
+    GetAppFiles (1, dfRec);
+    
+    { etc.}
+    END; **)
+
+{ Case 3: No special game file was requested; use default name.
+  There are a couple of advantages to naming the game data file 'Story.Data'
+  by convention, instead of 'gamename.Data'.  
+    - It's relatively short, avoiding problems like 'Zork Zero.Data'.  
+    - It's not tied to the executable's name, so if that gets changed, accidently 
+  or otherwise, things still run. }
+  
+{ name2 := concat (apname, '.Data'); }
+{ name2 := 'Story.Data'; } 		{ check/open separate data fork }
+    
+{ dataRefNum := OpenDFile (name2);  }
+  err := SearchOpen ('', 'Story.Data' {name2}, dataRefNum);
+
+{ [if err, just returns dataRefnum = 0] }
+END;			{ procedure MacInit }
+{was $S}
+
+{-------------------------------}
+{ Pinit				}
+{-------------------------------}
+
+PROCEDURE _DataInit;  EXTERNAL;
+
+{was $S PInitSeg}
+FUNCTION Pinit: OSErr;	{ stuff which we do only once }
+CONST
+  STIP_EXTRA	= 1;	{ space for stippling trick (if mono hw) }
+VAR  
+  r, c:		INTEGER;
+  screenRect:	rect;
+  tempPeek:	WindowPeek;
+  dumParam:	HANDLE;
+  dumRefNum:	INTEGER;
+  err: 		OSErr;
+  ydisplay,
+  xdisplay:	INTEGER;	{ hardware screen size }
+{ bx, by, bd:	INTEGER; }	{ picbuf  size (pre-processed) }
+  wy, wx:	INTEGER;	{ window size }
+  rb,
+{ maxDepth, }			{ user's screen depth }
+  altDepth:	INTEGER;	{ depth ("logical") of alt pixmap }
+  gfxlen:	LONGINT;	{ minimum "altlen" needed for gfx }
+  ttyToggle:	BOOLEAN;  {fakeSmall}	{ if true, change display default }
+  pt:		Point;
+  wColors:	CTabHandle;
+  awHndl:	AuxWinHndl;
+  bool:		Boolean;
+  theMaxDevice,
+  gdh:		GDHandle;
+BEGIN 
+  Pinit := -1;			{ assumed error }
+  UnLoadSeg (@_DataInit);	{ remove data init code before any allocs }
+
+{ The system will call MoreMasters if it runs out of master pointers, 
+  but since master pointer blocks are non-relocatable, explicitly calling 
+  it a few times early in a program helps to prevent heap fragmentation. }
+  MoreMasters;
+  MoreMasters;
+  
+  InitGraf (@thePort);		{ initialize QuickDraw }
+  InitFonts;			{ initialize Font Manager }
+  FlushEvents (everyEvent,0);	{ ignore events from past lives }
+  InitWindows;			{ initialize Window Manager }
+  InitMenus;			{ initialize Menu Manager }
+  TEInit;			{ [needed by DA's and dialogs!] }
+  InitDialogs (NIL);
+  InitCursor;			{ make cursor (pointer) an arrow }
+  SetUpMenus;			{ read in and display our menus }
+
+{ a handy hack: hold down the mouse button during launch to force us
+      - (on a color Mac) to default to a "classic" Mac display (small mono
+      window), instead of a big color window  (IMPLEMENTED)
+      - (on a mono, big-screen Mac) to default to a big stipple window, 
+      instead of a small mono window. (NOT IMPLEMENTED) }
+
+  myTiny := FALSE;		{ default }
+  ttyToggle := Button;		{ mouse down? }
+
+{ one further hack: to fake a tiny (320x200) COLOR screen, hold down the 
+  button and position the mouse at exactly 0,0. }
+
+  IF ttyToggle THEN
+    BEGIN
+    GetMouse (pt);
+    LocalToGlobal (pt);
+    IF BOR (pt.v, pt.h) = 0 {1}	{ mouse down at special spot? }
+        THEN BEGIN
+        myTiny := TRUE;		{ yes }
+        ttyToggle := FALSE;
+        END;
+    END;
+
+  mColor := FALSE;		{ default }
+  screenRect := screenBits.bounds;
+  err := SysEnvirons (1, SysEnv);	{ [call /after/ major inits] }
+  
+  IF SysEnv.hasColorQD {i.e. MacII} THEN
+  { check further: if monitor is in 2-color mode, open a (small) b/w window, 
+    suitable for b/w graphics.  (We look at depth only; 16 shades of gray 
+    are treated like color here.) }
+    BEGIN
+    theMaxDevice := GetMaxDevice (screenRect);	{ check (main) depth }
+    IF theMaxDevice^^.gdPmap^^.pixelSize > 1 THEN
+      IF NOT ttyToggle
+        THEN mColor := TRUE;
+    END;
+    
+{ >> should read in game block 0, to get these flags ... }
+  fDisplay := TRUE;	{ using PICDISP?  [for current games, always true] }
+
+{ ensure that at least 4x4 pixels remain visible }
+  SetRect (dragRect, 4, 24, screenRect.right-4, screenRect.bottom-4); 
+
+{ read resource info & create window (initially invisible) ...}
+
+  myCW := mColor AND fDisplay;  { for OPCOLOR only, don't need color window! }
+  IF myCW
+    THEN myWindow := WindowPtr (GetNewCWindow (256, @wRecord, POINTER(-1)))
+    ELSE myWindow := GetNewWindow (256, @wRecord, POINTER(-1));
+  SetPort(myWindow);
+
+  Temppeek := pointer (myWindow);
+  Temppeek^.windowkind := MyDocument;	{ identify as our type of window }
+
+{ if we have a big screen, setup a bigger window (for gfx) }
+{ >> should probably do this /only/ if game uses PICDISP ... << }
+  WITH screenRect DO
+    BEGIN
+    ydisplay := bottom-top;
+    xdisplay := right-left;
+    END;
+
+  IF ((ydisplay < 2*GFXAM_Y) OR (xdisplay < 2*GFXAM_X))
+    OR ((mColor = FALSE) OR (ttyToggle)) THEN
+    BEGIN
+    myBig := FALSE;
+    wy := GFXMAC_Y;
+    wx := GFXMAC_X;
+    END
+  ELSE
+    BEGIN
+    myBig := TRUE;
+    wy := 2*GFXAM_Y;
+    wx := 2*GFXAM_X;
+    
+    IF myTiny THEN	{ [special case of myBig, since requires color] }
+      BEGIN
+      wy := GFXAM_Y;
+      wx := GFXAM_X;
+      END;
+    END;  { of big-screen stuff }
+
+{ if exactly 2x gfx width, then no margins: window content fills width,
+  window edges just off screen (don't want content off screen). }
+  wMarg := 4;
+  IF xdisplay - wx < 2*wMarg
+    THEN wMarg := 0;
+
+{ resize and center the window  [overriding info from resource file] }
+  SizeWindow (myWindow, wx + (2*wMarg), wy, FALSE);
+  MoveWindow (myWindow, ((xdisplay-wx) DIV 2) - wMarg, 
+    			(ydisplay-wy) DIV 2 + 17 {mbar fudge}, TRUE);
+			
+  GetAppParms (apName, dumRefNum, dumParam);	{ get name of game }
+  SetWTitle (myWindow, apName);			{ set title to it }
+  ShowWindow (myWindow);			{ and make window visible }
+
+{ We don't really need to update the window, but the windowing system has 
+  posted an update event to "help" us by forcing us to initialize the window.  
+  Since this update looks awful when we let it happen later on, we pretend 
+  to handle an update here ... }
+  
+  beginUpdate (myWindow);
+(***  eraseRect (thePort^.portRect);  ***)
+  endUpdate (myWindow);
+
+  myActive := TRUE;			{ our window initially on top }
+  myInBounds := TRUE;			{ and not off screen edge }
+  oldDimmed := FALSE;
+
+{ create an alternate (offscreen) bitmap/pixmap,  }
+{ same size as our window (not whole screen) }
+{ [we used to also create entire alternate /grafPort/ -- DEAD] }
+
+(** altPort := grafPtr (NewPtr (sizeof (grafPort))); **)
+(** OpenPort (altPort); **)		{ init fields, (temp'ly) reset thePort }
+(**  { call PortSize/MovePortTo instead, to avoid writing into fields? } **)
+(** altPort^.portRect := myWindow^.portRect; **)  { content rect; 0-origin }
+
+{ NOW, for a color window, we conditionally (dependent upon avail mem)  
+  set the altscreen depth to 8 (256 colors) or 4.  The larger, it turns out, 
+  IS required for correct screen updates if the real screen depth is 8
+  (or is ever changed to 8) and the user calls OPCOLOR for text.
+
+  PREVIOUSLY, we always set the logical depth of altscreen to 4 (16 colors).  
+  advantages:
+    - the size is held to 32000x4 = 128000 bytes -- big but managable even
+    in a 512K partition.  An 8-bit altscreen requires 256000 -- questionable.
+    A 24-bit one would require 768000.
+    - colors should never get lost, since we never use more than 16 in /our/
+    window on the main screen.  [BUT WE DO IF COLOR TEXT!]
+  disadvantages:
+    - blits are noticably slower when the depths don't match, in particular
+    for users with 8-bits displays.  Note: for users with 1-bit displays, 
+    or when the user temporarily enters a 1-bit mode, we could improve speed 
+    by temporarily adjusting (keep the full 4-bit buffer but use only some). }
+    
+  IF myCW THEN 
+    WITH CGrafPtr(myWindow)^ DO
+    BEGIN
+    altPM := NewPixMap;			{ create, init defaults }
+(** { should probably be using "CopyPixMap", except it requires handle args }
+    altPM^^ := portPixMap^^;		{ copy all fields, as defaults }
+**)
+  { altDepth := portPixMap^^.pixelSize; }	{ get current depth }
+  { altDepth := GetMaxDevice^^.gdPMap^^.pixelSize; }
+  
+  { Conditionally set altdepth.  We'd like 256 colors but can afford it only  
+    if "memory to burn" exists.  None of the major allocs have happened yet 
+    (altscreen, ENDLOD/PLENTH, Undo, MEMSYS).  The following number was 
+    determined empirically for Z-Zero.  Sigh.  (730 means PLENTH will preload,
+    495 means ENDLOD test will fail.)  }
+    
+    altDepth := GFXAM_DEPTH;
+    IF {FreeMem} ZAlloc (-1) > 610*1024 {1/2 preload} THEN
+      altDepth := 8;
+    END
+  ELSE
+    BEGIN
+    altPM := PixMapHandle (NewHandle (sizeof(BitMap)));	{ create }
+    altDepth := 1;
+    END;
+
+  WITH altPM^^ DO			{ then modify certain fields: }
+    BEGIN
+    bounds := myWindow^.portRect;	{ "0,0,y,x" }
+    rb := CalcRowBytes (bounds.right - bounds.left, altDepth);
+
+  { force 32-bit arithmetic (otherwise Pascal sign-extends result) }
+    altlen := LongMult (rb, bounds.bottom - bounds.top);
+
+    IF myCW THEN	{ adjust res-dependent fields after NewPixMap }
+      BEGIN
+      pixelSize := altDepth;
+      cmpSize := altDepth;
+      END;
+    END;
+
+{ To reduce memory usage in games that use PICDISP, our gfx routines 
+  share this buffer with BlitBits, instead of allocating an entirely 
+  separate one.  This works because gfx use it only during output, while 
+  screen-saving blits happen only during input.  It must be big enough 
+  to buffer a single full-screen AM-format picture. }
+
+  IF fDisplay THEN
+    BEGIN
+    IF myBig THEN
+      BEGIN		{ working with Amiga-size color pics }
+ (*   by := GFXAM_Y;
+      bx := GFXAM_X;
+      bd := GFXAM_DEPTH; *)
+      gfxlen := LongMult (
+      	CalcRowBytes (GFXAM_X, GFXAM_DEPTH * 2),	{CVT fudge}
+    	GFXAM_Y + 1);		{unEOR fudge}	{ [~64K total] }
+
+   (*   CalcRowBytes (GFXAM_X, GFXAM_DEPTH * 2),	{CVT fudge})  
+	GFXAM_Y * 4);		{Scale2x fudge}	*)
+      END
+    ELSE
+      BEGIN		{ working with classic-Mac-size mono pics }
+ (*   by := GFXMAC_Y;
+      bx := GFXMAC_X;
+      bd := 1;  *)
+      gfxlen := altlen + DECOMP_LEN;	{ [~26K instead of ~144K] }
+      END;
+
+    gfxlen := gfxlen + altlen;		{ 2nd buf for transparency (stips/mono) }
+    IF altlen < gfxlen 			{ alloc the bigger of the two }
+      THEN altlen := gfxlen;
+    END;	{ of IF fDisplay }
+
+  altPtr := QDPtr (NewPtr (altlen));	{ alloc altbuf/gfxbuf }
+  IF altPtr = NIL THEN			{ if not possible, we are toast }
+      EXIT (Pinit);
+{ could clear block, but don't really need to... }
+
+  WITH altPM^^ DO
+    BEGIN
+    baseAddr := altPtr;
+    rowBytes := rb;
+    END;
+
+  IF myCW THEN	{ fill out the additional fields }
+    BEGIN
+    altPM^^.rowBytes := rb + $8000;	{ mark as a pixmap }
+      
+(** wColors := CGrafPtr(myWindow)^.portPixMap^^.pmTable;  **) { from screen }
+{ Note: GetAuxWin/SetWinColor interfaces are slightly wrong in IM }
+{ CAREFUL - this stuff is for a window with color /borders/ }
+(** bool := GetAuxWin (myWindow, awHndl);	{ get colors (or defaults) }
+    wColors := awHndl^^.awCTable;
+    IF NOT bool 
+      THEN SetWinColor (myWindow, WCTabHandle(wColors));
+**)
+  { make new color table -- same depth/data as screen }
+  { NO, DEPTH MAY NOW BE DIFFERENT; ALSO NO LONGER CLONE PALETTE }
+(** err := HandToHand (Handle(wColors));	{ clone the color /data/ }
+    IF err <> 0 THEN				{ [die] }
+      EXIT (Pinit);
+**)
+    HLock (Handle (altPM));	{ be safe }
+    WITH altPM^^ DO
+      BEGIN
+    { pmTable := wColors;  }
+      pmTable := GetCTable (pixelSize {same as GFXAM_DEPTH} );
+      
+   (* pmTable^^.transIndex {"ctFlags"} := 0; *)	{ pixmap, not device }
+      pmTable^^.transIndex {"ctFlags"} := $8000;  { now tied to device! }
+      
+    { should we assign new wCSeed?  Technote 120 doesn't.  }
+      pmTable^^.ctSeed := GetCTSeed;
+      END;
+    HUnLock (Handle (altPM));
+
+{ create a custom gDev for altPM, to prevent color-munging problems
+  during BlitBits to altPM.  Despite the somewhat ambiguous info in IM,
+  most gDev fields are returned inited.  }
+
+    altGDev := NewGDevice (0 {?}, -1);
+    HLock (Handle (altGDev));		{ be safe }
+    WITH altGDev^^ DO
+      BEGIN
+      gdPMap := altPM;
+      
+      gdITable := ITabHandle (NewHandle (2));	{ placeholder -- needed? }
+      MakeITable (gdPMap^^.pmTable, gdITable, 0);
+      
+      gdh := GetGDevice;		{ default device }
+      gdResPref := gdh^^.gdResPref;	{ copy some vals }
+      gdRect := gdh^^.gdRect;
+
+      gdFlags := 2**0 + 2**10 + 2**14 + 2**15;	{ set each bit we need. }
+      END;
+(*  SetDeviceAttribute (altGDev, 0, TRUE);	{ color }
+    SetDeviceAttribute (altGDev, 14, TRUE);	{ no driver }
+*)
+    HUnLock (Handle (altGDev));
+
+{ Problem: A copyBits to altPM didn't work right when altPM depth = 4
+  and screen depth = 2 or 1.  (Specifically, the two or four src color ids
+  were copied literally, and black wasn't mapped to the end of the palette.)
+  The fix is to associate an alternate CGrafPort, as well as the altGDev, 
+  with the altPM.  }
+  
+    gdh := GetGDevice;		{ save old }
+    SetGDevice (altGDev);	
+{ make the altCPort take on altGDev defaults, including a copy of the /handle/
+  to the altPMcolor table (IM v-68) }
+    OpenCPort (@altCPort);
+    SetGDevice (gdh);		{ switch back to normal gDev & port }
+    SetPort (myWindow);
+    END;	{ of IF myCW THEN }
+  
+  altValid := FALSE;
+
+{ setup one more pixmap/bitmap struct, for use by gfx }
+{ should probably be using "CopyPixMap", except it requires handle args }
+  gfxPM := altPM^^;		{ copy all fields, as defaults }
+
+  WITH gfxPM DO
+    BEGIN
+(*  baseaddr := altPtr; *)	{ same as altPM }
+    IF myCW THEN		{ adjust some additional fields }
+      BEGIN
+      pixelSize := GFXAM_DEPTH;
+      cmpSize := GFXAM_DEPTH;
+
+    { allocate custom color table ... }
+      pmTable := GetCTable (GFXAM_DEPTH);
+
+      WITH pmTable^^ DO 
+        BEGIN
+	{ structure redefined in Includes by Apple: WAS ctFlags, NOW
+	  transIndex ("index of transparent pixel").  Still zero high bit? }
+        transIndex {"ctFlags"} := 0;	{ pixmap, not device }
+
+	{ by convention, initial pos is White, final is Black (IM V-140) }
+
+	ctTable[0].value := 0;				{ white }
+	ctTable[0].rgb.red := -1;
+	ctTable[0].rgb.green := -1;
+	ctTable[0].rgb.blue := -1;
+
+	ctTable[MAXGFXCOLORS-1].value := 1;		{ black }
+	ctTable[MAXGFXCOLORS-1].rgb.red := 0;
+	ctTable[MAXGFXCOLORS-1].rgb.green := 0;
+	ctTable[MAXGFXCOLORS-1].rgb.blue := 0;
+	
+	{ other colors are filled in at display time }
+	END;
+      END;
+    END;
+
+(** SetPortBits (altBM); **)		{ copy struct into altPort struct }
+  { would prefer to use NewPtr "clear" mode, but can't from Pascal }
+(** eraseRect (altBM.bounds); **)	{ clear the altPort block }
+  { these calls affect altPort ... }
+(** textFont (monaco);	**)		{ just a standard monospace font }
+(** textFace ([]); **)			{ no fancy stuff }
+(** textSize (9); **)			{ tiny, for 80-column output }
+  { initially, back to main port, same settings }
+(** SetPort(myWindow);	**)		
+
+  stdFont := geneva;
+  textFont (geneva);
+  textSize (12);		{ (default) }
+  lineHeight := 15 {16};	{ char height, Geneva 12 (Mac default) }
+  colWidth := 7;		{ char width (of a digit) (also Monaco) }
+
+  IF myTiny THEN
+    BEGIN
+    lineHeight := 12 {11};	{ char height, Geneva/Monaco 9 }
+    colWidth := 6;		{ char width }
+(*  textFont (geneva); *)
+(*  textFont (monaco); *)	{ just a standard monospace font }
+    textSize (9);		{ tiny, for 80-column output }
+    END;
+
+{ We want to bring the font into memory /now/, to avoid a noticeable delay
+  when we first print text.  (This should also somewhat reduce memory
+  infighting by allowing us to lock the font in.) }
+
+  moveTo (-20, -20);			{ move outside the screen }
+  drawChar ('.');			{ print something harmless (gack) }
+  setFontLock (TRUE);			{ make the font unpurgeable }
+
+{ calculate our logical screen size, based on window size }
+  WITH myWindow^.portRect DO
+    BEGIN
+    totRows := (bottom - top) {DIV lineheight};
+    totCols := ((right - left) - (2 * wMarg)) {DIV colWidth};
+    END;
+
+{ We initialize lots of screen-controlling stuff early on, in case 68K
+  initialization tries to print an error message. }
+  
+  firstRow := 0;			{ initial logical window }
+  lastRow := totRows;
+  firstCol := 0;
+  lastCol := totCols;
+
+  curCol := 0;				{ start at the leftmost column }
+  curRow := 0;				{ ...on the first(last) line }
+  margLeft := 0;
+  margRight := 0;
+  currenthl := hlPlain;			{ no highlighting }
+(*  whichscr := 0;  *)			{ we start on screen zero }
+(*  scr1lines := 0;  *)			{ initially not split }
+{ currentFont := 1; }
+  currentAttr := WFWRAP+WFSCRL+WFBUFF;
+
+  scripting := FALSE;			{ initially not scripting }
+  printed := FALSE;			{ and we've never initialized the printer }
+  ToggleScript (scripting);		{ adjust the menu item }
+{ saveBackColor := whiteColor; }
+  
+  MSclicktime := 0;
+  filename[0] := char(0);		{ save file strings }
+  backname[0] := char(0);
+  keyhead := 1;				{ faked-keydown buffer is empty }
+  keytail := 1;
+  cursing := false;			{ cursor isn't on }
+  lineflag := TRUE;			{ [reflects initial menu state] }
+  
+  watchHdl := GetCursor (WatchCursor);
+  HNoPurge (Handle (watchHdl));		{ (like in sample code -- why?) }
+  SetCursor (watchHdl^^);		{ loading, please wait... }
+  infocon := GetIcon (512);		{ get our special icon, too }
+  HNoPurge (infocon);
+
+  WITH blackCColor DO
+    BEGIN
+    red := 0; green := 0; blue := 0;
+    END;
+  WITH whiteCColor DO
+    BEGIN
+    red := -1; green := -1; blue := -1;
+    END;
+
+  clipRgn1 := RgnHandle (NewHandle (sizeof(RECT)+2));
+  clipRgn1^^.rgnSize := sizeof(RECT)+2;
+  clipRgn2 := RgnHandle (NewHandle (sizeof(RECT)+2));
+  clipRgn2^^.rgnSize := sizeof(RECT)+2;
+
+{ >> read in game block 0, check for Sound flag ... }
+{ Skip for now (to avoid buffer alloc) }
+{ ZSInit; }				{ and Sound inits }
+  sStarted := FALSE;		{ [make sure this one is reset] }
+  
+(*  menuflag := TRUE {FALSE}; *)	{ from Block 0 -- now set in 68K }
+  Timeout_Reset;			{ init this var }
+
+{ Init graphics LAST, since may call AwaitDisk/BlitBits.  
+  Also, we now pass along any error (gfx no longer optional) }
+  gfxDebug := FALSE;
+  Pinit := InitGFX (TRUE);
+{ Pinit := 0; }				{ all okay }
+END;		{ procedure Pinit }
+
+{-------------------------------}
+{ QuitGame			}
+{-------------------------------}
+
+{was $S QuitSeg}
+
+{ Close the game file and all windows, flush the desk scrap, etc }
+
+PROCEDURE QuitGame (gameRefNum: INTEGER);
+VAR
+  tempPeek:  WindowPeek;
+  scrapInfo: PScrapStuff;
+  err:	     osErr;
+  scrapErr:  LONGINT;
+BEGIN
+  PrQuit;				{ clean up scripting, if needed }
+  SetCursor (watchHdl^^);		{ wait ...}
+  err := InitGFX (FALSE);
+
+  IF gameRefNum <> 0 THEN
+    BEGIN
+    err := FSClose (gameRefNum);
+    err := FlushVol (NIL, 0);		{ write out default volume buffer}
+    END;
+
+  WHILE FrontWindow <> NIL DO		{ loop, disposing of front window until no windows left }
+    BEGIN
+    tempPeek := WindowPeek (FrontWindow);
+
+    Case temppeek^.windowkind of	{ which kind of window is it? }
+      MyDocument :
+        CloseWindow (WindowPtr (tempPeek));	{ mine: close it like any window }
+      OTHERWISE
+        CloseDeskAcc (tempPeek^.windowkind);	{ can't be anything else}
+      END; {of Case}
+    END;
+
+  scrapErr := UnLoadScrap;		{ write the latest scrap info to disk}
+END;					{ procedure QuitGame }

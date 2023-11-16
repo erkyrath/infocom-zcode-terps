@@ -1,0 +1,229 @@
+O^u w# .TITLE  "ZORK - RANDOM ROUTINES"
+ .PAGE
+ 
+ MULT    PUSHW   MASK            ;VAL.TEMP <= VAL * TEMP
+	 MOVEI   0,MASK
+	 LDX     #16.            ;LOOP COUNTER
+ MULT1   LDA     VAL+LO
+	 CLC
+	 AND     #1              ;CHECK BIT FOR ADD
+	 BEQ     MULT2           ;SKIP ADD PART IF 0
+	 LDA     TEMP+LO         ;ADD PART
+	 ADC     MASK+LO
+	 STA     MASK+LO
+	 LDA     TEMP+HI
+	 ADC     MASK+HI
+	 STA     MASK+HI
+ MULT2   ROR     MASK+HI         ;32 BIT SHIFT REMEMBERING CARRY
+	 ROR     MASK+LO
+	 ROR     VAL+HI
+	 ROR     VAL+LO
+         DEX
+	 BNE     MULT1
+	 MOVEW   VAL,TEMP        ;PUT LOW ORDER ANSWER IN TEMP
+	 MOVEW   MASK,VAL        ;HIGH PART IN VAL
+	 PULLW   MASK
+	 RTS
+ 
+ DIVIDE  PUSHW   MASK            ;TEMP<= TEMP/VAL, REMAINDER IN VAL
+	 MOVEW   TEMP,MASK
+	 MOVEI   0,TEMP          ;INITIAL VALUE FOR REMAINDER
+	 LDX     #17.            ;INIT LOOP COUNTER
+ DDIV0   SEC                     ;SUB DIVIS
+	 LDA     TEMP+LO
+	 SBC     VAL+LO
+	 TAY
+	 LDA     TEMP+HI
+	 SBC     VAL+HI
+	 BCC     DDIV1           ;UNDERFLOW, RETAIN TEMP
+	 STA     TEMP+HI
+	 TYA
+	 STA     TEMP+LO
+ DDIV1   ROL     MASK+LO         ;4 REG SHIFT LEFT
+	 ROL     MASK+HI         ;WITH CARRY
+	 ROL     TEMP+LO         ;CARRY -> MASK -> TEMP
+	 ROL     TEMP+HI
+	 DEX
+	 BNE     DDIV0           ;KEEP LOOKING
+ ;CLEANUP, SHIFT REMAINDER RIGHT AND RETURN IN VAL
+	 CLC
+	 LDA     TEMP+HI
+	 ROR     A
+	 STA     VAL+HI
+	 LDA     TEMP+LO
+	 ROR     A
+	 STA     VAL+LO
+	 MOVEW   MASK,TEMP
+	 PULLW   MASK
+         RTS
+ 
+ SIGNC   LDA     #0
+         STA     SIGNF           ;SET SIGNF
+	 LDA     TEMP+HI
+	 JSR     SIGNPC          ;POS CHECK
+	 LDA     VAL+HI
+	 JSR     SIGNPC
+	 RTS
+ 
+ SIGNS   LDA     SIGNF           ;CHECK FOR SIGN
+	 AND     #1              ;EVEN OR ODD
+	 BNE     SIGNCN
+	 RTS                     ;EVEN NUMBER OF NEGATIVES, ANSWER OK
+ 
+ SIGNCN  SEC                     ;CHANGE SIGN
+	 LDA     #0
+	 SBC     TEMP+LO
+	 STA     TEMP+LO
+	 LDA     #0
+	 SBC     TEMP+HI
+	 STA     TEMP+HI         ;INVERTED TEMP
+         RTS
+ 
+ SIGNPC  ORA     #0
+	 BMI     $1
+         RTS                     ;POSITIVE
+ $1      INC     SIGNF
+	 JMP     SIGNCN          ;CHANGE SIGN
+	 
+ FLAGSU  LDA     ARG1            ;SETUP FOR FLAG ROUTINES
+	 JSR     OBJLOC          ;MASK WILL HAVE BIT POSITION, VAL FLAG VALUE
+	 LDA     ARG2            ;TEMP WILL GET OBJ POINTER
+         CMP     #16.
+	 BCC     FLGSU1          ;NEXT WORD
+	 SEC                     ;SECOND SET OF FLAGS
+	 SBC     #16.
+         INCW    TEMP
+	 INCW    TEMP
+ FLGSU1  STA     VAL
+	 MOVEI   1,MASK
+	 LDA     #15.
+	 SEC
+	 SBC     VAL
+	 TAX
+ FLGSU2  BEQ     FLGSU3          ;BIT IN POSITION
+	 ASL     MASK+LO
+	 ROL     MASK+HI
+	 DEX
+	 JMP     FLGSU2
+ 
+ FLGSU3  LDY     #0
+	 LDA     @TEMP,Y
+	 STA     VAL+<LO^INVERT>
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<HI^INVERT>
+	 RTS
+ 
+ PROPB   LDA     ARG1            ;BEG OF PROPERTY PART OF OBJECT
+	 JSR     OBJLOC
+	 LDY     #7
+	 LDA     @TEMP,Y
+	 STA     VAL+<LO^INVERT>
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<HI^INVERT>
+	 CLC
+	 LDA     VAL+LO
+	 ADC     ZCODEP+LO
+	 STA     TEMP+LO
+	 LDA     VAL+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 LDY     #0
+	 LDA     @TEMP,Y         ;LENGTH OF DESCRIPTION
+	 ASL     A
+	 TAY
+	 INY
+	 RTS                     ;RETURN WITH INDEX
+ 
+ PROPN   LDA     @TEMP,Y         ;TEMP(Y) HAS REAL PROP POINTER
+	 AND     #1F
+	 RTS
+ 
+ PROPL   LDA     @TEMP,Y         ;PROP LENGTH, TEMP(Y) HAS REAL PROP POINTER
+	 ROR     A        ROR     A
+	 ROR     A
+	 ROR     A
+	 ROR     A
+	 AND     #7
+	 RTS
+ 
+ PROPNX  JSR     PROPL
+         TAX
+ $1      INY
+	 DEX
+	 BPL     $1
+	 INY
+	 RTS
+ 
+ OBJLOC  STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 LDA     TEMP+LO
+	 ASL     TEMP+LO
+	 ROL     TEMP+HI
+	 ASL     TEMP+LO
+	 ROL     TEMP+HI
+	 ASL     TEMP+LO
+	 ROL     TEMP+HI
+         CLC
+	 ADC     TEMP+LO
+	 BCC     $1
+	 INC     TEMP+HI
+	 CLC
+ $1      ADC     #53.            ;9*NUMBER + 53.
+	 STA     TEMP+LO
+	 BCC     $2
+	 INC     TEMP+HI
+ $2      LDY     #ZOBJEC+<LO^INVERT>
+	 LDA     @ZCODEP,Y
+	 CLC
+	 ADC     TEMP+LO
+	 STA     TEMP+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 ADC     TEMP+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI         ;REAL ADDRESS
+         RTS
+ 
+ SHLGED  LDA     VAL+HI
+	 EOR     TEMP+HI
+	 BPL     HLGEDE          ;BOTH OF SAME SIGN
+	 LDA     VAL+HI
+	 CMP     TEMP+HI          ;CARRY WILL BE SET IF VAL NEG AND THUS < TEMP
+	 RTS
+ 
+ HLGEDE  LDA     TEMP+HI          ;RETURN WITH CARRY SET IF TEMP >= VAL
+	 CMP     VAL+HI
+	 BNE     $1
+	 LDA     TEMP+LO
+	 CMP     VAL+LO
+ $1      RTS
+ 
+ PSHSTK  SUBB    ZSTAKP,#1       ;PUSH STACK
+	 LDY     #0
+	 LDA     TEMP+<HI^INVERT>
+	 STA     @ZSTAKP,Y
+	 SUBB    ZSTAKP,#1
+	 LDA     TEMP+<LO^INVERT>
+	 STA     @ZSTAKP,Y
+	 INC     ZSTAKC          ;COUNT
+	 LDA     ZSTAKC
+	 CMP     #ZSTAKL
+	 BCC     $1
+	 JSR     ZER
+ $1      RTS
+ 
+ POPSTK  LDY     #0
+	 LDA     @ZSTAKP,Y
+	 STA     TEMP+<LO^INVERT>
+	 INCW    ZSTAKP
+	 LDA     @ZSTAKP,Y
+	 STA     TEMP+<HI^INVERT>
+         INCW    ZSTAKP
+	 DEC     ZSTAKC          ;CHECK COUNT
+	 BNE     $1
+	 JSR     ZER             ;OVER POP ERROR
+ $1      RTS                     ;VALUE IN TEMP
+ 

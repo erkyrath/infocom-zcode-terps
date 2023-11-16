@@ -1,0 +1,864 @@
+
+* ----------------------------------------------
+* GRAPHICS ROUTINES FOR AMIGA YZIP
+* ----------------------------------------------
+
+*------------------------------*
+* UncompH
+*------------------------------*
+
+U_INB	EQU	0
+U_OUTB	EQU	4
+U_HTREE	EQU	8
+U_PICX	EQU	12	* pixel width
+U_MLEN	EQU	16	* after unhuff, before de-run
+U_OLEN	EQU	20	* "interrupt count"
+U_FCALL	EQU	24	* raised by caller, initially
+U_LCALL	EQU	25	* raised by callee, when done
+U_REGS	EQU	26
+
+*** ULONG /*int*/ uncompress_huff (inbuf, outbuf, huff_tree, midlen, pic_x)
+*** unsigned char *inbuf, *outbuf, *huff_tree;
+*** ULONG midlen, pic_x;
+
+* FUNCTION UncompH (ucr: uncompRecPtr): LONGINT;
+
+* THERE ARE TWO NEW PARAMETERS: A FIRST-CALL FLAG AND AN INTERRUPT COUNT.
+* AFTER AN INTERRUPT WE RETURN TO THE CALLER (SINCE THE NEXT STEP IS MODE-
+* DEPENDENT).  ALL PARAMS ARE NOW PASSED IN A RECORD, SO THEY WILL REMAIN 
+* VALID ACROSS MULTIPLE CALLS TO UNCOMPH.
+
+* THE OUTPUT BUFFER LENGTH MUST BE >= (U_OLEN + U_PICX + 128).
+
+* STEPS IN PICTURE DECOMPRESSION (undo in reverse order):
+*   1. Each line of the picture is exclusive-or'ed with the previous line.
+*   2. A run-length encoding is applied, as follows:  byte values 0
+* through 15 represent colors; byte values 16 through 127 are repetition
+* counts (16 will never actually appear)  Thus: 3 occurrences of byte 
+* value 2 will turn into 2 17 (subtract 15 from the 17 to find that the 
+* two should be repeated 2 MORE times).
+*   3. Optionally, the whole thing is Huffman-coded, using an encoding
+* specified in the header file.
+
+* This routine does all three steps simultaneously--unhuf, then undo rle and 
+* xor steps.  Stores extra line of 0s at beginning of outbuf, for xor step.
+* Returns number of decompressed bytes.
+   
+_UncompH
+	MOVEM.L	D2-D7/A2-A4/A6,-(SP)	* [40 BYTES]
+	MOVE.L	40+4(SP),A6		* PARAMBLOCK PTR
+
+	TST.B	U_FCALL(A6)	* FIRST TIME THROUGH?
+	BEQ.S	UNCHX4		* NO
+	CLR.B	U_FCALL(A6)	* YES, RESET FLAG
+	MOVEQ	#0,D0		* [DEFAULT RETURN VAL]
+
+* LOAD REGS FROM PARAMBLOCK
+
+***	MOVE.L	U_ILEN(A6),D1	* [INLEN -- NO LONGER USED]
+***	BLE.S	UNCHX9		*   ERROR
+	MOVE.L	U_MLEN(A6),D3	* "midlen" (AFTER dehuff, but BEFORE derun)
+	BLE.S	UNCHX9		*   ERROR
+	MOVE.L	U_INB(A6),A4	* INBUF
+	MOVE.L	U_HTREE(A6),A0	* HUFFTREE (256 BYTES MAX)
+
+* ZERO FIRST LINE OF OUTBUF
+
+	MOVE.L	U_OUTB(A6),A1	* OUTBUF(1)
+	MOVE.L	A1,A2
+	MOVE.L	U_PICX(A6),D1
+	BLE.S	UNCHX9		* ERROR
+UNCHX2	CLR.B	(A2)+		* CLEAR OUTBUF(1), ADVANCE TO OUTBUF(2)
+	SUBQ.W	#1,D1
+	BGT.S	UNCHX2
+	
+	MOVE.L	U_OLEN(A6),D1
+	BLE.S	UNCHX9		* ERROR
+	MOVE.L	A2,A3
+	ADD.L	D1,A3		* OUTBUF(3) IS INTERRUPT POINT
+
+	BSR	UNCOMP		* DIVE IN
+	BRA.S	UNCHX9
+UNCHX4	BSR	UNCOMP2		* CONTINUE
+
+UNCHX9	MOVEM.L	(SP)+,D2-D7/A2-A4/A6
+	RTS			* RETURN RESULT (IN D0), 'C' STYLE
+
+
+* FOR AMIGA, this table maps nibbles (0000 abcd) to bytes (abcd abcd), 
+* to facilitate 320 -> 640 scaling.  Keep proximate to UNCOMP.
+
+NYBBYT	DC.B	$00,$11,$22,$33
+	DC.B	$44,$55,$66,$77
+	DC.B	$88,$99,$AA,$BB
+	DC.B	$CC,$DD,$EE,$FF
+
+*	DC.B	$00,$03,$0C,$0F		* map to (aabb ccdd) 
+*	DC.B	$30,$33,$3C,$3F
+*	DC.B	$C0,$C3,$CC,$CF
+*	DC.B	$F0,$F3,$FC,$FF
+
+*------------------------------*
+* UNCOMP, UNCOMP2
+*------------------------------*
+
+* GIVEN 
+*	A1 -> OUTBUF1 (PREV ROW)	A2 -> OUTBUF2	A3 -> OUTBUF3 (END+1)	
+*	A4 -> INBUF	A6 -> PARAMS	A0 -> HUFFTREE	
+*	D3.L = MIDLEN [AFTER UNHUFF, BEFORE UNRUN]
+* USES  
+*	D4.B = INCHR	D5.B = CBIT	D7.L [not .B] = CNODE	D6.B = LASTPIX
+*	D1.B = 16	D2.B = 128+16
+* RETURNS 
+*	D0.L = #BYTES WRITTEN TO OUTBUF
+*
+* COMMENTED-OUT LINES BELOW REFLECT OPTIMIZATIONS FOR SPEED.
+
+UNCOMP	MOVEQ	#16,D1
+	MOVE.B	#128+16,D2
+	MOVEQ	#0,D7		* INIT CNODE
+
+UNCPX0	MOVEQ	#7,D5		* RESET CBIT 
+***	MOVE.B	#128,D5
+	MOVE.B	(A4)+,D4	* Get the next inchr
+
+* [innermost unhuff loop begins here -- 5 ops, 40 cycles]
+
+* Since the bit of interest runs from 7 down to 0, we can avoid an explicit 
+* bit test by shifting bits off the left end of the register, one at a time, 
+* into the Carry flag (Thanks Mike M).  The fast way to shift a register  
+* left by one is to add it to itself. 
+
+UNCPX1	ADD.B	D4,D4		* IF (chr & cbit) SET X FLAG		[4]
+
+* We can check the Carry flag but avoid an expensive branch by taking advantage 
+* of the ADDX instruction.  Also, adding D7 to itself here eliminates the need
+* to do it separately later.
+
+	ADDX.B	D7,D7		* cnode = (cnode * 2) + X		[4]
+	MOVE.B	0(A0,D7.W),D7	* cnode = huff_tree[cnode]		[14]
+	BMI.S	UNCPX3		* if (cnode >= 128) IT'S A TERMINAL	[8/]
+
+* We /could/ avoid this conditional branch by unrolling 8 iterations of the loop,
+* but would then have to remember where to jump back in ... probably not worth it.
+
+	DBF	D5,UNCPX1	* cbit >>= 1  (next bit)		[10/]	[40 tot]
+	BRA.S	UNCPX0		* if done with this char, go to next
+
+
+* X21	ADD.B	D4,D4		* IF (chr & cbit) SET X FLAG		[4]
+*	ADDX.B	D7,D7		* cnode = (cnode * 2) + X		[4]
+*	MOVE.B	0(A0,D7.W),D7	* cnode = huff_tree[cnode]		[14]
+*	BPL.S	X22		* if (cnode >= 128) IT'S A TERMINAL	[10/]	[32 tot]
+*	BSR.B	UNCPX3		*	[18]  [16 RTS]
+* X22	ADD.B	D4,D4
+*	ADDX.B	D7,D7
+*	MOVE.B	0(A0,D7.W),D7
+*	BPL.S	X23
+*	BSR	UNCPX3
+* X23			etc
+
+* SLOWER METHOD(S), HERE FOR DOCUMENTATION ONLY ...
+
+* UNCPX1	
+***	MOVE.B	D4,D0
+***	AND.B	D5,D0
+*	BTST	D5,D4		* IF (chr & cbit)			[6]
+*	BEQ.S	UNCPX2		*					[8/10]
+*	ADDQ.B	#1,D7		*					[4]
+* UNCPX2	
+*	MOVE.B	0(A0,D7.W),D7	* THEN cnode = huff_tree[cnode + 1]	[14]
+***	CMP.B	#128,D7		* if (cnode < 128)
+***	BCC.S	UNCPX3	* BHS
+*	BMI.S	UNCPX3		* [FLAG /ALREADY/ SET]			[8/]
+*	ADD.B	D7,D7		* THEN cnode *= 2;			[4]
+***	LSR.B	#1,D5
+*	SUBQ.B	#1,D5		* cbit >>= 1  (next bit)		[4]
+*	BPL.S	UNCPX1	* bne	*					[10/]	[56/58 tot]
+*	BRA.S	UNCPX0		* if done with this char, go to next
+
+* [cnode >= 128]  here we undo both runlength and xor
+
+UNCPX3	SUB.B	D2,D7		* ELSE cnode -= (128+16)  (this is a terminal)
+	BPL.S	UNCPX4
+***	ADD.B	#16,D7
+	ADD.B	D1,D7		* [RESTORE TO RANGE 0..15]
+
+***	SUB.B	#128,D7
+***	CMPI.B	#16,D7		* if (cnode < 16)
+***	BCC.S	UNCPX4	* BHS
+
+* It's a color id, output/xor it
+
+* AMIGA: map 0000abcd to aabbccdd, to facilitate 320 -> 640 scaling 
+	MOVE.B	NYBBYT(PC,D7.W),D7
+
+***	MOVE.B	(A1)+,(A2)	* [SLOWER by 4 cycles!]
+***	EOR.B	D7,(A2)+
+	MOVE.B	(A1)+,D0	* *p++ = cnode ^ *outbuf++
+	EOR.B	D7,D0
+	MOVE.B	D0,(A2)+
+
+	MOVE.B	D7,D6		* lastpix = cnode;
+	BRA.S	UNCPX7
+
+* Otherwise, run/xor LAST color id
+
+UNCPX4
+***	SUBI.B	#15+1,D7	* for (j = 0; j < (cnode - 15); j++)
+UNCPX5	MOVE.B	(A1)+,D0	* *p++ = lastpix ^ *outbuf++
+	EOR.B	D6,D0	
+	MOVE.B	D0,(A2)+
+	DBF	D7,UNCPX5	* [USES D7.W]
+
+UNCPX7	SUBQ.L	#1,D3		* if (--midlen <= 0) break [DONE]
+	BEQ.S	UNCPX15
+
+	CMPA.L	A3,A2		* IF OUTLEN_INTERRUPT break
+	BCC.S	UNCPX20	* BHS
+
+UNCPX8	MOVEQ	#0,D7		* RESET cnode = 0
+***	LSR.B	#1,D5
+	SUBQ.B	#1,D5		* cbit >>= 1  (next bit)
+	BPL	UNCPX1	* bne	* STILL IN RANGE 7..0
+	BRA	UNCPX0		* if done with this char, go to next
+
+* HERE FOR FINAL EXIT
+
+UNCPX10	MOVE.B	#1,U_LCALL(A6)	* TELL CALLER WE'RE DONE
+	RTS
+
+* HERE FOR SEMI-FINAL EXIT
+
+UNCPX15	CLR.L	U_HTREE(A6)	* "NO MORE TO DECOMPRESS/DERUN"
+UNCPX16	MOVE.L	A1,D0
+	SUB.L	U_OUTB(A6),D0	* #BYTES IN FINAL OUTBUF
+
+* BUT DID A LONG FINAL RUN EXCEED U_OLEN? (e.g. 1.5 x U_OLEN, OR 3 ROWS)
+	
+	CMP.L	U_OLEN(A6),D0	
+	BLE.S	UNCPX10		* NO, DONE
+
+* HERE FOR TEMPORARY EXIT
+
+UNCPX20	MOVEM.L	D3-D6/A2-A4,U_REGS(A6)	* SAVE OUR STATE
+	MOVE.L	U_OLEN(A6),D0		* RETURN #BYTES IN FULL OUTBUF
+	RTS
+
+* HERE TO RESUME AFTER TEMPORARY OR SEMI-FINAL EXIT
+
+UNCOMP2	MOVEM.L	U_REGS(A6),D3-D6/A2-A4	* RESTORE CRITICAL VARS
+
+* COPY LAST ROW OF BYTES, PLUS ANY OVERRUN, BACK TO THE BASE OF THE BUFFER, 
+* SO XOR WILL KEEP WORKING.  COULD DO SLIGHTLY LESS WORK BY COPYING /EXACTLY/
+* ONE ROW'S WORTH TO /NEAR/ THE BASE, BUT COPYING THE EXTRA BYTES:
+*   - PREVENTS A PROBLEM IN THE (POSSIBLE) CASE OF OVERRUN > 1 ROW, AND
+*   - HELPS ENSURE BLOCKMOVE IS EVEN-ALIGNED.
+
+	MOVE.L	U_PICX(A6),D1
+	MOVE.L	U_OLEN(A6),D2
+	
+	MOVE.L	A3,A0
+	SUB.L	D1,A0		* SRC: LAST ROW
+	MOVE.L	A0,A1
+	SUB.L	D2,A1		* DST: BUFFER BASE
+	MOVE.L	A2,D0
+	SUB.L	A3,D0
+	ADD.L	D1,D0		* ROWBYTES, PLUS #BYTES OVERRUN
+	BSR	MOVMEM
+
+* NOTE: FOR THE QUICKEST BLOCKMOVE, BOTH SRC AND DST MUST BE EVEN-ALIGNED.
+* THIS MEANS THE CALLER SHOULD ENSURE THAT U_OLEN IS EVEN, WHETHER OR NOT 
+* U_PICX IS.
+
+	SUB.L	D2,A2		* RESET OUTBUF PTRS: 1ST ROW + EXTRA
+	MOVE.L	A2,A1
+	SUB.L	D1,A1		* BASE + EXTRA
+
+	MOVE.L	U_HTREE(A6),D0	* RESTORE REMAINING REGS
+	BEQ.S	UNCPX16		* IF ZERO, LAST EXIT WAS SEMI-FINAL
+	MOVE.L	D0,A0
+
+	MOVEQ	#16,D1
+	MOVE.B	#128+16,D2
+	BRA.S	UNCPX8		* PICK UP WHERE WE LEFT OFF
+
+
+* ----------------------
+* QuadPic
+* ----------------------
+
+* PROCEDURE QuadPic (p: QuadPicRecPtr);
+* This routine unpacks a sequence of color id bytes into an Amiga-format 
+* bitmap (multiple color planes).  We assume id values between 0-15, and
+* a 16-color bitmap (four planes).
+
+* >>> IDEA: during decompression, store /2/ data nibbles in each byte;
+*     0000abcd --> aabbccdd.  QuadPic can then automatically scale
+*     horizontally by 2x (320 --> 640).
+
+* We currently expect to work always with an integral number of rows, although
+* not necessarily the entire screen.  Return updated ptr in pDst.
+
+* Note: writing directly to screen memory would avoid the need for a 2nd 
+* offscreen buffer and two extra CopyBits (Blitter) calls; however:
+*   - Copybits handles non-byte-aligned destRects
+*   - Copybits handles clipping.  
+*   - Copybits (b/w) is fast; even two extra calls don't really hurt us.
+
+* ALL PARAMS ARE NOW PASSED IN A RECORD, SO THEY WILL REMAIN VALID ACROSS MULTIPLE 
+* CALLS TO QuadPic.
+
+M_SRCX	EQU	0	* color ids, 2 bytes/pixel
+M_SRCY	EQU	2
+M_FLAGS	EQU	4	* 0001=TRANS, 0002=BUMPDEST, 0004=SCALE
+M_DSTRB	EQU	6	* rowBytes, per plane
+M_PSRC	EQU	8
+M_PDST1	EQU	12	* return [updated] ptrs here
+M_PDST2	EQU	16
+M_PDST3	EQU	20
+M_PDST4	EQU	24
+
+_QuadPic
+	MOVEM.L	D2-D7/A2-A6,-(SP)	* [44 BYTES]
+	MOVE.L	44+4(SP),A6		* PARAMBLOCK PTR
+
+	MOVE.W	M_SRCY(A6),D7
+	BLE.S	QDPCX9
+	MOVE.W	M_SRCX(A6),D6
+	BLE.S	QDPCX9
+
+* CALC D6.W = SRC ROWLEN (BYTES)/4, ROUNDED UP (2 PIXELS/BYTE)
+
+	MOVE.W	D6,D0
+	ASR.W	#2,D6			* DIVIDE BY 4
+	ANDI.W	#$0003,D0
+	BEQ.S	QDPCX1
+	ADDQ.W	#1,D6			* ROUND UP
+
+QDPCX1	LEA	M_PSRC(A6),A5
+	MOVE.L	(A5)+,A0		* UNLOAD REMAINING PARAMS
+	MOVE.L	(A5)+,A1
+	MOVE.L	(A5)+,A2
+	MOVE.L	(A5)+,A3
+	MOVE.L	(A5)+,A4
+
+QDPCX2	MOVEM.L	D6-D7/A0-A4,-(SP)
+	BSR	QuadRow
+	MOVEM.L	(SP)+,D6-D7/A0-A4
+
+	ADD.W	M_SRCX(A6),A0	* NEXT SRC (START OF ROW)
+	MOVE.W	M_DSTRB(A6),D0
+	ADDA.W	D0,A1		* NEXT DST (START OF ROW)
+	ADDA.W	D0,A2
+	ADDA.W	D0,A3
+	ADDA.W	D0,A4
+
+	SUBQ.W	#1,D7
+	BGT.S	QDPCX2		* LOOP
+
+	MOVE.W	M_FLAGS(A6),D0
+	BTST	#0002,D0	* return updated dst ptrs?
+	BEQ.S	QDPCX9		* NO
+
+	LEA	M_PDST1(A6),A5
+	MOVE.L	A1,(A5)+
+	MOVE.L	A2,(A5)+
+	MOVE.L	A3,(A5)+
+	MOVE.L	A4,(A5)+
+
+QDPCX9	MOVEM.L	(SP)+,D2-D7/A2-A6
+	RTS			* RETURN, 'C' STYLE
+
+
+* QuadRow: UNPACK COLOR IDS (2-15) INTO MULTIPLE (4) PLANES
+* ALSO HANDLE 0=TRANSPARENT, IF ENCOUNTERED
+
+* NOTE: IF THE ORIGINAL PIXEL WIDTH (320 MAX) WASN'T A MULTIPLE OF 4,
+* QuadRow WRITES ENOUGH EXTRA (GARBAGE) PIXELS TO FILL OUT THE DST BYTE(S).
+* WE CURRENTLY EXPECT SOMEBODY /ELSE/ TO CLIP THEM.
+
+* GIVEN A0 -> SRC, A1/A2/A3/A4 -> DST, 
+*   D6.W = SRC ROWLEN (BYTES)/4, ROUNDED UP (2 PIXELS/BYTE)
+*   [ D5.L -> BITTAB ]
+* USES D0.B = SRCPIX, D1/D2/D3/D4.B = DSTPIX
+*   [ D7.B = MASK, A5.L -> BITTAB (INDEXED) ]
+
+QuadRow	
+	MOVE.W	M_FLAGS(A6),D0
+***	BTST	#0001,D0
+***	BEQ	QuadRow2	* FASTER CASE IF NON-TRANSPARENT
+
+	BTST	#0004,D0	* USE 2 NIBBLES TO SCALE 2X?
+	BEQ	QuadRow1x	* NO
+
+	BRA	QDRWX9		* ENTER LOOP AT DBF
+
+* [VERSION 2 - HANDLES TRANS]
+* INSTEAD OF INDEXING INTO LOOKUP TABLES, SHIFT BITS DIRECTLY FROM THE
+* SRC ID INTO THE DST REGS.  FOR A TRANSPARENT ID, JUST ROTATE THE DST REGS.
+
+* GET TRANSPARENT DEFAULTS (FOR NEXT 8/4 IDS)
+
+QDRWX0	MOVE.B	(A1),D1		*					[8]
+	MOVE.B	(A2),D2
+	MOVE.B	(A3),D3
+	MOVE.B	(A4),D4
+
+QDRWX1	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDRWX1A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	ADD.B	D0,D0		* AND AGAIN (DUPLICATE PIXEL)
+	ADDX.B	D1,D1
+	ADD.B	D0,D0
+	ADDX.B	D2,D2
+	ADD.B	D0,D0
+	ADDX.B	D3,D3
+	ADD.B	D0,D0
+	ADDX.B	D4,D4
+
+	BRA.S	QDRWX2		*				[64 + 10]
+
+QDRWX1A	ROL.B	#2,D1
+	ROL.B	#2,D2
+	ROL.B	#2,D3
+	ROL.B	#2,D4		*				[40]
+
+QDRWX2	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDRWX2A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	ADD.B	D0,D0		* AND AGAIN (DUPLICATE PIXEL)
+	ADDX.B	D1,D1
+	ADD.B	D0,D0
+	ADDX.B	D2,D2
+	ADD.B	D0,D0
+	ADDX.B	D3,D3
+	ADD.B	D0,D0
+	ADDX.B	D4,D4
+
+	BRA.S	QDRWX3		*				[64 + 10]
+
+QDRWX2A	ROL.B	#2,D1
+	ROL.B	#2,D2
+	ROL.B	#2,D3
+	ROL.B	#2,D4		*				[40]
+
+QDRWX3	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDRWX3A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	ADD.B	D0,D0		* AND AGAIN (DUPLICATE PIXEL)
+	ADDX.B	D1,D1
+	ADD.B	D0,D0
+	ADDX.B	D2,D2
+	ADD.B	D0,D0
+	ADDX.B	D3,D3
+	ADD.B	D0,D0
+	ADDX.B	D4,D4
+
+	BRA.S	QDRWX4		*				[64 + 10]
+
+QDRWX3A	ROL.B	#2,D1
+	ROL.B	#2,D2
+	ROL.B	#2,D3
+	ROL.B	#2,D4		*				[40]
+
+QDRWX4	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDRWX4A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	ADD.B	D0,D0		* AND AGAIN (DUPLICATE PIXEL)
+	ADDX.B	D1,D1
+	ADD.B	D0,D0
+	ADDX.B	D2,D2
+	ADD.B	D0,D0
+	ADDX.B	D3,D3
+	ADD.B	D0,D0
+	ADDX.B	D4,D4
+
+	BRA.S	QDRWX5		*				[64 + 10]
+
+QDRWX4A	ROL.B	#2,D1
+	ROL.B	#2,D2
+	ROL.B	#2,D3
+	ROL.B	#2,D4		*				[40]
+
+* [ ... AFTER 4 REPS OF THE ABOVE, WRITE OUT DST BYTES
+
+QDRWX5	MOVE.B	D1,(A1)+
+	MOVE.B	D2,(A2)+
+	MOVE.B	D3,(A3)+
+	MOVE.B	D4,(A4)+
+
+QDRWX9	DBF	D6,QDRWX0
+	RTS
+	
+* CYCLES PER PIXEL PAIR = 16+74 (NON-TRANS), OR 18+40 (TRANS)
+* R/W OVERHEAD, EVERY 4 PAIRS, = 64 (AVG 16 PER PAIR)
+* >>>>>> TOTAL = 106 (NON-TRANS), OR 74 (TRANS)
+* ADDITIONAL OVERHEAD: 2 BLITTER CALLS, MULTIPLE DECOMP/SHOW CALLS
+
+* --------------------
+* QuadRow1x
+* --------------------
+
+* IDENTICAL TO QuadRow, EXCEPT DON'T SCALE  (IGNORE /LOW/ NIBBLES)
+
+QuadRow1x
+	BRA	QDR1X9		* ENTER LOOP AT DBF
+
+* [VERSION 2 - HANDLES TRANS]
+* INSTEAD OF INDEXING INTO LOOKUP TABLES, SHIFT BITS DIRECTLY FROM THE
+* SRC ID INTO THE DST REGS.  FOR A TRANSPARENT ID, JUST ROTATE THE DST REGS.
+
+* GET TRANSPARENT DEFAULTS (FOR NEXT 8 /*4*/ IDS)
+
+QDR1X0	MOVE.B	(A1),D1		*					[8]
+	MOVE.B	(A2),D2
+	MOVE.B	(A3),D3
+	MOVE.B	(A4),D4
+
+QDR1X1	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X1A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X2		*				[64 + 10]
+
+QDR1X1A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X2	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X2A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X3		*				[64 + 10]
+
+QDR1X2A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X3	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X3A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X4		*				[64 + 10]
+
+QDR1X3A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X4	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X4A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X5		*				[64 + 10]
+
+QDR1X4A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X5	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X5A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X6		*				[64 + 10]
+
+QDR1X5A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X6	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X6A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X7		*				[64 + 10]
+
+QDR1X6A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X7	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X7A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X8		*				[64 + 10]
+
+QDR1X7A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+QDR1X8	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDR1X8A		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	ADD.B	D0,D0		* WRITE PIXEL, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0		* WRITE PIXEL, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL, 4TH PLANE
+	ADDX.B	D4,D4
+
+	BRA.S	QDR1X99		*				[64 + 10]
+
+QDR1X8A	ROL.B	#1,D1
+	ROL.B	#1,D2
+	ROL.B	#1,D3
+	ROL.B	#1,D4		*				[40]
+
+* [ ... AFTER 8 /*4*/ REPS OF THE ABOVE, WRITE OUT DST BYTES
+
+QDR1X99	MOVE.B	D1,(A1)+
+	MOVE.B	D2,(A2)+
+	MOVE.B	D3,(A3)+
+	MOVE.B	D4,(A4)+
+
+QDR1X9	DBF	D6,QDR1X0
+	RTS
+	
+
+
+* ALTERNATE VERSIONS OF QUADROW ...
+
+    IFEQ CZIP
+
+* [VERSION 3]
+
+* >>> IDEA: OPERATE ON 4 BYTES IN D1/D2.W
+*     REQUIRES THAT REGS BE UNPACKED BEFORE WRITING TO DST.
+
+* >>> IDEA: OPERATE ON 4 /WORDS/ IN D1/D2/D3/D4.W.
+*     REQUIRES THAT DST ROW(S) BE /WORD/ ALIGNED.
+
+
+* [VERSION 2.5]
+* >>> IDEA: USE AN EXTRA ASR (NOT ROR!) TO REPLICATE HIGH BIT (320 --> 640)
+* XXX NO! MUST ALWAYS WRITE BITS LEFT-TO-RIGHT (SHIFT LEFT)
+
+
+* [VERSION 2B - !TRANS]
+* INSTEAD OF INDEXING INTO LOOKUP TABLES, SHIFT BITS DIRECTLY FROM THE
+* SRC ID INTO THE DST REGS.
+
+QDRWX0
+
+QDRWX1	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+
+	ADD.B	D0,D0		* WRITE PIXEL-PAIR, 1ST PLANE		[4]
+	ADDX.B	D1,D1
+	ADD.B	D0,D0
+	ADDX.B	D1,D1
+	ADD.B	D0,D0		* WRITE PIXEL-PAIR, 2ND PLANE
+	ADDX.B	D2,D2
+	ADD.B	D0,D0
+	ADDX.B	D2,D2
+
+	ADD.B	D0,D0		* WRITE PIXEL-PAIR, 3RD PLANE
+	ADDX.B	D3,D3
+	ADD.B	D0,D0
+	ADDX.B	D3,D3
+	ADD.B	D0,D0		* WRITE PIXEL-PAIR, 4TH PLANE
+	ADDX.B	D4,D4
+	ADD.B	D0,D0
+	ADDX.B	D4,D4
+
+* [ ... AFTER 4 REPS OF THE ABOVE, WRITE OUT DST BYTES
+
+	MOVE.B	D1,(A1)+	*					[8]
+	MOVE.B	D2,(A2)+
+	MOVE.B	D3,(A3)+
+	MOVE.B	D4,(A4)+
+
+
+* IF !TRANS, CYCLES PER PIXEL PAIR = 72
+* R/W OVERHEAD = 32 (AVG 8 PER PAIR)
+* >>>>>> TOTAL = 80
+* ADDITIONAL OVERHEAD: 1 BLITTER CALL, ETC
+
+
+* [VERSION 1 - HANDLES TRANS]
+* GET BIT PATTERNS FROM CONSTANT TABLES, TO AVOID SHIFTING
+
+QDRWX0	MOVE.B	(A1),D1		*					[8]
+	MOVE.B	(A2),D2
+	MOVE.B	(A3),D3
+	MOVE.B	(A4),D4
+
+QDRWX1	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+	BEQ.S	QDRWX2		* TRANSPARENT ID, GOTO NEXT		[10/8]
+
+	MOVEQ	#$7F,D7		*					[4]
+*	MOVEQ	#$3F,D7
+	AND.B	D7,D1		* ZERO THIS BIT [BIT PAIR]		[4]
+	AND.B	D7,D2
+	AND.B	D7,D3
+	AND.B	D7,D4
+
+* (GIVEN D5 -> BASE OF 16x4 TABLE OF BITS [BIT PAIRS])
+* >>> PROBLEM: EACH BIT-PAIR NEEDS A DIFFERENT TABLE ...
+
+	MOVE.L	D5,A5		*					[4]
+*	ADD.B	D0,D0		* [PRE-SCALE IDS IN DECOMP]
+*	ADD.B	D0,D0
+	ADDA.W	D0,A5		*					[8]
+
+	OR.B	(A5)+,D1	*					[8]
+	OR.B	(A5)+,D2
+	OR.B	(A5)+,D3
+	OR.B	(A5)+,D4
+
+* [ ... AFTER 4 REPS OF THE ABOVE, WRITE OUT DST BYTES
+
+	MOVE.B	D1,(A1)+
+	MOVE.B	D2,(A2)+
+	MOVE.B	D3,(A3)+
+	MOVE.B	D4,(A4)+
+
+
+* CYCLES PER PIXEL PAIR = 80 (NON-TRANS), OR 18 (TRANS)
+* R/W OVERHEAD, EVERY 4 PAIRS, = 64 (AVG 16 PER PAIR)
+* >>>>>> TOTAL = 96 (NON-TRANS), OR 34 (TRANS)
+* ADDITIONAL OVERHEAD: 2 BLITTER CALLS, MULTIPLE DECOMP/SHOW CALLS
+
+* NOTE: 96 * 64000 = 6.1M (MAX) CYCLES PER SCREEN
+* 68000 CLOCK RATE ~= 6M CYCLES/SEC
+
+
+* [VERSION 1B - !TRANS]
+* GET BIT PATTERNS FROM CONSTANT TABLES, TO AVOID SHIFTING
+
+QDRWX0	MOVEQ	#0,D1		*					[4]
+	MOVEQ	#0,D2
+	MOVEQ	#0,D3
+	MOVEQ	#0,D4
+
+QDRWX1	MOVE.B	(A0)+,D0	* GET NEXT SRC PIXEL [PAIR]		[8]
+
+* (GIVEN D5 -> BASE OF 16x4 TABLE OF BITS [BIT PAIRS])
+* >>> PROBLEM: EACH BIT-PAIR NEEDS A DIFFERENT TABLE ...
+
+	MOVE.L	D5,A5		*					[4]
+*	ADD.B	D0,D0		* [PRE-SCALE IDS IN DECOMP]
+*	ADD.B	D0,D0
+	ADDA.W	D0,A5		*					[8]
+
+	OR.B	(A5)+,D1	*					[8]
+	OR.B	(A5)+,D2
+	OR.B	(A5)+,D3
+	OR.B	(A5)+,D4
+
+* [ ... AFTER 4 REPS OF THE ABOVE, WRITE OUT DST BYTES
+
+	MOVE.B	D1,(A1)+	*					[8]
+	MOVE.B	D2,(A2)+
+	MOVE.B	D3,(A3)+
+	MOVE.B	D4,(A4)+
+
+
+* IF !TRANS, CYCLES PER PIXEL PAIR = 52
+* R/W OVERHEAD = 48 (AVG 12 PER PAIR)
+* >>>>>> TOTAL = 64
+* ADDITIONAL OVERHEAD: 1 BLITTER CALL, ETC
+
+* NOTE: 64 * 64000 = 4.1M CYCLES PER SCREEN
+* 68000 CLOCK RATE ~= 6M CYCLES/SEC
+
+    ENDC

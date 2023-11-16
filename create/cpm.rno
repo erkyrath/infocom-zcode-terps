@@ -1,0 +1,99 @@
+.c;HOW TO MAKE CP/M GAME DISKS ON THE PDP-11
+.s
+NOTE: Before making a CP/M disk, the game file must exist in the
+PDP-11's INT directory. If the current version is not there, transfer it
+using the instructions in the front of this book.
+.s
+1. Log onto the PDP-11. A convenient location to do this is the
+Decwriter next to the PDP-11, since you will be using the PDP-11's
+floppy disk unit. If you don't have an account, you can log onto account
+3,3 (password: GAMES).
+.s
+2. Put the CP/M create disk for that particular game into the left-most
+drive of the PDP-11's floppy disk unit. Turn on the power to the floppy
+disk unit. Make sure that the switch below the left-most drive is NOT
+set to write-protect.
+.s
+3. When you get the PDP-11's period-prompt, type INT and hit the return
+key.
+.s
+4. The period-prompt will reappear. Type CPMFLX and hit the return key.
+.s
+5. You will be asked to enter the CP/M device. Type DX0: and hit the
+return key. (The third character is a zero; don't forget the colon.)
+.s
+6. A menu will be displayed. Type E and hit the return key.
+.s
+7. You will be asked to enter the CP/M file specification. Type
+[cpm-name].DAT and hit the return key (where [cpm-name] is the name of
+the game, truncated to eight letters if nescesary). Some examples:
+ZORK1.DAT, STARCROS.DAT, PLANETFA.DAT.
+.s
+8. The menu will appear. Type C and hit the return key.
+.s
+9. You will asked to enter the DEC file specification. Type
+[11-name].IML and hit the return key (where [11-name] is the PDP-11's
+six-letter abbreviation for the game name). Some examples: ZORK3.IML,
+DEADLN.IML, SUSPEN.IML.
+.s
+10. After about a minute, the menu will appear. Type X and hit the
+return key.
+.s
+11. The period-prompt will appear. Logout of the PDP-11.
+.s
+12. The game file has now been transferred to the create disk. It is
+time to rename the game file. Log back onto the
+PDP-11, this time using the account 8,8 (password: CPM).
+.s
+13. Type any key as instructed. A prompt will appear that looks like
+"A>". Type C: and hit the return key.
+.s
+14. A "C>" prompt will appear. Type REN [cpm-name].DAT=[11-name].IML and
+hit the return key.
+.s
+15. Boot the game by typing [cpm-name] and hitting the return key. When
+the game prompt appears, type $VE and hit the return key.
+.s
+16. If the create disk verifies, it is time to use it to make a game
+disk. This is simply a matter of making a copy of the create disk. Put a
+blank initialized 8" disk in the center drive of the floppy disk unit.
+Make sure that the write-protect switch for the center drive is not set
+to write-protect.
+.s
+17. The PDP-11 terminal should still be displaying the "C>" prompt. Type
+A:PIP D:=*.* and hit the return key.
+.s
+18. Wait a little while. Lots of stuff will appear on the PDP-11
+terminal. Finally, the "C>" prompt will return. Type D: and hit the
+return key.
+.s
+19. The "D>" prompt will appear. Type [cpm-name] to boot the game from
+the newly-created game disk in the center drive. When you see the game
+prompt, type $VE to verify the disk.
+.s
+20. Leave the game by typing Q, hitting return, typing Y, and hitting
+return again. When you see the "D>" prompt, logout from the PDP-11 by
+typing A:EXITCPM and hitting the return key. 
+
+.pg
+.c;HOW TO LOAD CP/M DISKS ON THE PDP-11
+.s 2
+1.  Turn on the PDP-11's floppy disk unit.
+.s
+2.  Put the disk in the left-hand drive.
+.s
+3.  Log on to the computer at the Decwriter (or any other convenient terminal)
+under account 8,8.  The password is "CPM".
+.s
+4.  The computer will instruct you to strike any key.  Strike any key.
+.s
+5.  A prompt will appear that looks like "A>".  Type "C:".
+.s
+6.  A prompt will appear that looks like "C>".  Type "DIR" for a directory of
+the disk, or type "STAT" for information on each file.
+.s
+7.  Type [game] to play the game, where [game] is the first eight letters
+of the name of the game.  (For example "STARCROS" or "SUSPENDE")
+.s
+8.  After you are done mucking about in CPM and have the "C>" prompt, type
+"a:exitcpm".  This will log you out.

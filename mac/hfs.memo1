@@ -1,0 +1,51 @@
+
+To: Customer Support
+From: Duncan Blanchard
+Re: Infocom Games and Macintosh Compatibility
+Date: 12/16/85
+----------------------------------------------------------------------
+
+    Apple is bringing out new operating system software for Macintosh
+which includes a Hierarchical File System (HFS).  A special version of
+HFS has already been released for owners of the new Mac hard disk, and 
+Macs with HFS built in are currently in prerelease.
+
+    Unfortunately, our game interpreter doesn't work right under HFS.
+The games will load and run normally, but Save and Restore fail.
+
+    Three alternative solutions for users --
+
+[]  Replace the disk - interpreter 'G', HFS compatible, available January,
+    $5 charge?
+
+[]  Patch the old disk - for technically knowledgeable users, quickest,
+    detailed instructions below.
+
+[]  Use non-HFS disks - simple, probably the best solution for most users
+    except ones with hard disks.  The idea is to (1) boot the machine,
+    (2) run the game, and (3) make saves using old-style disks, without 
+    the HFS format.  Our games are all supplied on non-HFS disks and are
+    self-booting.
+
+    The easiest way to tell the difference between HFS and non-HFS disks
+    is that the new ones hold 800K of data and the old ones 400K.  
+    When initializing a new save disk, the user will have a choice between 
+    the two formats and should choose 400K.
+
+
+PATCHING INSTRUCTIONS FOR MACINTOSH HFS COMPATIBILITY
+
+    These instructions should work for all old versions of the interpreter 
+and all games.
+
+    The user must have, and know how to use, a disk editing program
+such as FEdit.  One problem I encountered is that version 3.0 of FEdit
+itself doesn't run under HFS.  In this case FEdit must be loaded from
+a non-HFS disk.
+
+    Use the disk editor to open the RESOURCE fork of the game program.
+Search for two hexidecimal strings, $A200 and $A209.  Each should
+occur one time only.  Replace them with $A000 and $A009, respectively,
+and write the changes out to disk.
+
+    The game program is now HFS compatible.

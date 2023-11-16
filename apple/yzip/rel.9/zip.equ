@@ -1,0 +1,116 @@
+	STTL	"--- YZIP EQUATES ---"
+	PAGE 
+
+VERSID	EQU	9	; VERSION OF INTERPRETER
+			; See file "versions" for complete descriptions
+
+TRUE	EQU	$FF	
+FALSE	EQU	0	
+
+; ---------------------
+; Segment table equates
+; ---------------------
+SGTDISKS EQU	0		; number of disks
+SGTPAD	EQU	SGTDISKS+2	; just some extra room
+SGTCHKS1 EQU	SGTPAD+16	; Checksum for disk 1 (PRELOAD)
+SGTPICOF1 EQU	SGTCHKS1+2	; N/A
+SGTSEG1 EQU	SGTPICOF1+2	; # of segments
+SGTGPOF1 EQU    SGTSEG1+2       ; Global Picture Directory
+SGTTBLS	EQU	SGTGPOF1+2	; Start of table preload (should be 0)
+SGTTBLE	EQU	SGTTBLS+2	; Last page of table preload
+SGTTBLX	EQU	SGTTBLE+2	; N/A
+SGTFUNS	EQU	SGTTBLX+2	; First page of function preload
+SGTFUNE	EQU	SGTFUNS+2	; End page of function preload
+SGTFUNX	EQU	SGTFUNE+2	; N/A
+SGTDSK	EQU	SGTFUNX+2	; Actual start of disk segment tables
+
+SGTCHKS EQU	0	; check sum for file
+SGTPICOF EQU	2	; picture data offset
+SGTNSEG	EQU	4	; # of segments in this list
+SGTGPOF EQU     6       ; Global Directory Offset 
+SGTSEG	EQU	8	; start of segments
+; ---------------------
+; Z-CODE HEADER OFFSETS
+; ---------------------
+
+ZVERS	EQU	0	; VERSION BYTE
+ZMODE	EQU	1	; MODE SELECT BYTE
+ZID	EQU	2	; GAME ID WORD
+ZENDLD	EQU	4	; # OF QUADWORDS ON SIDE 1 OF DISK
+ZGO	EQU	6	; EXECUTION ADDRESS
+ZVOCAB	EQU	8	; START OF VOCABULARY TABLE
+ZOBJEC	EQU	10	; START OF OBJECT TABLE
+ZGLOBAL	EQU	12	; START OF GLOBAL VARIABLE TABLE
+ZPURBT	EQU	14	; START OF "PURE" Z-CODE
+ZFLAGS	EQU	16	; FLAG WORD
+ZSERIA	EQU	18	; 3-WORD SERIAL NUMBER
+ZFWORD	EQU	24	; START OF FWORDS TABLE
+ZLENTH	EQU	26	; LENGTH OF Z-PROGRAM IN WORDS
+ZCHKSM	EQU	28	; Z-CODE CHECKSUM WORD
+ZINTWD	EQU	30	; INTERPRETER ID WORD (SUPPLIED BY EZIP)
+ZSCRWD	EQU	32	; SCREEN PARAMETER WORD ( "     "   "  )
+ZHWRD	EQU	34	; DISPLAY WIDTH IN PIXELS
+ZVWRD	EQU	36	; DISPLAY HEIGHT IN PIXELS
+ZFWRD	EQU	38	; FONT HEIGHT, FONT WIDTH
+ZFOFF	EQU	40	; FUNCTION OFFSET
+ZSOFF	EQU	42	; STRING OFFSET
+ZCLRWD	EQU	44	; FORGROUND COLOR, BACKGROUND COLOR
+ZTCHAR	EQU	46	; POINTER TO TBL OF TERMINATING CHARS
+ZTWIDTH	EQU	48	; Running counter for table output char width
+ZCRFUNC	EQU	50	; FUNCTION FOR CARRIAGE RETURNS
+ZCHRSET	EQU	52	; POINTER TO CHAR SET TBL
+ZEXTAB	EQU	54	; Points to extension table, if needed
+;
+; Extension table offsets
+;
+ZEXTLEN	EQU	0	; Length of extension table
+ZMSLOCX	EQU	2	; x location of mouse
+ZMSLOCY	EQU	4	; y location of mouse
+ZMSETBL	EQU	6	; MOUSE TBL CHANGE WORD
+ZMSEDIR	EQU	8	; DIRECTION MENU
+ZMSEINV	EQU	10	; INVENTORY MENU
+ZMSEVRB	EQU	12	; FREQUENT VERB MENU
+ZMSEWRD	EQU	14	; FREQUENT WORD MENU
+ZBUTTN	EQU	16	; BUTTON HANDLER
+ZJOYST	EQU	18	; JOYSTICK HANDLER
+ZBSTAT	EQU	20	; BUTTON STATUS
+ZJSTAT	EQU	22	; JOYSTICK STATUS
+;
+; ZFLAGS values
+;
+FSCRI	EQU	$01	; scripting?
+FMONO	EQU	$02	; mono spaced font?
+FSTAT	EQU	$04	; status line refresh?
+FDISP	EQU	$08	; uses DISPLAY operations?
+FUNDO	EQU	$10	; uses UNDO?
+FMOUS	EQU	$20	; uses mouse?
+FCOLO	EQU	$40	; uses color?
+FMENU	EQU	$80	; uses menus?
+;---------------
+; Picture data
+;---------------
+;=== DATA HEADER ===
+PHFID	EQU	0		; File ID
+PHFLG	EQU	PHFID+1		; Flags
+PHHUFF	EQU	PHFLG+1		; Pointer to Huffman data
+PHNLD	EQU	PHHUFF+2	; # entries in local directory
+PHNGD	EQU	PHNLD+2		; # entries in global directory
+PHDSIZE	EQU	PHNGD+2		; Local directory entry size
+PHCHKS	EQU	PHDSIZE+2	; File Checksum
+PHFVERS	EQU	PHCHKS+2	; File Version (N/A)
+PHEXTRA	EQU	PHFVERS+2	; Extra room for getting fatter
+PHSIZE	EQU	16		; 16 bytes is header size
+;=== DATA HEADER FLAGS ===
+PHFGD	EQU	$1		; data has global directory
+PHFHUFF	EQU	$2		; Huffman encoded pictures
+PHFHUFF1 EQU	$4		; All pictures use same Huff tree
+PHFPAL	EQU	$8		; No pallette information
+;=== LOCAL DIRECTORY ===
+PLDID	EQU	0		; Picture ID
+PLDWID	EQU	PLDID+2		; Picture Width
+PLDHGHT	EQU	PLDWID+1	; Picture Height
+PLDFLG	EQU	PLDHGHT+1	; Flags
+PLDPTR	EQU	PLDFLG+1	; Pointer to picture data
+PLDSIZE	EQU	PLDPTR+3	; size of local directory entry
+
+	END

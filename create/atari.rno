@@ -1,0 +1,171 @@
+.lm 10;.rm 70;.paragraph 0, 0;.br;.lm 10;.rm 70;.ts 10,18,26,34,42,50,58,66,74,82;.sp 2;.nj;.i 0;_.c_;HOW TO FORMAT DISKS FOR THE ATARI-800
+_.s
+NOTE:  If you are making masters to send to Dysan, do not format the
+disks yourself. Dysan will not be able to read them. Instead, use the
+Atari-formatted disks that Dysan sends us. They should be in the Atari
+diskholder or in a box on one of the higher shelves.
+_.s
+1) Put the Assembler/Editor cartridge in the left-hand compartment of
+the CPU.
+_.s
+2) Put the disk labelled "Atari DOS and Z Utitlies" in the top disk
+drive, labelled 'Drive 1'.
+_.s
+3) Turn on the monitor and the disk drive(s), then turn on the CPU.  The
+on-off switch is on the right side.  Make sure the hatch is closed.
+_.s
+4) The screen will say "EDIT".  Type "DOS".
+_.s
+5) A menu of options will appear.  Type "I" to format a disk.
+_.s
+6) You will be asked for a drive number.  If you are only using one
+drive, remove the Utilities disk from Drive 1.  Put a blank disk in
+Drive 1 and type "1".  If you are using both drives, put the blank disk
+in the bottom drive, labelled Drive 2, and type "2".
+_.s
+7) Before you begin the formatting process, make sure that the Utilities
+disk is NOT in the drive you are about to format with, or it will get
+destroyed. Type "Y" to begin the formatting process.
+_.s
+8) Formatting will take about a minute. If you wish to format another
+disk, repeat the process.
+.sp 1;.s 1;.sp 2;_.pg
+_.c_;TRANSFERING A GAME FILE FROM THE DEC-20 TO THE ATARI 800
+_.s
+NOTE:  If you are making masters to send to Dysan, do not format the
+disks yourself. Dysan will not be able to read them. Instead, use the
+Atari-formatted disks that Dysan sends us. They should be in the Atari
+diskholder or in a box on one of the higher shelves.
+_.s
+1) Before you begin, make sure that you have as many Atari-formatted
+blank disks as you need. You will need one for every one-disk game you
+copy (such as Zork I), and two for every two-disk game you copy (such as
+Deadline).
+_.s
+2) Put the Assembler/Editor cartridge in the left-hand cartridge compartment
+of the CPU.  
+_.s
+3) Put the disk labelled "Atari DOS and Z Utilities" in the top disk
+drive, labelled Drive 1.
+_.s
+4) Make sure all the peripherals that you're using (disk drives,
+monitor, and interface module) are plugged in and turned on.  Plug the
+TN20 line into the cable from the interface module.
+_.s
+5) Turn on the CPU.  (For the CPU to be activated, the hatch must be
+closed and the power switch on the right side must be set to 'ON'.)
+_.s
+6) The screen will say "EDIT".  Type "DOS".
+_.s
+7) The screen will display a menu of options.  Type "L".
+_.s
+8) You will be asked "LOAD FROM WHAT FILE_?"  Type "TFTP.OBJ".
+_.s
+9) You will be asked something else.  Type "B".  (The disk drive should
+run at this point.  If it doesn't, see Footnote 1.)
+_.s
+10) The screen will say "EDIT".  Type "BUG".
+_.s
+11) If you are only using one drive, replace the DOS _& Z UTILITIES disk
+with a blank Atari-formatted disk.  If you are using both drives, put the
+blank Atari-formatted disk in the bottom drive, labelled 'Drive 2'.
+_.s
+12) The screen will say "DEBUG".  Type "C6294_<0C".
+_.s
+13) The screen will say "DEBUG" again.  If you are only using one drive,
+type "C6005_<1" to instruct the copy program to copy to drive one.  If
+you are using both drives, skip this step.
+_.s
+14) The screen will say "DEBUG" again.  Type "C6003_<1,0".
+_.s
+15) The screen will say "DEBUG" again.  Type "G6000".  (Nothing should
+appear on the screen at this point.  If a complex error message appears,
+check to make sure that the interface module is turned on and connected
+properly, and read Footnote 1).
+_.s
+16) Before running TN20, make sure that the Utilities disk is not in the
+drive you are about to copy to, or you will erase it.
+_.s
+17) Log onto the DEC-20 and follow the instructions for running TN20.
+The file that you want to transfer at this point is called ZIP.ATR and
+is located in the Z: directory.
+_.s
+18) ZIP.ATR, the Atari interpreter, should now begin transferring to the
+blank disk in the Atari. A line of A's should appear on the Atari's
+screen. Transferring ZIP.ATR should only take one or two minutes.
+_.s
+19) When the transfer is complete, the Atari screen will say "DEBUG".
+Type "C6003_<39,0".
+_.s
+20) The screen will say "DEBUG" again. Type "G6000".
+_.s
+21) If you are transferring a one-disk game (smaller than 84,972 bytes),
+run TN20 and send the game file. If you are transferring a two-disk
+game, run TN20 and send the [name-of-game].PRE file. (Make sure that the
+game file has been SPLIT.)
+_.s
+22) A line of A's should begin appearing on the Atari monitor. The game
+file will take about 15 minutes to transfer_; the [game].PRE file will
+only take about 5 minutes.
+_.s
+23) If you are transferring a one-disk game, go to Step 29. If you
+are transferring a two-disk game, go on to the next step.
+_.s
+24) Replace the disk which now contains ZIP.ATR and [game].PRE with a
+blank Atari-formatted disk.
+_.s
+25) The Atari screen should read "DEBUG".  Type "C6003_<1,0".
+_.S
+26) The screen will say "DEBUG" again.  Type "G6000."
+_.s
+27) Run TN20 and transfer the [name-of-game].PUR file.
+_.s
+28) Once again, a line of A's should appear on the Atari monitor.  The
+[game].PUR file should take about 15 minutes to transfer.
+_.s
+29) The game disk(s) should now be complete. Remove the Assembler/Editor
+cartridge from the CPU, and boot the disk(s).  When the game cursor
+appears, type "$verify" to make sure that the game transferred correctly.
+_.s 3
+FOOTNOTE 1:  If the disk drive fails to run after Step 9, or if you get
+a long error message after Step 15, it may be because the MEM.SAV file
+has been somehow deleted from the Utilities disk. Reboot the Utilities
+disk, go to the DOS menu of options, and type "N".  Answer the next
+question by typing "Y". When you are prompted again, start the copy
+procedure over again from Step 1.
+.sp 1;.s 1;.sp 2;_.pg
+_.c_;COPYING ATARI DISKS
+_.s
+1) Put the disk labelled "Atari RZUTIL" in the top disk drive.  Make sure that
+the drives are both plugged in and powered on, and then turn on the CPU.
+_.s
+2) The screen will display a menu of two options.  Type "D".
+_.s
+3) Place the disk to be copied in the bottom drive.
+_.s
+4) Place a blank disk in the top drive.
+_.s
+5) Hit RETURN.  Wait a while.  Check to make sure the new copy is okay.
+_.s
+6) If the copy procedure isn't working, turn off the Atari.  Go away for an
+hour.  Come back and try again.
+.sp 1;.s 1;.sp 2;_.pg
+_.C_;HOW TO BOOT DISKS ON THE ATARI-800
+_.s
+1) Turn on the Atari monitor and the top disk drive, labelled 'Drive 1'.
+_.s
+2) When the drive has stopped running, put the disk in the drive, with
+the label facing up and the oval cutout toward the rear. (You'll know
+when the drive has stopped running because it will stop making noise. 
+Also, the active light, the upper of the two small red lights, will go
+off).
+_.s
+3) Close the drive door.
+_.s
+4) Turn on the CPU. The on-off switch is on the right side of the CPU.
+The CPU cartrdige hatch must also be closed for the CPU to activate.
+_.s
+5) The game should appear in about 30 seconds. If it is a two-disk game,
+you be instructed when to insert the second disk. Always wait until the
+drive stops running before you remove or insert a disk.
+.br;.j;.ts 10,18,26,34,42,50,58,66,74,82;.sp 1;

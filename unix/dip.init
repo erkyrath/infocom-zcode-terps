@@ -1,0 +1,328 @@
+
+ZIPINT ibase;		/* word ptr to image file */
+
+/************************************************************************
+*									*
+*	M A I N   P R O G R A M   A N D   I N I T S			*
+*									*
+************************************************************************/
+
+main(argc,argv)  
+int argc; char **argv; 
+{
+    char *datname, *init();
+
+    md_setup();		/* do machine dependent inits */
+
+    if (datname = init(argc,argv)) THEN	/* get command line stuff */
+      gamfile = datname;
+
+    sysini();		/* do system initialization */
+    memini();		/* setup memory, preload, and paging */
+    zipini();		/* setup zip header info and table pointers */
+
+    do {		/* main loop */
+#if _DEBUG
+      if (debug) THEN debugger();
+      else
+#endif
+	nxtins();
+    }
+    while (quit == 0);	/* (not optimal speedwise, but structured) */
+
+    z_exit();
+}
+
+char *init(argc,argv) 
+int argc;
+char **argv;
+{  /* Init processes command line parameters, figures the dat file name to use,
+      and sets up the debugger if requested */
+
+    char *prog, *s, *datfile = 0, *ext = ".dat";
+    short i, locmem = 0;
+#if _DEBUG
+    char str[10], *tstr;
+    int op;
+    FILE *opchnfp; 
+#endif
+
+    prog = argv[0];
+    while (--argc) {
+      if ((*++argv)[0] == '-') {
+	for (s = &((*argv)[1]); *s; s++) {
+	  switch (lc(*s)) {
+#if _DEBUG
+	    case 'd': {			/* turn on debugger */
+		debug = ON | VERBOSE; 
+		for (i = 0; i <= 255; i++) {
+		  ins_tbl[i].brkflg = 0;
+		  ins_tbl[i].opstr = opstrs[0];
+		  }
+		opchnfp = fopen("ops.dat", "r");
+		while (fscanf(opchnfp, "%s %d", str, &op) != EOF) {
+		  i = 0;
+		  tstr = str;
+		  while (*tstr) 
+		    opstrs[op][i++] = *tstr++;
+		  ins_tbl[op].opstr = opstrs[op];
+		  }
+		fclose(opchnfp);
+		break;
+	   	} 
+#endif
+	    case 'k': {			/* max dataspace request, in K */
+		s++;
+		while (*s) {
+		  locmem *= 10;		/* make a decimal number */
+		  locmem += *s - '0';	/* asciify string */
+		  s++;			/* advance pointer */
+		  }
+		s--;			/* back up one */
+		break;
+		}
+	    case 'g': {			/* game file to use */
+		datfile = (s+1);
+		while (*(s+1)) s++;	/* skip rest of arg */
+		break;
+		}
+	    default : printf("\nUnknown switch: %c\n", lc(*s)); break;
+	    }					/* end of switch */
+	  }					/* end of for loop */
+	}					/* end of if loop */
+      }						/* end of while loop */
+    if (locmem) THEN
+      memreq = locmem << 1;		/* convert k to blocks */
+    else memreq = 0;			/* otherwise use default */
+
+    if (datfile == 0) THEN {
+      s = prog;				/* get program name */
+      i = 0;
+      while (*s) 
+	gamfbuf[i++] = *s++;
+      s = ext;
+      while (*s)
+	gamfbuf[i++] = *s++;		/* add on ".dat" */
+      datfile = gamfbuf;
+      }
+    return(datfile);
+}
+
+sysini()
+{   /*  Sysini opens the data file, saves away the name as the default save
+	name, and determines total available memory.
+    */
+    char *d, *s, *ext = ".sav";
+    int memavail;
+
+    if ((gamechn = open(gamfile, RDONLY)) < 0) THEN {
+      printf("Failed to open game file -- %s", gamfile);
+      fatal("Sysini");
+      }
+    s = gamfile;
+    d = savfile;
+    while (*s != PERIOD)
+      *d++ = *s++;			/* copy game file name */
+    s = ext;
+    while (*d++ = *s++);		/* add .SAV extension */
+
+    memavail = md_alloc(-1) >> CVTBLK;	/* blocks available */
+    memavail &= ~BIT16;			/* make sure it's unsigned */
+
+/* adjust memreq so it doesn't exceed memory available */
+
+    if (memreq > memavail) THEN		/* user wanted too much, limit it */
+      memreq = memavail;
+    if (!memreq) THEN			/* default, ask for memavail */
+      memreq = memavail;
+
+/* [find a better place for these inits?] */
+
+    endbuf = outbuf + scrwid();		/* determine output buffer width */
+    p_endbuf = p_outbuf + PIPEWIDTH;	/* and pipe width */
+}
+
+memini()
+{ /*	This routine compares memreq with ENDLOD and PLENTH (for combined
+	game/picture files).  It determines how much dataspace to allocate,
+	and does so.  It determines how much data to preload, and does so.
+	It initializes paging in the space remaining.
+  */
+    ZIPINT maxlod,
+      iendld,		/* word ptr to image endlod (relative to ibase) */
+      ilenth;		/* length of image file (in words) */
+    short i;
+    char buffer[BLKSIZ],	/* temp space for a block */
+      *md_alloc();
+
+/*  Read the first game block into a temporary buffer, then the first
+    picture block.  We temporarily set dataspace to point to this buffer, 
+    so that the GTV macros work.  
+*/
+    dataspace = buffer;
+    getblk(0, buffer)			/* get first game block */
+
+    ibase = GTVWRD(PLENTH) + IFUDGE;	/* picture file starts here */
+    bsplit(ibase);
+    getblk(zblk, buffer)		/* get first picture block */
+
+/*  (IENDLD) may be set incorrectly to zero in some test programs.
+    It could be reconstructed by adding up IHEAD + 2(IBSETS) + 2(IICONS).
+    In other words, must preload through the two tables which get 
+    patched later.
+
+    >>> Careful, may cross a block boundary? <<<
+*/
+    iendld = GTVWRD(zoff + IENDLD);
+    ilenth = GTVWRD(zoff + ILENTH);
+
+/*  To simplify virtual memory management, the entire code file is always
+    preloaded.  The picture file (generally much bigger) is preloaded 
+    entirely if it fits, or through iendld otherwise.
+*/
+    endlod = ibase + iendld;		/* total preload, in words */
+    if (endlod & 0xFF) THEN
+      endlod += BLKSIZ/2;		/* round up to next block */
+    endlod >>= CVTBLK-1;		/* convert to blocks */
+
+    maxlod = ibase + ilenth;		/* total length, in words */
+    if (maxlod & 0xFF) THEN
+      maxlod += BLKSIZ/2;		/* round up to next block */
+    maxlod >>= CVTBLK-1;		/* convert to blocks */
+
+/*  Note that our paging scheme normally requires a minimum of 2 pages in 
+    the chain, one for the current code page (always locked), and a second 
+    for roving pointers.
+
+    Exceptions: When all pages are preloaded, paging is never called and 
+    no chain at all is required.  In the freak case where only one page is 
+    not preloaded, the "chain" also needs only one page.  Thus, an array 
+    of exactly MAXBLKS paging structures is the most ever required.
+*/
+    if (memreq < endlod + 2) THEN
+      fatal("Insufficient memory for preload");
+
+    if (memreq >= maxlod) THEN {  /* mucho memory, take advantage */
+      endlod = maxlod;		/* hack endlod to force total preload */
+      memreq = maxlod;		/* reduce memreq to max needed */
+      }
+
+/*  Allocate all needed memory, re-init dataspace, and load preload */
+
+    if ((dataspace = md_alloc(memreq * BLKSIZ)) == NULL) THEN {
+      printf("Unable to allocate %d", memreq, "blocks");
+      fatal("Memory allocation error");
+      }
+    getpre(0, endlod);			/* read in preload data */
+
+/*  Currently, an array of blkdescs and a pagemap are declared statically
+    [0..255].  Should allocate space dynamically for [endlod..memreq-1] only 
+    (number of physical buffers), and a pagemap array for [0..maxlod-1] only
+    (number of actual pages).
+
+    IDEA:  call getpre(endlod, memreq) to "prime" the page buffers, and 
+    mark each pagedesc and pagemap appropriately.
+*/
+
+    if (endlod < maxlod) THEN {		/* if total preload, just skip */
+
+      for (i = 0; i < MAXBLKS; i++)
+        pagemap[i] = NOT_IN_CORE;	/* no paged pages in core, yet */
+
+      for (i = endlod; i < memreq; i++) {
+        pagedesc[i].next = &pagedesc[i+1];	/* setup pointer chain */
+        pagedesc[i].prev = &pagedesc[i-1];
+        pagedesc[i].loc = ((char *)(dataspace + (i * BLKSIZ)));
+        pagedesc[i].vpage = NO_PAGE;
+        }
+      i = memreq - 1;
+      pagedesc[i].next = &pagedesc[endlod];	/* make the list circular */
+      pagedesc[endlod].prev = &pagedesc[i];	/* excluding pre and extra */
+      mru = &pagedesc[i];			/* init mru to last page */
+      }
+}
+
+zipini()
+{ /*	ZIPINI initializes the ZIL world's link to the interpreter.  Pointers
+	to global tables are setup.  Interpreter capabilities are setup also.
+
+	(EZIP -- set interpreter id and version)
+  */
+    int i;
+    char *ptr;
+
+    if (GTVBYT(PVERS1) != ZMVERS) THEN	/* check z-machine */
+      fatal("Wrong Z-Machine version");
+    if (GTVBYT(PVERS2) & 1) THEN	/* check for byte swapped file */
+      fatal("Byte swapped game file");
+    
+    zorkid = GTVWRD(PZRKID);		/* get game id */
+    glotab = GTVWRD(PGLOTB) << 1;	/* get globals base, make byte ptr */
+
+/*  Impure code, for save/restore purposes, is ONLY in the code file. 
+    The picture tables need only be patched once at startup, below.
+*/
+    purbot = GTVWRD(PPURBT) << 1;	/* get purbot base, make byte ptr */
+    if (purbot & BYTEBITS) THEN 
+      purbot += BLKSIZ;			/* round up to next block */
+    purbot >>= CVTBLK;			/* convert to blocks */
+    
+/*  Calculate the values (but wait until restart() to set them) for the 
+    first four DIP globals, using the Picture File header data, which was
+    already preloaded.
+*/
+    nbsets = GTVBYT((ibase << 1) + IBSETS);
+    nicons = GTVBYT((ibase << 1) + IICONS);
+    btable = ibase + (IHEAD/2);		/* bset table, word ptr */
+    itable = btable + nbsets;		/* icon table, word ptr */
+
+/* Patch (relativize) all entries in the two Picture File tables. */
+
+    ptr = (btable << 1) + dataspace;
+    for (i=0; i<nbsets; i++) {
+      PTAWRD(ptr, GTAWRD(ptr) + ibase);
+      ptr += 2;
+      }
+
+    ptr = (itable << 1) + dataspace;
+    for (i=0; i<nicons; i++) {
+      PTAWRD(ptr, GTAWRD(ptr) + ibase);
+      ptr += 2;
+      }
+
+    mtime();				/* set up random seeds */
+    restart(ZFALSE);			/* continue ... */
+}
+
+restart(midgame)
+int midgame;				/* FALSE if called from zipini() */
+{
+  /*	Restart (also called by ZIPINI) reloads preload code, saves any flags
+	that would be wiped out by the reload, and jumps to the game entry
+	point.  (EZIP add in appropriate low memory settings.)
+  */
+
+    if (midgame) THEN			/* reload preload, jim */
+      getpre(0, endlod);
+
+/* Initialize the first four DIP globals (Picture File info) */
+
+    putvar(16, nbsets);
+    putvar(17, btable);
+    putvar(18, nicons);
+    putvar(19, itable);
+
+    cls();
+    locate(25,1);
+
+    zsp = zstack + LSTACK;	/* setup stack pointers */
+    ssp = sstack + STKLEN;
+    zlocs = zsp - zstack;	/* make a locals pointer */
+    zlocs--;	 		/* to next stack slot */
+
+    bsplit(GTVWRD(PSTART));	/* get starting address (word ptr) */
+    zpc1 = zblk;
+    zpc2 = zoff + 1;		/* but always start on next ODD byte */
+    newzpc()
+}
+

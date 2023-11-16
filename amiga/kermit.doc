@@ -1,0 +1,265 @@
+INTRODUCTION
+
+This version of Amiga Kermit is a port of the Unix C-Kermit which attempts
+to reproduce as much of the functionality of Unix version as possible.  I
+had two main goals in porting C-Kermit:  I wanted a reliable remote file
+transfer utility, and I wanted to investigate the use of the AmigaDOS
+and Exec environments, hopefully adding to level of publicly held Amiga
+programming knowledge.
+
+Amiga Kermit currently provides a line oriented user interface.  I am not
+a mouse and menu fanatic, but I have seen many programs which have been
+considerably enhanced by their use.  There are several places in Kermit
+where a menu interface would be an asset.  However, in this version of
+Kermit, I have concentrated on the functional aspects.
+
+As I have stated before, this is a port of the Unix C-Kermit.  The file
+ckuker.doc contains detailed documentation on the use of C-Kermit, and
+Kermit's internal help can be used as a reference too.  The main
+difference between this version and the Unix C-Kermit is that the DIAL
+and SCRIPT commands are as yet unimplemented.  Therefore, only Amiga
+specific features are noted below.
+
+INVOKING C-KERMIT
+
+Amiga Kermit is usually invoked from a CLI process.  Currently unresolved
+problems will cause it to crash under the Workbench, see ckiker.bwr for
+details.  From a CLI window, you generally enter:
+   KERMIT
+or
+   RUN KERMIT
+to execute Kermit and start up the Kermit command interpreter.  Kermit
+will create its own window and greet you with:
+
+   C-Kermit, 4D(060) 18 Apr 86, Commodore Amiga
+   Type ? for help
+
+   C-Kermit>
+
+The cursor will appear following the C-Kermit> prompt.  Typing ? will
+produce a list of the items that can be entered at any point.  Typing ?
+here will produce a list of commands:
+
+   C-Kermit>? Command, one of the following:
+    !                  bye                close              connect
+    cwd                dial               directory          echo
+    exit               finish             get                help
+    log                quit               receive            remote
+    script             send               server             set
+    show               space              statistics         take
+
+Typing ? at various points during command entry will help you navigate
+through the command processor.  The 'help' command is also quite useful.
+Typing 'help' alone gets information about command entry:
+
+   C-Kermit>help
+
+   Type ? for a list of commands, type 'help x' for any command x.
+   While typing commands, use the following special characters:
+
+    DEL, RUBOUT, BACKSPACE, CTRL-H: Delete the most recent character typed.
+    CTRL-W: Delete the most recent word typed.
+    CTRL-U: Delete the current line.
+    CTRL-R: Redisplay the current line.
+    ?       (question mark) display help on the current command or field.
+    ESC     (Escape or Altmode) Attempt to complete the current field.
+    \       (backslash) include the following character literally.
+
+   From system level, type 'kermit -h' to get help about command line args.
+
+but 'help' can be used with command lines to get command descriptions.  For
+example:
+
+   C-Kermit>help bye
+   Shut down and log out a remote Kermit server
+
+The Kermit command processor is normally exited with the 'QUIT' command.
+During Kermit protocol, you can type CTRL-C or CTRL-D to interrupt and
+exit Kermit.  Depending on the version of the C runtime libraries used
+to link Kermit, the interrupt may also be active during command input, but
+it is disabled during connect mode.  You will get a requestor when the
+interrupt is activated to allow you to choose to continue Kermit.  However,
+any serial read or write that was interrupted will still be aborted.
+
+Kermit can also be used without the command processor by specifying an
+action on the command line.  You can enter 'kermit -h' at the CLI prompt
+to get a list of command line options.  However, unless input is redirected,
+or the -q (quiet) option is specified, Kermit will still create a window
+for protocol monitoring and interruption.  'KERMIT <*' can be used to
+run Kermit completely within the CLI window; however, this does not allow
+you to enter control characters, and no console input is seen until you
+enter return.  Input and output can be redirected to files to take advantage
+of C-Kermit command line file transfer options.  Unfortunately, AmigaDOS
+does not implement pipes (yet).
+
+KERMIT SERIAL INITIALIZATION AND SETTINGS
+
+Amiga Kermit uses the serial device.  Three sources are used to initialize
+the serial parameters.  First, the default serial configuration, as set by
+Preferences, is copied.  This includes baud rate, and under version 1.2 of
+the Workbench, parity, modem control (7-wire vs. 3-wire), and flow control.
+Second, command line parameters can be used to override these settings.
+For example:
+   kermit -b 1200 -p e
+can be used to select 1200 baud and even parity independently of the
+Preferences settings.  Finally, if the command processor is used, Kermit
+looks for a ".kermrc" initialization file, first in the "s:" directory, then
+in the current directory, providing that the disk containing each directory
+is present in the Amiga.  The ".kermrc" file contains C-Kermit commands
+which can be used to initialize the C-Kermit environment as desired.
+
+Amiga Kermit has certain peculiarities about its settings.  The line is
+always 'serial.device', the name of the device driver being used, and Kermit
+will not allow you to 'SET LINE' to anything else.  The modem control mode
+is currently selected by 'SET MODEM type', which has two choices: 'DIRECT',
+for 3-wire control, and 'GENERIC', for 7-wire control.  Because of the way
+the serial device operates, this setting only has an effect when the serial
+device is opened after previously being closed, which occurs only when
+Kermit starts or after '<escape>H' is used to hang up and exit connect mode.
+
+Kermit allows you to set any baud rate between 110 and 292000 baud; however,
+it will complain if the baud rate is nonstandard (I added this feature after
+several attempts to use my modem at 12000 baud).  Rates of 110 and 111 baud
+are implemented as 112 baud.  Extremely high baud rates are of limited
+utility.  Rates above 38400 baud can be used for connect mode, but they
+result in high error retry rates during data packet transfer and require
+good cabling (plus who can you talk to at 57600 baud?).  Because
+of protocol overhead, 38400 baud between two Amigas will get an effective
+transfer rate of less than 6000 baud (still two times faster than a 1541
+disk drive).  Also, if a break is sent looped back to the Amiga while
+the serial device is set to a very high baud rate (>100K baud), the Amiga
+will hang up, apparently overwhelmed by framing errors.
+
+Amiga Kermit uses the serial device in shared mode.  This allows other
+programs, like dialers, to use the serial line at the same time, without
+exiting Kermit.  However, to avoid confusion, Kermit should not be in
+connect, server, or file transfer mode while another program is active.
+Note that Kermit always does its own parity generation and stripping, so
+it always sets the serial device to use eight bit characters with no parity.
+
+WILDCARDING
+
+Both the SEND command invoked from the Amiga and a GET sent to an Amiga
+in server mode use allow wildcarding, but in the Unix style.  Thus, '*'
+wildcard matches an arbitrary string while '?' matches an arbitrary
+character.  Therefore, to get all the C source files which begin with 'cki'
+from the Amiga server, you could use the command:
+
+   C-Kermit>GET cki*.c
+
+Multiple '*' wildcards can be used in a pattern; however, beware that
+most Unix C-Kermit's may not completely support this form.  Also, the
+wildcarding that is used in local and remote server commands that invoke
+AmigaDOS commands is the AmigaDOS form.
+
+LOCAL AND REMOTE COMMANDS
+
+Amiga Kermit provides several ways to invoke AmigaDOS commands from within
+Kermit.  Entering '!' at the Kermit prompt will create a CLI process running
+in its own window, and wait for it to terminate.  The form '! command' will
+invoke the given command command with its output going to Kermit's window.
+However, there is currently no way to pause the output of commands invoked
+this way, other than the stopgap use of the right mouse button.  The form
+'REMOTE HOST command' can be sent to the Amiga server to execute the given
+command remotely on the Amiga.  There is also no input stream available for
+commands invoked in either the '! command' or 'REMOTE HOST command' forms,
+which can cause problems with some commands that expect input.
+
+In addition to the methods given above, various AmigaDOS commands are
+invoked by local Kermit commands, and generic remote commands.  These
+are listed below:
+
+   AmigaDOS command    Local command      Remote generic command
+   DELETE files        --none--           REMOTE DELETE files
+   TYPE files          --none--           REMOTE TYPE files
+   INFO                SPACE              REMOTE SPACE
+   LIST obj            DIRECTORY obj      REMOTE DIRECTORY
+   STATUS              --none--           REMOTE WHO
+
+Any parameters to these commands are expected to use AmigaDOS conventions,
+including AmigaDOS wildcarding.  Note that in order to pass a '?' through
+the C-Kermit command processor, it must be prefixed with a '\'.
+
+You can change the current directory of the Kermit process locally with the
+CWD command and remotely with REMOTE CWD.  The local CWD command prints
+out the name of the current directory afterwards.  If no new directory
+is given, the current directory is not changed, so CWD alone can be used
+to determine where the current directory is.
+
+SERVER MODE
+
+Amiga Kermit completely implements server mode, including the ability
+to execute CLI commands remotely.  Currently CLI commands are executed
+with their standard output directed to RAM:PIPE-HOLDER, which is then
+written back to the commanding Kermit after the command completes.
+
+There are a few limitations on the commands that can be executed remotely.
+First of all, if they produce voluminous output, the output should be
+redirected (redirection is supported on the REMOTE HOST command line)
+to avoid using all free memory for the output file.  However, the 
+commanding Kermit will probably timeout in the middle of the execution
+of any such command.  The best way to use these commands is to
+   REMOTE HOST RUN command >outfile parameters
+then use REMOTE WHO (which invokes STATUS) to monitor the command for
+completion.
+
+The input stream for remote commands is NIL:, which is not handled
+intelligently by all Amiga commands.  For example, 'REMOTE HOST diskcopy
+df0: to df1:' hangs indefinitely while waiting for NIL: to press return.
+Finally, since each command is executed in a separate CLI, commands that
+set unshared process parameters, like 'cd',  will have null effect (but
+'REMOTE CWD dir' can be used instead).
+
+While server mode is active, AmigaDOS requestors are disabled.  This
+avoids requiring operator intervention to reset a requestore when the Amiga
+server is told to use a file on a disk that does not exist or is write
+protected.  However, disabled requestors are currently not inherited by the
+CLI processes that the server creates to execute remote commands.
+Therefore, a remote AmigaDOS command can still cause the server to become
+hung.
+
+To shut down the Amiga server, enter BYE or FINISH at the commanding
+Kermit.  FINISH exits to whatever level the server was invoked from,
+while BYE exits Amiga Kermit altogether.
+
+CONNECT MODE
+
+Connect mode on Amiga Kermit currently provides you with a 23 line by
+77 column screen.  The Amiga console device is used to provide almost
+ANSI terminal emulation.  While you are in connect mode, you can give
+single character commands which are prefixed by an escape character
+which can be set from within C-Kermit.  By default, the escape
+character is CTRL-\.  You can use '<escape>H' to close the serial device
+and exit connect mode, which makes the DTR line drop causing most modems
+to hang up the phone line.
+
+In addition to the standard connect mode commands, extra logging control
+has been added.  If a session log file is open, the '<escape>Q' sequence
+allows you to temporarily suspend logging.  The '<escape>R' sequence
+resumes logging if it has been suspended.
+
+Features have also been added to prevent deadlocks while in connect mode
+due to spurious XOFF's or bad modem control line states.  When connect
+mode is unable to send serial output, keyboard characters are queued until
+they can be transmitted.  Queuing continues as long as space is available
+in the output buffer.  If the buffer, which is 64 characters long, fills up,
+the next keyboard input is discarded and the display 'beeps'.  To get out
+of a deadlock situation, you can either exit connect mode, or send a break.
+In either case, the output queue is flushed, and current serial output
+character is given one second to finish transmitting.  If it does not
+complete, the output is aborted, and XOFF mode reset as appropriate.  Then
+connect mode is exited or a break is sent, as specified.  When output
+characters are queued, connect status (accessed by '<escape>S') will
+indicate the number of queued output characters.
+
+
+I hope that you find Kermit a useful.  If you have problems or suggestions
+related to Amiga Kermit, please contact me at the address below.  I will
+be continuing to enhance Amiga Kermit, so new versions will be available
+from time to time.
+
+Jack J. Rouse
+106 Rubin Ct. Apt. A4
+Cary, NC 27511
+(919) 467-8000 (work)
+(919) 481-1395 (home)

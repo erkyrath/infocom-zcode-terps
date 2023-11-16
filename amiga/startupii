@@ -1,0 +1,23 @@
+resident c:Resident pure
+resident c:List pure ;pre-load LIST and CD
+resident c:CD pure
+resident c:Mount pure ;the next 3 are loaded for speed during startup
+resident c:Assign pure
+resident c:Makedir pure  
+;make IF, ENDIF, ELSE, SKIP, ENDSKIP, and ECHO resident if
+;you use scripts much, and can afford the ram.
+;also make Failat, WAIT, and ENDCLI resident if you use IconX a lot
+makedir ram:t
+assign T: ram:t ;set up T: directory for scripts
+makedir ram:env ; set up ENV: directory
+assign ENV: ram:env
+makedir ram:clipboards ;set up CLIPS: assign
+assign CLIPS: ram:clipboards
+mount speak: ;just mounting doesn't take much ram at all
+mount aux:
+mount pipe:
+resident Mount remove ;if you have enough ram, keep these resident
+resident Assign remove  ;by removing these lines
+resident Makedir remove
+;
+break 1 C ;signal to other process its ok to finish

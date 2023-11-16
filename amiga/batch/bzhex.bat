@@ -1,0 +1,1 @@
+convert < zip.ld > zip.hex

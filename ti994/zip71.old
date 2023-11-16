@@ -1,0 +1,290 @@
+* FILE ZIP71-ASM        (REF 90/91,40,60,80)
+
+********************************************************
+* INITIALIZATIONS                                      *
+********************************************************
+
+        RORG
+        DEF  START,RESTRT,BUFFER
+        DEF  
+
+
+
+        REF  PABPTR,OPNFIL,GTBLKS,FATAL
+        REF  OUTBUF,ENDBUF,CHRPTR
+        REF  BSPLTB
+        REF  NEWZPC
+
+*-------------------------------------------------------
+
+PVERS1  EQU  0       ZVERSION VERSION BYTE
+PVERS2  EQU  1       ZVERSION MODE BYTE
+PZRKID  EQU  2       ZORKID
+PENDLD  EQU  4       END OF CODE WHICH (MUST) PRELOAD
+PSTART  EQU  6       LOCATION WHERE GAME EXECUTION BEGINS
+PVOCTB  EQU  8       POINTS TO VOCAB TABLE
+POBJTB  EQU  10      POINTS TO OBJECT TABLE
+PGLOTB  EQU  12      POINTS TO GLOBAL VARIABLE TABLE
+PPURBT  EQU  14      BEGINNING OF PURE GAME CODE
+
+PFLAGS  EQU  16      16 GAME-SETTABLE FLAGS
+PSERNM  EQU  18      SERIAL NUMBER (6 BYTES)
+PWRDTB  EQU  24      POINTS TO FWORDS TABLE
+
+PLENTH  EQU  26      LENGTH OF PROGRAM (IN WORDS)
+PCHKSM  EQU  28      CHECKSUM (ALL BYTES STARTING AT 64)
+
+*--------------------
+
+TWIDTH  EQU  32      LENGTH OF OUTBUF
+ZMVERS  EQU  3       Z-MACHINE VERSION NUMBER
+
+LGSTK   EQU  510     LENGTH OF GAME STACK (ONE PAGE, LESS 2)
+LZSTK   EQU  1024    LENGTH OF ZIP STACK (TWO PAGES)
+LPAGES  EQU  2*10    NUMBER OF PAGES (IN VDP)
+
+LXBYTS  EQU  LPAGES*4+TWIDTH+2+LZSTK
+
+TOPSP   EQU  >FFD6   TOP OF ZIP STACK (AND MEMORY)
+STKTOP  EQU  >3F30   TOP OF GAME STACK (ABOVE DEBUG FOR NOW)
+STKBOT  EQU  STKTOP-LGSTK
+
+BUFFER  EQU  >D000   (ZIP = 12K FOR NOW)
+
+IRBRKS  BYTE 32,9,13,12      INITIAL SET OF "READ BREAK" CHARS
+        BYTE 46,44,63,0      < >,TAB,CR,FF,<.>,<,>,<?>
+
+*----------------------------
+
+* NUMBER OF GAME BLOCKS IN CORE
+TOPLOD  DATA 0       (= NO. OF FIRST BLOCK THAT ISN'T)
+
+ZORKID  DATA 0       UNIQUE GAME AND VERSION IDENTIFIER
+ENDLOD  DATA 0       NUMBER OF (BLOCK AFTER) ENDLOD
+PURBOT  DATA 0       END OF IMPURE CODE (USED BY SAVE/RES)
+
+VOCTAB  DATA 0       VOCAB TABLE POINTER
+OBJTAB  DATA 0       OBJECT TABLE POINTER
+GLOTAB  DATA 0       GLOBALS TABLE POINTER
+WRDTAB  DATA 0       WORD TABLE POINTER
+
+RBRKS   DATA 0       PTR TO STRING OF "READ BREAK" CHARS
+ESIBKS  DATA 0       END OF SELF-INSERTING BREAK CHARS
+VWLEN   BYTE 0,0     # BYTES IN A VOCAB WORD ENTRY (HIGH BYTE)
+VWORDS  DATA 0       NUMBER OF VOCAB WORD ENTRIES
+VOCBEG  DATA 0       START OF ACTUAL VOCABULARY
+
+PAGTAB  DATA 0       PAGE INFORMATION TABLE
+PAGES   DATA 0       PAGES THEMSELVES (IN VDP)
+
+RSEED   DATA 0       SEED FOR RANDOM NUMBERS
+ZLOCS   DATA 0       POINTER TO LOCAL VARIABLES
+ZPC1    DATA 0       ZPC BLOCK POINTER
+ZPC2    DATA 0       ZPC BYTE POINTER
+
+*-----------------------------------------------------------
+
+START   LI   R6,TOPSP
+        LI   R5,STKTOP       INITIALIZE THE STACKS
+
+        LI   R4,GAMPAB+9
+        MOV  R4,@PABPTR      POINT TO GAME FILE - NAM LEN SLOT
+        BL   @JSR
+        DATA  OPNFIL         OPEN THE GAME FILE
+*----------------------------
+        LI   R8,BUFFER       BYTES USED BY ZIP, ETC
+        AI   R8,LXBYTS
+        MOV  R6,R2           HIGHEST AVAILABLE MEMORY
+        S    R8,R2           BYTES AVAILABLE FOR PRELOADED CODE
+
+        SRL  R2,9            CONVERT TO BLOCKS
+        MOV  R2,@TOPLOD      SAVE (USED BY PAGING AND FETCHES)
+
+        SLA  R2,1            CONVERT TO RECORDS
+        INC  R2              ADJUST FOR TI-99 (EXTRA FRACTION)
+        LI   R1,BUFFER       CORE TARGET
+        CLR  R0              START WITH FIRST RECORD
+
+        MOV  R4,@PABPTR
+        BL   @JSR
+        DATA  GTBLKS         FILL CORE WITH LOW GAME CODE
+
+*----------------------------
+        LI   R1,BUFFER       (INDEX REG, START OF GAME CODE)
+
+        LI   R8,ZMVERS       ZIP Z-MACHINE VERSION
+        SWPB R8
+        CB   @PVERS1(R1),R8  PROPER Z-MACHINE VERSION?
+        JNE  X705            NO
+
+        LI   R8,1
+        MOV  @PVERS1(R1),R0  GET THE MODE BYTE
+        CZC  R8,R0           TEST BIT 0 (DEFINES BYTE ORDER)
+        JEQ  X710            OK, 0 MEANS WORDS ARE MS BYTE FIRST
+
+X705    BL   @JSR
+        DATA  FATAL          SOMETHING WRONG, DIE
+        TEXT 'WRONG GAME VERSION'
+        BYTE 0
+        EVEN
+*----------------------------
+
+X710    MOV  @PENDLD(R1),R0  GET ENDLOD (RELATIVE) ADDR
+        LI   R8,>01FF
+        CZC  R8,R0           DOES IT BEGIN A BLOCK?
+        JEQ  X711            YES
+
+        SZC  R8,R0           ROUND UP TO NEXT BLOCK
+        AI   R0,>0200
+
+X711    SRL  R0,9            EXTRACT ENDLOD BLOCK NUMBER
+        MOV  R0,@ENDLOD      SAVE IT
+
+        C    R0,@TOPLOD      WAS THERE ENOUGH CORE SPACE?
+        JLT  X712            YES
+
+        BL   @JSR            NO
+        DATA  FATAL
+        TEXT 'INSUFFICIENT CORE FOR ENDLOD'
+        BYTE 0
+        EVEN
+*----------------------------
+X712    MOV  @PZRKID(R1),R0
+        MOV  R0,@ZORKID      (USED BY SAVE/RESTORE)
+
+        MOV  @PVOCTB(R1),R0  GET VOCAB TABLE (REL) ADDR
+        A    R1,R0           ABSOLUTIZE
+        MOV  R0,@VOCTAB      SAVE IT
+
+        MOV  @POBJTB(R1),R0  GET OBJECT TABLE ADDR
+        A    R1,R0
+        MOV  R0,@OBJTAB
+
+        MOV  @PGLOTB(R1),R0  GET GLOBALS TABLE ADDR
+        A    R1,R0
+        MOV  R0,@GLOTAB
+
+        MOV  @PWRDTB(R1),R0  GET WORD TABLE ADDR
+        A    R1,R0
+        MOV  R0,@WRDTAB
+*----------------------------
+        MOV  @PPURBT(R1),R0  GET PURBOT (RELATIVE) ADDR
+        LI   R8,>01FF
+        CZC  R8,R0           DOES IT BEGIN A BLOCK?
+        JEQ  X712            YES
+
+        SZC  R8,R0           ROUND UP TO NEXT BLOCK
+        AI   R0,>0200
+
+X712    SRL  R0,9            EXTRACT PURBOT BLOCK NUMBER
+        MOV  R0,@PURBOT      SAVE IT
+*----------------------------
+
+        MOV  @TOPLOD,R0
+        SLA  R0,9            FIRST FREE ADDR AFTER GAME CODE
+        AI   R0,BUFFER       RELATIVIZE
+
+        MOV  R0,@OUTBUF      START OF OUTPUT BUFFER
+        AI   R0,TWIDTH
+        MOV  R0,@ENDBUF      END OF OUTPUT BUFFER
+        CLR  *R0+            FOLLOW WITH 0 FOR CONVENIENCE
+
+        MOV  R0,@RBRKS       START OF "READ BREAKS" LIST
+        MOV  @VOCTAB,R2      VOCAB TABLE,
+        MOVB *R2+,R1         FIRST BYTE IS # OF SI BREAKS
+        SWPB R1
+        ANDI R1,>00FF        COUNT IN R1 LOW
+
+X713    MOVB *R2+,*R0+       TRANSFER THEM
+        DEC  R1              DONE?
+        JNE  X713
+        MOV  R0,@ESIBKS      REMEMBER END OF SI BREAKS
+        
+        LI   R1,IRBRKS       ALWAYS END WITH INITIAL BREAKS
+X714    MOVB *R1+,*R0+       TRANSFER THEM
+        JNE  X714            (STRING ENDS WITH ZERO BYTE)
+*----------------------------
+        CLR  R8
+        MOVB *R2+,R8         # BYTES PER VOCAB WORD
+        SWPB R8
+        MOV  R8,@VWLEN
+
+        LI   R1,VWORDS       NUMBER OF VOCAB WORDS IN TABLE
+        MOVB *R2+,*R1+       SAVE IT (WORD)
+        MOVB *R2+,*R1+
+
+        MOV  R2,@VOCBEG      IT'S THE START OF ACTUAL VOCAB
+*----------------------------
+        LI   R8,>0001
+        CZC  R8,R0           MAKE PAGES START AT WORD BOUNDARY
+        JEQ  X715            IT ALREADY IS
+        INC  R0
+
+X715    MOV  R0,@PAGTAB      TABLE STARTS HERE
+
+        LI   R1,LPAGES
+        SLA  R1,2            SIZE OF PAGE TABLE
+        A    R0,R1           TABLE ENDS HERE
+
+        LI   R8,-1
+        MOV  R8,*R1          MARK END OF TABLE
+
+        LI   R8,>00FE
+X716    MOV  R8,*R0+         INITIALIZE TABLE
+        CLR  *R0+
+        C    R0,R1           LOOP UNTIL FULL
+        JNE  X716
+
+        BL   @JSR
+        DATA  INFORM         PROMPT FOR A KEYSTROKE
+        TEXT 'STRIKE ANY KEY'
+        BYTE 0
+        EVEN
+
+        BL   @JSR
+        DATA  INCHR          CREATE A RANDOM NUMBER
+        MOV  R9,@RSEED       SAVE IT
+
+        JMP  START1
+
+* RESTART EXECUTION HERE
+
+RESTRT  CLR  R0              START WITH RECORD 0
+        LI   R1,BUFFER       CORE TARGET
+
+        MOV  @PURBOT,R2      CONVERT TO RECORD COUNT
+        SLA  R2,1
+        INC  R2              ADJUST FOR TI-99
+
+        LI   R8,GAMPAB+9
+        MOV  R8,@PABPTR      SET UP GTBLKS
+
+        BL   @JSR
+        DATA  GTBLKS         REREAD ALL THE IMPURE STUFF
+
+START1  LI   R6,TOPSP
+        LI   R5,STKTOP       INITIALIZE THE STACKS
+
+        MOV  @OUTBUF,@CHRPTR   INITIALIZE OUTPUT CHAR PTR
+
+        MOV  R5,@ZLOCS       LOCALS WOULD START AT FIRST SLOT,
+        DECT @ZLOCS          IF THERE WERE ANY
+
+        LI   R1,BUFFER
+        MOV  @PSTART(R1),R0  GET STARTING LOCATION
+
+        BL   @JSR
+        DATA  BSPLTB         SPLIT BLOCK AND BYTE POINTERS
+
+        MOV  R0,@ZPC1
+        MOV  R1,@ZPC2        INITIALIZE THEM
+
+        BL   @JSR
+        DATA  NEWZPC         GET PAGE TO EXECUTE
+
+        B    @NXTINS         FIRE UP THE INTERPRETER
+
+
+        END
+
+0

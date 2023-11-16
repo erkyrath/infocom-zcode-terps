@@ -1,0 +1,86 @@
+
+Amiga problems/bugs
+-----------------------------------------------------------------
+
+    []  RAW Input Events
+
+I sometimes get unrequested "RAW Input Event" messages from the
+Console Device (8 number fields, separated by semicolons).
+Unrequested, meaning that my program never sent a "<CSI><number>{"
+message.  It's a problem since my program doesn't normally try to
+intercept such a message, and it appears on the screen as garbage.
+
+The unrequested message seems to be triggered by switching the active
+window, from mine to another then back to mine.
+
+The first of the 8 numbers (event class) is usually 17 or 18.  
+The list I have of event classes only goes as high as 16.  
+
+Once, I got a message starting with 16 ("disk inserted").  On that
+occasion, a disk had been inserted in the process of launching my
+program.
+
+WORKAROUND -- sending two messages to the console device during my
+program initialization seems to fix the problem.  Messages are "<CSI>16}"
+and "<CSI>17}".
+
+    ----
+
+    []  AmigaDOS alerts
+    []  CloseWorkBench (), OpenWorkBench ()
+
+My program opens a custom screen, and the Open and Close Workbench calls
+normally work as they were intended to.  However, if something my program
+does triggers an AmigaDOS alert box ("insert disk X", "disk X full", etc),
+the box does not appear in my screen.  Rather it opens a blank Workbench
+screen (no disk icons, no menus) and draws the box there.
+
+The blank Workbench screen never goes away.  When my program calls 
+OpenWorkBench just before terminating, the Workbench screen still shows no
+disk icons.  The user is left with a blank Workbench screen and must
+reboot the machine.
+
+WORKAROUND -- none known, just don't ever CloseWorkBench ().
+
+    ----
+
+On the phone, I brought up a more general problem with AmigaDOS
+alerts.  The alert box always appears in the Workbench screen, even if
+that screen is hidden by my custom screen.  Alerts should appear
+either on top of everything, or (preferably) on top of everything in
+the screen of the program that caused them.
+
+WORKAROUND -- a dirty fix, but avoid opening a full-size custom
+screen.  Alert boxes seem to always appear at the very top of the
+Workbench screen.  If the top of the Workbench peeks through, then the
+user at least has a chance to notice the alert box.
+
+A related problem -- when a screen is less than full-size, it is 
+possible to slide it completely off the bottom of the display (must first
+slide the mouse pointer off the top of the screen).  The screen cannot
+be recovered.
+
+    ----
+
+    []  Seek (), Read ()
+
+The AmigaDOS Seek routine is very slow.  My program reads constantly 
+from a data file which can be entirely loaded into memory, if space allows,
+or randomly accessed off disk.  In the second case, Read () seems 
+acceptably fast but Seek () seems to causes excessive disk head motion.
+
+One special situation where Seek () should cause NO head motion, but
+does, is when the current file position is already correct.
+
+WORKAROUND -- for the special case, just keep track of the current
+file position yourself, and avoid unnecessary calls to Seek ().
+
+    ----
+
+    []  Low-memory errors
+
+When free memory is low, attempting to resize a window frequently
+crashes the system.  Attempting to DISCARD a file, too.
+
+WORKAROUND -- none known
+

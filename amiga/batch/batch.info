@@ -1,0 +1,46 @@
+
+HOW TO BUILD THE COMMODORE AMIGA ZIP/EZIP  (USING BATCH FILES)
+--------------------------------------------------------------
+
+    The Amiga development tools currently run on the micro group's Compaq.
+
+  [] Enter the /EDIT directory
+
+  [] BZA	(assemble 68K source)
+			(make sure flag in source is set for ZIP or EZIP)
+
+  [] BZCNOS	(compile C source, two phases)
+			(make sure flag in batch file is set for ZIP or EZIP)
+
+  [] BZLNOS	(link, "No Symbols" -- no debugging info)
+
+  [] BZHEX	(hexify the .LD file)
+
+  [] run "READ zipXX serial" on the Amiga
+
+  [] run XTALK on the PC:
+
+	sp 9600
+	go local
+	<home>
+	send ZIP.HEX
+
+Possible alternate to last three steps -- [dbb 9/26/86]
+
+  (On Amiga)  READ ram:file serial
+  (On PC)  CONVERT < file.ld > AUX	(hexify, output directly to port)
+
+  (On Amiga)  LIST ram:file
+  (On PC)  DIR file.ld			(compare lengths)
+
+HOW TO CREATE LIST FILES
+------------------------
+
+  []	BZALST	(for 68K, creates ZIP.LIS)
+
+  []	BZC
+	BZOMD AMIGAZIP   (for C, creates AMIGAZIP.LIS)
+
+	A problem with BZC is it causes a subsequent link attempt to fail
+	(error 21, whatever that means).
+

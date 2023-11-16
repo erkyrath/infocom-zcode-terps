@@ -1,0 +1,24 @@
+[from defs.zil]
+
+		<CURSET 1 1>
+		<PUTB ,K-DIROUT-TBL 0 !\ >
+		<SET N </ <WINGET 1 ,K-W-XSIZE> ,GL-SPACE-WIDTH>>
+		<COPYT ,K-DIROUT-TBL <ZREST ,K-DIROUT-TBL 1> <- .N>>
+		<PRINTT ,K-DIROUT-TBL .N>
+		<DIROUT ,K-D-TBL-ON ,K-DIROUT-TBL>
+		<RT-ROOM-NAME-MSG>
+		<DIROUT ,K-D-TBL-OFF>
+		<COND
+			(<AND <G=? <SET C <GETB ,K-DIROUT-TBL 2>> !\a>
+					<L=? .C !\z>
+				>
+				<PUTB ,K-DIROUT-TBL 2 <- .C 32>>
+			)
+		>
+		<CURSET 1 1>
+		<PRINTT <ZREST ,K-DIROUT-TBL 2> <ZGET ,K-DIROUT-TBL 0>>
+
+
+
+
+

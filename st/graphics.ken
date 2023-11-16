@@ -1,0 +1,26 @@
+
+    Notes, bugs, observations on Ken's tools for ST graphics libraries.
+(Also see the READ.ME file on his PC graphics disk.)
+
+    The ST tools now work only with hi-res, monochrome screens from
+Paintworks.  Should be made to work with medium-res screens too, optionally
+converting a color image to monochrome (reduces size from 32 to 16 Kb).
+Add a flags word to the "squish" output file to identify the three cases.
+
+    The current sources are not maintainable.  They need to be re-coded
+and made modular, with a reduced number of global variables.
+
+"SQUISH"
+--------
+    The picture height in the second word of the output file (savescreen())
+is smaller by one than the actual number of data rows written.
+
+    Should be able to select the whole screen with a special key or 
+mouse action, without drawing a box.
+
+"SMASH"
+--------
+    The previous height bug is fudged (compensated for but propagated) in
+read_picture().
+
+    The last input file in the command list is ignored.

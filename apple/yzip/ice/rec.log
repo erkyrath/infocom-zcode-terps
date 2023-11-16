@@ -1,0 +1,20 @@
+N3
+%DCL-W-NOCOMD, no command on line - reenter with alphabetic first character
+$ A ETransfer aborted by otherside._
+%DCL-W-ABVERB, ambiguous command verb - supply more characters
+ \A\
+$ 
+
+Reply received from user EZAZ at _LTA1585:   18:59:36
+The system backup is starting in 1 minute...Please log off...Thank you...MIS
+
+$ 
+
+Reply received from user EZAZ at _LTA1585:   18:59:43
+The system backup is starting in 1 minute...Please log off...Thank you...MIS
+
+$ log
+  INFO         logged out at  9-FEB-1989 19:00:27.40
+Local -011- Session 1 disconnected from BAYVAX
+
+Local> 

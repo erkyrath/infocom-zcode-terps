@@ -1,0 +1,47 @@
+
+Note: All command strings are arguments to the BATCH.TTP program.
+
+HOW TO BUILD XZIP FOR THE ATARI ST (USING LATTICE C/ASM)
+----------------------------------------------------------------------
+
+  [] Run INIT.BAT to set up a 250K ramdisk as drive E.  The ramdisk
+     speeds up turnaround time and eliminates the disk thrashing caused
+     by frequent alternating reads and writes.
+
+  [] Enter the \XZIP\ directory
+
+	LA_R  STX	(assemble 68K source)
+
+	LC_R  XZIP	(compile and assemble, C source)
+
+	LLNOS_R  XZIP	(link, with no symbols)
+  or	LL_R  XZIP	(link, with symbols)
+
+  [] When running the interpreter, note that it looks for the following
+     data files:
+
+	STORY.DAT	(the game)
+	FONT2.DAT	(picture library, optional)
+	FONT3.DAT	(alternate character set, optional)
+
+
+HOW TO BUILD ZIP/EZIP FOR THE ATARI ST (USING ATARI C/ASM)
+----------------------------------------------------------------------
+
+  [] Enter the \NC\ directory
+
+	ZCA \NW\ZIP	(compile and assemble, C sources)
+
+	ZA  \NW\ST	(make sure flag in source is set for ZIP or EZIP)
+
+  [] Copy the two .O files from \NW\ to \NL\
+
+     The linker won't work with .O files outside its own directory.
+     I used a separate directory because of the large number of files.
+
+  [] Enter the \NL\ directory
+
+	ZLRNOS ZIP	(link and relocate, with no symbols)
+
+  [] Copy ZIP.PRG to wherever the data file is (STORY.DAT).  If the 
+     interpreter is actually EZIP, rename it at this time.

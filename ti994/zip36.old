@@ -1,0 +1,104 @@
+* FILE ZIP36-ASM  (INCLUDE IN ZIP35-ASM)
+
+* SAVE (THE CURRENT STATE OF THE GAME)
+
+OPSAVE  BL   @JSR
+        DATA  GTFLNM         PROMPT FOR SAVE FILE SPECS
+        JMP  JPF2            (ABORTED BY USER)
+
+        LI   R8,SBKO         STATUS IS "OUTPUT"
+        BL   @JSR
+        DATA  SBKSET         SET UP THE SAVE PAB
+
+        LI   R0,PAB3N        SAVE PAB NAME LEN SLOT
+        BL   @JSR
+        DATA  OPNFIL         OPEN THE SAVE FILE
+        JMP  JPF2            ERROR TRAP
+
+        MOV  @STKBOT,R3      ABSOLUTE BOTTOM OF GAME STACK
+        LI   R4,TOPGS        ABSOLUTE TOP OF GAME STACK
+
+        AI   R5,-8           MAKE ROOM ON GAME STACK
+        MOV  R5,*R3          SAVE SP IN KNOWN LOCATION
+
+        MOV  @ZORKID,*R5+    PUT GAME STUFF HERE FOR SAVE
+        MOV  @ZPC1,*R5+  
+        MOV  @ZPC2,*R5+
+        MOV  @ZLOCS,*R5+
+
+        BL   @JSR
+        DATA  PTSBKS         WRITE OUT THE STACK
+        JMP  JPF2            ERROR TRAP
+
+        LI   R3,BUFFER       BOTTOM OF IMPURE CODE
+        MOV  PURABS,R4       TOP OF IMPURE CODE (+1)
+
+        BL   @JSR
+        DATA  PTSBKS         WRITE IT OUT
+        JMP  JPF2            ERROR TRAP
+
+        LI   R0,PAB3N        PAB NAME LEN SLOT
+        BL   @JSR
+        DATA  CLSFIL         CLOSE THE SAVE FILE
+
+JPT2    B    @PTRUE          PREDICATE TRUE
+JPF2    B    @PFALSE         PREDICATE FALSE
+
+* RESTORE (A PREVIOUSLY SAVED GAME STATE)
+
+OPREST  BL   @JSR
+        DATA  GTFLNM         PROMPT FOR RESTORE FILE SPECS
+        JMP  JPF2            (ABORTED BY USER)
+
+        LI   R8,SBKI         STATUS IS "INPUT"
+        BL   @JSR
+        DATA  SBKSET         SET UP THE RESTORE PAB
+
+        LI   R0,PAB3N        PAB NAME LEN SLOT
+        BL   @JSR
+        DATA  OPNFIL         OPEN THE RESTORE FILE
+        JMP  JPF2            ERROR TRAP
+
+        MOV  @STKBOT,R3      ABSOLUTE BOTTOM OF GAME STACK
+        LI   R4,TOPGS        ABSOLUTE TOP OF GAME STACK
+
+        BL   @JSR
+        DATA  GTSBKS         RESTORE GAME STACK
+
+        MOV  *R3,R5          RESTORE GAME SP FROM KNOWN LOC
+        C    *R5+,@ZORKID    IS SAVED ZORKID SAME AS OURS?
+        JNE  X370            NO
+
+        MOV  *R5+,@ZPC1      YES, RESTORE GAME VARIABLES
+        MOV  *R5+,@ZPC2
+        MOV  *R5+,@ZLOCS
+
+        LI   R3,BUFFER       ABSOLUTE BOTTOM OF IMPURE CODE
+        MOV  @PURABS,R4      ABSOLUTE TOP OF IMPURE CODE (+1)
+
+        DECT *R6
+        MOV  @PFLAGS(R3),*R6   SAVE OLD FLAGS
+
+        BL   @JSR
+        DATA  GTSBKS         RESTORE EVERYTHING ELSE
+        MOV  *R6+,@PFLAGS(R3)  BUT PRESERVE OLD FLAGS
+
+        LI   R0,PAB3N        PAB NAME LEN SLOT
+        BL   @JSR
+        DATA  CLSFIL         CLOSE THE RESTORE FILE
+
+        BL   @JSR
+        DATA  NEWZPC         GET PROPER ZPC PAGE
+
+        JMP  JPT2            AND RETURN PREDICATE TRUE
+
+X370    BL   @JSR
+        DATA  FATAL
+
+        TEXT 'Wrong game or version'
+        BYTE 0
+        EVEN
+
+  
+        END
+

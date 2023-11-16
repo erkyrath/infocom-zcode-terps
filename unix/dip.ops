@@ -1,0 +1,785 @@
+
+/* We define a special type for virtual byte pointers which may exceed
+   64K (16 bits).  These occur only in connection with icon definitions
+   in the DIP image file. 
+*/
+typedef unsigned long int DIPADDR;	/* 32 bits preferably */
+
+typedef struct {	/* [information supplied by each icon header] */
+    ZIPBYT bset;	/* icon blockset */
+    ZIPBYT iters;	/* number of iterations */
+    ZIPBYT width;	/* icon size */
+    ZIPBYT height;
+    DIPADDR addr;	/* byte ptr to icon's data */
+} iconinfo;
+
+#define GBLEN 8		/* number of bytes per DIP graphics block */
+
+#define SCRNX1 0
+#define SCRNX2 40	/* screen width in blocks */
+#define SCRNY1 0
+#define SCRNY2 24	/* screen height in blocks */
+
+#define DO_NEGATE 0xFF	/* inverts bits when XORed with target */
+#define NO_NEGATE 0
+
+#define NO_INPUT 0x8F	/* indicates that joystick is centered */
+
+/* format of each entry in an Active Icon Table */
+
+#define AI_ADDR 0	/* word ptr to icon */
+#define AI_LOCX 2	/* horizontal position of icon (2 bytes) */
+#define AI_LOCY 4	/* vertical position of icon (2 bytes) */
+#define AI_NEGATE 6	/* negate flag */
+#define AI_ICUR 7	/* current iteration */
+#define AI_BSET 8	/* block set id */
+#define AI_ITOT 9	/* total number of iterations */
+#define AI_WIDTH 10	/* width of icon */
+#define AI_HEIGHT 11	/* height of icon */
+#define AI_ENTRY 12	/* total length of each entry */
+
+#define ETRAP 1		/* nonzero for "heavy duty" error trapping */
+
+
+/************************************************************************
+*									*
+*	G R A P H I C S   G L O B A L S					*
+*									*
+************************************************************************/
+
+/*  I N I T I A L I Z A T I O N S  */
+
+ZIPINT btable,		/* blockset index table (word ptr) */
+    itable;		/* icon index table (word ptr) */
+
+ZIPBYT nbsets,		/* number of blocksets in I-file */
+    nicons;		/* number of icons in I-file */
+
+ZIPBYT rev_table[256];	/* lookup table for block display */
+
+/*  C U R R E N T   B L O C K  */
+
+ZIPINT bsaddr;		/* base of current blockset (word ptr) */
+
+ZIPBYT negate = 0,	/* set to DO_NEGATE when highlighting active */
+    dblock[GBLEN],	/* current block data */
+
+    maskflag = 0,	/* nonzero when active */
+    mblock[GBLEN];	/* current mask block data */
+
+/*  W I N D O W S  */
+
+short clipx1 = SCRNX1,	/* clip window coordinates (initially full) */
+    clipy1 = SCRNY1,
+    clipx2 = SCRNX2,
+    clipy2 = SCRNY2;
+
+
+/************************************************************************
+*									*
+*	G R A P H I C S   O P E R A T I O N S				*
+*									*
+************************************************************************/
+
+/*------------------------------*/
+/*	op_showicon		*/
+/*------------------------------*/
+
+op_showicon(mode, iter)		/* mode is OPSHOWI or OPSHOWN */
+int mode, iter;			/* iteration # is usually 1 */
+{
+    struct iconinfo ic1, ic2;	/* icon and mask info */
+    short locx1, locy1,		/* icon display coords, before clipping */
+      locx2, locy2,
+      subx1, suby1,		/* sub-icon display coords, after clipping */
+      subx2, suby2;
+    DIPADDR addr1, addr2;	/* sub-icon, sub-mask row addresses */
+    short width, yn,		/* row width, row counter */
+      ixoff, iyoff;		/* row offset (relative to full icon) */
+
+    if (mode == OPSHOWN) THEN negate = DO_NEGATE;
+    else negate = NO_NEGATE;
+
+    if (argblk[0] == 4) THEN maskflag = 1;	/* 4th arg means mask icon */
+    else maskflag = 0;
+
+    gs_iconinfo(argblk[3], &ic1);	/* get icon header info */
+    bsaddr = gs_bsaddr(ic1.bset)	/* get blockset addr (word ptr) */
+
+    if (iter > 1) THEN			/* adjust base addr of icon data */
+      ic1.addr += (ic1.width * ic1.height) * (iter - 1);
+
+    if (maskflag) THEN {
+      gs_iconinfo(argblk[4], &ic2);	/* get mask header info */
+
+/* The DIP spec suggests handling unequal icon and mask sizes by clipping
+   extra icon blocks (and ignoring extra mask blocks).  PC DIP, however,
+   just returns with no action taken. */
+
+      if ((ic1.width != ic2.width) || (ic1.height != ic2.height)) THEN
+        fatal("bad mask size in op_showicon()");
+
+      if (ic1.bset != ic2.bset) THEN		/* [really an error?] */
+        fatal("bad mask blockset in op_showicon()");
+      }
+
+    locx1 = argblk[1];		locy1 = argblk[2];
+    locx2 = locx1 + ic1.width;	locy2 = locy1 + ic1.height;
+
+/* Compute intersection with clip region */
+
+    subx1 = locx1;		suby1 = locy1;
+    subx2 = locx2;		suby2 = locy2;
+
+    if (subx1 < clipx1) THEN subx1 = clipx1;	/* clip left */
+    if (suby1 < clipy1) THEN suby1 = clipy1;	/* clip top */
+    if (subx2 > clipx2) THEN subx2 = clipx2;	/* clip right */
+    if (suby2 > clipy2) THEN suby2 = clipy2;	/* clip bottom */
+
+/* display the clipped (optionally masked) icon, looping once for each row */
+
+    ixoff = subx1 - locx1;	/* clipped x offset, same for every row */
+    width = subx2 - subx1;	/* clipped width */
+
+    for (yn=suby1; yn<suby2; yn++) {
+      iyoff = yn - locy1;
+      addr1 = ic1.addr + (ic1.width * iyoff) + ixoff;
+      if (maskflag) THEN
+        addr2 = ic2.addr + (ic2.width * iyoff) + ixoff;
+      showrow(addr1, addr2, width, subx1, yn);
+      }
+}
+
+/*------------------------------*/
+/*	op_copyicon		*/
+/*------------------------------*/
+
+#define TOO_NARROW (ic1.width + ixoff > ic2.width)
+#define TOO_SHORT (ic1.height + iyoff > ic2.height)
+
+ZIPINT op_copyicon(mode)	/* return must be PUTVALed */
+int mode;			/* mode is OPSETI or OPSWAPI */
+{
+    struct iconinfo ic1, ic2;
+    short ixoff, iyoff, row;
+    DIPADDR addr1, addr2;
+
+    gs_iconinfo(argblk[3], &ic1);	/* get icon header info */
+    gs_iconinfo(argblk[4], &ic2);
+    ixoff = argblk[1];			/* sub-icon offset in icon2 */
+    iyoff = argblk[2];
+
+    if (ic1.bset != ic2.bset) THEN	/* [really a fatal error?] */
+      fatal("blockset mismatch in op_copyicon()");
+
+    if (TOO_NARROW || TOO_SHORT) THEN {	  /* bad fit, return error */
+      return(ZFALSE);
+      }
+
+    for (row=0; row<ic1.height; row++) {
+      addr1 = ic1.addr + (ic1.width * row);
+      addr2 = ic2.addr + (ic2.width * (row + iyoff)) + ixoff;
+      if (mode == OPSETI) THEN
+        copyrow(addr1, addr2, ic1.width);
+      else
+        swaprow(addr1, addr2, ic1.width);
+      }
+    return(ZTRUE);
+}
+
+/*------------------------------*/
+/*	op_clipwind		*/
+/*------------------------------*/
+
+op_clipwind()		/* set clip window globals */
+{
+    register short locx1, locy1, locx2, locy2;
+    short temp;
+
+    locx1 = argblk[1];		locy1 = argblk[2];
+    locx2 = argblk[3] + 1;	locy2 = argblk[4] + 1;
+
+    if (locx1 < SCRNX1) THEN locx1 = SCRNX1;	/* minimum coords */
+    if (locy1 < SCRNY1) THEN locy1 = SCRNY1;
+    if (locx2 < SCRNX1) THEN locx2 = SCRNX1;
+    if (locy2 < SCRNY1) THEN locy2 = SCRNY1;
+
+    if (locx1 > SCRNX2) THEN locx1 = SCRNX2;	/* maximum coords */
+    if (locy1 > SCRNY2) THEN locy1 = SCRNY2;
+    if (locx2 > SCRNX2) THEN locx2 = SCRNX2;
+    if (locy2 > SCRNY2) THEN locy2 = SCRNY2;
+
+    if (locx1 > locx2) THEN {	/* exchange if necessary */
+      temp = locx1;
+      locx1 = locx2;
+      locx2 = temp;
+      }
+
+    if (locy1 > locy2) THEN {	/* exchange if necessary */
+      temp = locy1;
+      locy1 = locy2;
+      locy2 = temp;
+      }
+
+    clipx1 = locx1;		clipy1 = locy1;	    /* save the coords */
+    clipx2 = locx2;		clipy2 = locy2;
+}
+
+/*------------------------------*/
+/*	op_iterinit		*/
+/*------------------------------*/
+
+/* The first three slots in each table entry are initialized by the game; 
+   the remaining slots are initialized by this routine. */
+
+op_iterinit()		/* word ptr to Active Icon Table in argblk[1] */
+{
+    struct iconinfo ic;
+    short count;
+    ZIPBYT *ptr;	/* absolute ptr into Active Icon Table */
+    ZIPINT addr;
+
+    ptr = (argblk[1] << 1) + dataspace;	    /* point to table header */
+    count = GTABYT(ptr++);	/* get number of entries in table */
+    PTABYT(ptr++, 1);		/* set current entry to the first */
+
+/* [ETRAP -- check that ptr (initial & final) is within impure preload] */
+
+    while (count--) {		/* loop once for each table entry */
+      addr = GTAWRD(ptr);	/* icon addr */
+      gs_iconinfo(addr, &ic);	/* get header info for this icon */
+
+      ptr += AI_NEGATE;		/* skip over addr and position slots */
+      PTABYT(ptr++, NO_NEGATE);	/* set mode to positive */
+      PTABYT(ptr++, 1);		/* set current iteration to the first */
+
+      PTABYT(ptr++, ic.bset);	/* and store icon header info */
+      PTABYT(ptr++, ic.iters);
+      PTABYT(ptr++, ic.width);
+      PTABYT(ptr++, ic.height);
+      }
+}
+
+/*------------------------------*/
+/*	op_input		*/
+/*------------------------------*/
+
+/*  ARG1, delay time, is interpreted as follows:
+	+int : poll the keyboard and joystick for int/60 sec. or until 
+		input is detected
+	   0 : poll the keyboard and joystick once, immediately
+	-int : pause for [-int]/60 sec.
+
+    ARG2 [optional] is a word pointer to an active icon table.  
+    Cycle once through the table, starting with the "current" icon.
+    After each icon is iterated (until the last), check for input
+    (if requested).  If it's detected, halt the cycle immediately.
+
+    The returned value is one of the following:
+	+int : 7-bit ascii character
+	-int : joystick position and state (see DIP spec for codes)
+    NO_INPUT : no input detected (joystick is centered)
+*/
+
+ZIPBYT op_input()		/* return value needs to be PUTVALed */
+{
+    short delay = argblk[1];
+    ZIPINT table = argblk[2];
+    ZIPBYT temp, key;
+
+    if (argblk[0] = 2) THEN {	/* TABLE GIVEN, ITERATE IT */
+      while (iterate(table)) {	/* do current entry (any more?) */
+
+	if (delay >= 0) THEN
+	  if ((key = md_input()) != NO_INPUT) THEN    /* got one, abort */
+	    return(key);	    
+        }
+      }				/* [fall through when iterate done] */
+
+    if (delay >= 0) THEN {	/* GET KEY WITH DELAY */
+
+      while (delay > 0) {
+        if ((key = md_input()) != NO_INPUT) THEN    /* got one, abort */
+	  return(key);
+	md_delay(1);		/* count down one tick */
+	delay--;
+	}
+      key = md_input();		/* no (more) delay, return immediately */
+      return(key);
+      }
+
+    else {			/* DELAY, THEN GET KEY */
+      md_delay(-delay);
+
+/* Check for input accumulated during long pause.  Return the first,
+   if any, and throw away the remainder, if any.
+*/
+      key = md_input();
+      while ((temp = md_input()) != NO_INPUT) ;
+      return(key);
+      }
+}
+
+/*------------------------------*/
+/*	op_clear		*/
+/*------------------------------*/
+
+/* Clear the screen, black if arg1 is 0, white (negative) if arg1 is -1 */
+
+op_clear()	/* [quick and dirty version] */
+{
+    short i, x, y;
+
+    for (i=0; i<GBLEN; i++)
+      dblock[i] = argblk[1];
+
+    maskflag = 0;
+    negate = 0;
+
+    for (y=SCRNY1; y<SCRNY2; y++)
+      for (x=SCRNX1; x<SCRNX2; x++)
+        md_showblock(x, y);
+}
+
+/************************************************************************
+*									*
+*	G R A P H I C S   S U B - O P E R A T I O N S			*
+*									*
+************************************************************************/
+
+/*------------------------------*/
+/*	showrow			*/
+/*------------------------------*/
+
+/* display a single row of icon blocks, with (optional) mask */
+
+showrow(addr1, addr2, len, dxloc, dyloc)
+DIPADDR addr1, addr2;		/* byte ptr to row data for icon, mask */
+short len,			/* row length */
+    dxloc, dyloc;		/* screen position */
+{
+    ZIPBYT irow[SCRNX2],	/* icon row image, maximum width */
+      mrow[SCRNX2];		/* mask row image, maximum width */
+    short i;
+
+#if ETRAP
+    if (len + dxloc > SCRNX2) THEN
+      fatal("row too wide in showrow()");
+#endif
+
+/* The block ids within a row are contiguous bytes.  It's desirable to
+   fetch them all at once, before we start calling gs_getblk (since it
+   fetches paged data too).
+*/
+    dspltb(addr1);
+    for (i=0; i<len; i++)
+      irow[i] = getbyt();	/* get icon block ids */
+
+    if (maskflag) THEN {
+      dspltb(addr2);
+      for (i=0; i<len; i++)
+        mrow[i] = getbyt();	/* get mask block ids */
+      }
+
+    for (i=0; i<len; i++) {
+      gs_getblk(irow[i], dblock, negate);  /* get block data (optional neg) */
+
+      if (maskflag) THEN
+        gs_getblk(mrow[i], mblock, NO_NEGATE);	/* get mask data (never neg) */
+
+      md_showblock(dxloc + i, dyloc);	/* and display it */
+      }
+}
+
+/*------------------------------*/
+/*	copyrow			*/
+/*------------------------------*/
+
+/* Copy a single row of icon blocks to another place. */
+
+copyrow(addr1, addr2, len)
+DIPADDR addr1, addr2;		/* byte ptrs to icon row data */
+short len;
+{
+    register ZIPBYT *ptr;
+    short i;
+
+/* [ETRAP - check that addr2 is within impure preload] */
+
+    dspltb(addr1);
+    ptr = addr2 + dataspace;		/* absolutize the target ptr */
+
+/* Since the block ids within the target row are PRELOADED here, it's 
+   not necessary to fetch and store in separate sequences.
+*/
+    for (i=0; i<len; i++)
+      PTVBYT(ptr++, getbyt());		/* move the block ids */
+}
+
+/*------------------------------*/
+/*	swaprow			*/
+/*------------------------------*/
+
+/* Swap two single rows of icon blocks. */
+
+swaprow(addr1, addr2, len)
+DIPADDR addr1, addr2;		/* byte ptrs to icon row data */
+short len;
+{
+    ZIPBYT temp;
+    register ZIPBYT *ptr1, *ptr2;
+    short i;
+
+/* [ETRAP -- check that both addresses are within impure preload] */
+
+    ptr1 = addr1 + dataspace;
+    ptr2 = addr2 + dataspace;
+
+/* Since the block ids within both rows are PRELOADED here, it's 
+   not necessary to fetch and store in separate sequences.
+*/
+    for (i=0; i<len; i++) {
+      temp = GTABYT(ptr2);
+      PTABYT(ptr2++, GTABYT(ptr1));
+      PTABYT(ptr1++, temp);
+      }
+}
+
+/*------------------------------*/
+/*	iterate			*/
+/*------------------------------*/
+
+/* Iterate the "current" entry in the given Active Icon table, and 
+   update the table.  Return zero if it was the last entry.
+
+   This routine overwrites argblk[] and calls op_showicon().
+*/
+
+int iterate(table)
+ZIPINT table;		/* word ptr to Active Icon Table */
+{
+    ZIPBYT mode,
+      aitot, aicur,	/* total & current Active Icons */
+      itot, icur,	/* total & current iteration of current AI */ 
+      *ptr, *entr;	/* absolute ptrs into the table */
+     
+/* [careful using GTABYT macro with ptr++ and ptr+n arguments] */
+
+    ptr = (table << 1) + dataspace;	/* point to head of table */
+    aitot = GTABYT(ptr++);		/* number of entries in table */
+    aicur = GTABYT(ptr++);		/* current entry */
+
+    if (aicur > 1) THEN			/* point to current entry */
+      entr = ptr + ((aicur - 1) * AI_ENTRY);
+    else entr = ptr;
+
+    argblk[3] = GTAWRD(entr + AI_ADDR);	/* get icon addr */
+    argblk[1] = GTAWRD(entr + AI_LOCX);	/* get icon position */
+    argblk[2] = GTAWRD(entr + AI_LOCY);
+    argblk[0] = 3;			/* no fourth (mask) arg */
+
+    if (GTABYT(entr + AI_NEGATE)) THEN	/* check negate flag */
+      mode = OPSHOWN
+    else mode = OPSHOWI;
+
+    icur = GTABYT(entr + AI_ICUR);	/* get AI's current iteration */
+    itot = GTABYT(entr + AI_ITOT);	/* get AI's total iterations */
+
+/* Calling the top-level op_showicon() leads to a bit of unnecessary work, 
+   since it calls gs_iconinfo() for size and blockset info.  We have that
+   already in the AI table, but aren't using it.
+*/
+    op_showicon(mode, icur);	/* display AI's current iteration */
+
+    if (icur = itot) THEN
+      icur = 0;				/* no more iterations */
+    PTABYT(entr + AI_ICUR, icur + 1);	/* update AI's current iteration */
+
+    if (aicur = aitot) THEN
+      aicur = 0;			/* no more active icons */
+    PTABYT(ptr - 1, aicur + 1);		/* update current AI */
+
+    return(aicur);	/* nonzero if any more active icons */
+}
+
+/************************************************************************
+*									*
+*	G R A P H I C S   S U P P O R T					*
+*									*
+************************************************************************/
+
+/*------------------------------*/
+/*	gs_iconinfo		*/
+/*------------------------------*/
+
+#define ICHEAD 4		/* length of icon header (bytes) */
+
+/* pick up an icon's header information */
+
+gs_iconinfo(headaddr, ic)
+ZIPINT headaddr;		/* word pointer to icon header */
+struct iconinfo *ic;		/* leave the header info here */
+{
+    ZIPBYT getbyt();
+
+    ic->addr = (headaddr << 1) + ICHEAD;    /* byte ptr to icon data */
+    bsplit(headaddr);
+
+    ic->bset = getbyt();	/* blockset */
+    ic->iters = getbyt();	/* number of iterations */
+    ic->width = getbyt();	/* icon size */
+    ic->height = getbyt();
+}
+
+/*------------------------------*/
+/*	gs_bsaddr		*/
+/*------------------------------*/
+
+#define BSHEAD 1		/* length of blockset header (words) */
+
+/* Lookup address of given blockset.  Note that the size of each table entry
+   is one word. */
+
+ZIPINT gs_bsaddr(bset)
+ZIPBYT bset;
+{
+    ZIPINT addr;		/* word ptr to table entry */
+
+    addr = btable + (bset-1);	/* index into table, 1-origin */
+    bsplit(addr);
+    return(getwrd() + BSHEAD);	/* get word ptr, skip header */
+
+/* Could access the table directly, if blockset index is preloaded --
+
+    addr = btable + (bset-1);		(index into table, 1-origin)
+    addr <<= 1;				(convert to byte address)
+    return(GTVWRD(addr) + BSHEAD);	(get word ptr, skip header)
+*/
+}
+
+/*------------------------------*/
+/*	gs_getblk		*/
+/*------------------------------*/
+
+/* Get data corresponding to the given graphics block.
+   Uses global bsaddr, a word ptr to (base of) current blockset. */
+
+gs_getblk(blk, buffer, neg)
+ZIPBYT blk,		/* block id, 1-255 */
+    *buffer,		/* data or mask buffer ptr */
+    neg;		/* negate flag (actually XOR pattern) */
+{
+    short i;
+    ZIPINT addr;
+    ZIPBYT getbyt();
+
+    addr = bsaddr + (blk * GBLEN/2);	/* block's address (word ptr) */
+    bsplit(addr);
+
+    for (i=0; i<GBLEN; i++)		/* move data to buffer */
+      *buffer++ = getbyt() ^ neg;	/*   and negate it if requested */
+}
+
+/************************************************************************
+*									*
+*	U T I L I T Y   R O U T I N E S					*
+*									*
+************************************************************************/
+
+/*------------------------------*/
+/*	dsplit			*/
+/*------------------------------*/
+
+dspltb(bytaddr)
+DIPADDR bytaddr;
+{  /*	Dspltb takes a (virtual) byte pointer, separates it into block
+	and byte offsets, and returns them in the zblk and zoff globals.
+	[In the DIP image file only, the pointer may exceed 64K.]
+   */
+    zblk = bytaddr >> CVTBLK;		/* extract block bits */
+    zoff = bytaddr & BYTEBITS;		/* extract byte offset bits */
+}
+
+/*------------------------------*/
+/*	rev_byte		*/
+/*------------------------------*/
+
+ZIPBYT rev_byte(val)	/* swap bits 1-8, 2-7, etc */
+ZIPBYT val;
+{
+    short i;
+    ZIPBYT newval = 0;
+
+    for (i=0; i<8; i++) {
+      newval >>= 1;
+      newval |= val & 0x80;	/* transfer high bit */
+      val <<= 1;
+      }
+    return(newval);
+}
+
+/*------------------------------*/
+/*	rev_init		*/
+/*------------------------------*/
+
+rev_init()	/* initialize the reversed-byte lookup table */
+{
+    short i;
+    ZIPBYT rev_byte();
+
+    for (i=0; i<256; i++)
+      rev_table[i] = rev_byte(i);
+}
+
+/************************************************************************
+*									*
+*	M A C H I N E   D E P E N D E N T   G R A P H I C S		*
+*									*
+************************************************************************/
+
+/*------------------------------*/
+/*	md_showblock		*/
+/*------------------------------*/
+
+#define ORIGIN 0
+
+/* Display the block data in dblock[].  
+
+[  If masking is active, use the mask in mblock[].  Wherever a mask bit is 1,
+   the screen shows through unchanged.  Elsewhere the block is displayed.
+
+   Straight-forward masking function:  S' = (S AND M) OR (B AND ~M)
+   Equivalent, non-obvious masking function:  S' = ((S XOR B) AND M) XOR B
+
+   The second function is used in several other DIPs, and here. ]
+*/
+
+md_showblock(locx, locy)
+unsigned short locx, locy;	/* display coordinates */
+{
+    int i, err;
+    struct urdata ur;
+    ZIPBYT rev_dblock[GBLEN],	/* data block */
+      rev_mblock[GBLEN],	/* mask block */
+      rev_vblock[GBLEN];	/* screen (video) block */
+
+#if ETRAP
+    if ((locx >= SCRNX2) || (locy >= SCRNY2) THEN
+      fatal("md_showblock position out of range");
+#endif
+
+/* Reverse the bits in each SHORT to be displayed, so the leftmost bit
+   becomes the lsb.  Necessary for compatibility with PC 7300 graphics.
+   For more speed, use table lookup.
+*/
+    for (i=0; i<GBLEN; i+2) {
+      rev_dblock[i] = rev_byte(dblock[i+1]);
+      rev_dblock[i+1] = rev_byte(dblock[i]);
+      }
+
+    ur.ur_width = GBLEN;		ur.ur_height = GBLEN;  /* pixels */
+    ur.ur_srcop = SRCSRC;		ur.ur_dstop = DSTSRC;
+    ur.ur_pattern = 0;
+
+    if (maskflag) THEN {
+
+      for (i=0; i<GBLEN; i+2) {		/* reverse mask bytes too */
+        rev_mblock[i] = rev_byte(mblock[i+1]);
+        rev_mblock[i+1] = rev_byte(mblock[i]);
+        }
+
+/* Read current screen data into memory (rev_vblock[]), and apply the
+   masking function.  Fall through to write back the result.
+*/
+      ur.ur_srcbase = 0;  /* window */	ur.ur_srcwidth = 0;
+      ur.ur_dstbase = rev_vblock;	ur.ur_dstwidth = 1;  /* in bytes */
+      ur.ur_srcx = locx * GBLEN;	ur.ur_srcy = locy * GBLEN;
+      ur.ur_dstx = ORIGIN;		ur.ur_dsty = ORIGIN;
+
+      err = ioctl(wfd, WIOCRASTOP, &ur);  /* read screen */
+
+      for (i=0; i<GBLEN; i++) {
+        rev_vblock[i] ^= rev_dblock[i]);
+        rev_mblock[i] &= rev_vblock[i]);
+        rev_dblock[i] ^= rev_mblock[i]);  /* leave result in rev_dblock */
+        }
+      }		/* end of if (maskflag) */
+
+/* write the data in rev_dblock[] to screen */
+
+    ur.ur_srcbase = rev_dblock;		ur.ur_srcwidth = 1;  /* in bytes */
+    ur.ur_dstbase = 0;  /* window */	ur.ur_dstwidth = 0;
+    ur.ur_srcx = ORIGIN;		ur.ur_srcy = ORIGIN;
+    ur.ur_dstx = locx * GBLEN;		ur.ur_dsty = locy * GBLEN;
+
+    err = ioctl(ttyfd, WIOCRASTOP, &ur);
+}
+
+/*------------------------------*/
+/*	md_delay		*/
+/*------------------------------*/
+
+md_delay(ticks)		/* one tick = 1/60 second */
+int ticks;
+{  /*   This should be implemented with a system call rather than a
+	software loop if possible, so the timing isn't hardware	dependent.
+	Also a sophisticated OS can give the time to somebody else.
+   */
+    int i, j;
+
+    for (i=0; i<ticks; i++) {
+      j = 1000;
+      while (j--);
+      }
+}
+
+/*------------------------------*/
+/*	md_input		*/
+/*------------------------------*/
+
+ZIPBYT md_input()
+{  /*   Poll keyboard and joystick, if no input return immediately 
+	with NO_INPUT.
+
+	%%% MAKE GETCHAR() RETURN IMMEDIATELY %%%
+   */
+    ZIPBYT key;
+
+    key = getchar();		/* no echo */
+    key = md_joystick(key);	/* check for joystick equiv */
+    return(key);
+}
+
+/*------------------------------*/
+/*	md_joystick		*/
+/*------------------------------*/
+
+/* This routine checks the state of the joystick and/or alternate keys
+   on the keyboard.  If input is detected, its value is mapped into one
+   of the joystick interface values defined by DIP.
+*/
+
+ZIPBYT md_joystick(testchar)
+ZIPBYT testchar;
+{  /*	For the AT&T PC the number keys are mapped		5 3 6
+	into joystick positions as shown to the right.		1   2
+	Number key 0 maps to the button.			7 4 8
+   */
+
+    ZIPBYT mapchar;
+
+    switch (testchar) {
+    case '0':	mapchar = 128+31;	break;	/* button */
+    case '1':	mapchar = 128+11;	break;
+    case '2':	mapchar = 128+7;	break;
+    case '3':	mapchar = 128+14;	break;
+    case '4':	mapchar = 128+13;	break;
+    case '5':	mapchar = 128+10;	break;
+    case '6':	mapchar = 128+6;	break;
+    case '7':	mapchar = 128+9;	break;
+    case '8':	mapchar = 128+5;	break;
+    default:	mapchar = testchar;	break;	/* not the joystick */
+
+    return(mapchar);
+}
+

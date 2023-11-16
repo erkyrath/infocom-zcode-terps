@@ -1,0 +1,175 @@
+	STTL	"--- ZERO PAGE VARIABLES ---"
+	PAGE 
+
+SCRCX	EQU	0		; CURSOR HORIZONTAL
+SCRCY	EQU	SCRCX+1		; CURSOR VERTICAL
+SCRBTM	EQU	SCRCY+1		; first line outside current window
+MAXLINES EQU	SCRBTM+1	; maximum number of lines in window
+LEFTMRG	EQU	MAXLINES+1	; left edge + left margin in current window
+WINDOW	EQU	LEFTMRG+1	; (WORD) address of current window structure
+LINE_X  EQU     WINDOW+2        ; (WORD) width of line counter
+CC_OFF  EQU     LINE_X+2        ; save offset for char drawing
+CLSLEFT	EQU	CC_OFF+1	; screen limits for CLS code
+CLSTOP	EQU	CLSLEFT+1	; top of screen
+CLSWIDTH EQU	CLSTOP+1	; # of columns 
+CLSHEIGHT EQU	CLSWIDTH+1	; # of lines
+;
+; some variables for all the screen positioning code
+;
+NY_DATA	EQU	CLSHEIGHT+1	; place for GET/PUT_NYBBLE to use
+CH_OFFSET EQU	NY_DATA+1	; offset into char data table
+DATALOOP EQU	CH_OFFSET+1 	; loop counter for byte works
+BITOFF	EQU	DATALOOP+1	; bit offset into screen byte
+CH_DATA	EQU	BITOFF+1	; actual char data being worked on
+SCR_DATA EQU	CH_DATA+1	; screen byte being worked on
+SH_LOOP	EQU	SCR_DATA+1	; loop counter for bit shifting
+SCROLLY	EQU	SH_LOOP+1	; save spot for y pos when scrolling
+RETRIES EQU	SCROLLY+1	; (BYTE) Machine ID
+CHRMAX	EQU	RETRIES+1	; (BYTE) # CHARS CAN INPUT FROM KEYBOARD
+SCLLINES EQU	CHRMAX+1	; (BYTE) how many lines to scroll
+FMTTBL	EQU	SCLLINES+1	; (BYTE) flag to show formatted table output
+STMASK	EQU	FMTTBL+1	; (BYTE) Mask to use on first byte of CLS
+ENDMASK	EQU	STMASK+1	; (BYTE) Mask to use on last byte of CLS
+CHPTR	EQU	ENDMASK+1	; (WORD) pointer to char data
+SCOFF	EQU	CHPTR		;(BYTE) Offset used by scroll
+SCLDIR	EQU	CHPTR+1		;(BYTE) Direction of scroll - >0 up, <0 down
+DSEGS	EQU	CHPTR+2 	; (WORD) Pointer to current disk's segments
+;WIDE_FLAG EQU   SCOFF+1         ; (BYTE) <> 0 if 16 bytes in char data
+;DSEGS	EQU	WIDE_FLAG+1	; (WORD) Pointer to current disk's segments
+LASTWV	EQU	DSEGS+2		; last of the WINDOW variables
+
+ZEROPG	EQU	$50		; FIRST FREE Z-PAGE LOCATION
+;
+; these are first, cuz ZBOOT inits them so we don't want to clear them
+; at ZBEGIN warm start
+;
+GLOBAL	EQU	ZEROPG		; (Relative Addr.) GLOBAL VARIABLE POINTER
+VOCAB	EQU	GLOBAL+2	; (ADDRESS) Vocab table pointer
+FWORDS	EQU	VOCAB+3		; (ADDRESS) F-WORDS TABLE POINTER
+MOUSEF	EQU	FWORDS+3	; (BYTE) ==-1/1 if we have mouse/joystick
+INFODOS EQU     MOUSEF+1        ; (WORD) if <>0, then pointer to D2SEG
+FUNOFF	EQU	INFODOS+2	; (ADDRESS) Function Offset (ZFOFF*8)
+FOFFH	EQU	FUNOFF		; (BYTE) Hi part 
+FOFFM	EQU	FUNOFF+1	; (BYTE) Middle part
+FOFFL	EQU	FUNOFF+2	; (BYTE) Lo part
+STROFF	EQU	FUNOFF+3	; (ADDRESS) String Offset (ZSOFF*8)
+SOFFH	EQU	STROFF		; (BYTE) Hi part 
+SOFFM	EQU	STROFF+1	; (BYTE) Middle part
+SOFFL	EQU	STROFF+2	; (BYTE) Lo part
+;
+; Beginning of warm start zeroing
+;
+OPCODE	EQU	STROFF+3	; (BYTE) CURRENT OPCODE
+NARGS	EQU	OPCODE+1	; (BYTE) # ARGUMENTS
+ARG1	EQU	OPCODE+2	; (WORD) ARGUMENT #1
+ARG2	EQU	OPCODE+4	; (WORD) ARGUMENT #2
+ARG3	EQU	OPCODE+6	; (WORD) ARGUMENT #3
+ARG4	EQU	OPCODE+8	; (WORD) ARGUMENT #4
+ARG5	EQU	OPCODE+10	; (WORD)
+ARG6	EQU	OPCODE+12	; (WORD)
+ARG7	EQU	OPCODE+14	; (WORD)
+ARG8	EQU	OPCODE+16	; (WORD)
+ABYTE	EQU	OPCODE+18	; (BYTE) X-OP ARGUMENT BYTE
+BBYTE	EQU	OPCODE+19	; (BYTE) XCALL ARG BYTE (EZIP)
+ADEX	EQU	OPCODE+20	; (BYTE) X-OP ARGUMENT INDEX
+VALUE	EQU	OPCODE+21	; (WORD) VALUE RETURN REGISTER
+I	EQU	VALUE+2		; (WORD) GEN-PURPOSE REGISTER #1
+J	EQU	VALUE+4		; (WORD) GEN-PURPOSE REGISTER #2
+K	EQU	VALUE+6		; (WORD) GEN-PURPOSE REGISTER #3
+L	EQU	VALUE+8		; (WORD) GEN-PURPOSE REGISTER #4
+ZPC	EQU	VALUE+10	; (3 BYTES) ZIP PROGRAM COUNTER
+ZPCL	EQU	ZPC		; (BYTE) <8 BITS OF [ZPC]
+ZPCM	EQU	ZPC+1		; (BYTE) MIDDLE 8 BITS OF [ZPC]
+ZPCH	EQU	ZPC+2		; (BYTE) >BIT OF [ZPC]
+ZPCPNT	EQU	ZPC+3		; (3 BYTES) ABS POINTER TO CURRENT Z-PAGE
+ZPNTL	EQU	ZPCPNT		; FIRST 2 BYTES = SAME AS FOR ZIP (EZIP)
+ZPNTH	EQU	ZPCPNT+1	; (BYTE)
+ZPCBNK	EQU	ZPCPNT+2	; (BYTE) INDICATES AUXILIARY MEMORY
+MPC	EQU	ZPCPNT+3	; (3 BYTES) MEMORY PROGRAM COUNTER
+MPCL	EQU	MPC		; (BYTE) <8 BITS OF [MPC]
+MPCM	EQU	MPC+1		; (BYTE) MIDDLE 8 BITS OF [MPC]
+MPCH	EQU	MPC+2		; (BYTE) >BIT OF [MPC]
+MPCPNT	EQU	MPC+3		; (3 BYTES) ABS POINTER TO CURRENT M-PAGE
+MPNTL	EQU	MPCPNT		; FIRST 2 BYTES = SAME AS FOR ZIP (EZIP)
+MPNTH	EQU	MPCPNT+1	; (BYTE)
+MPCBNK	EQU	MPCPNT+2	; (BYTE) INDICATES AUXILIARY MEMORY
+FPC	EQU	MPCBNK+1	; (3 Bytes) Fetch pointer 
+FPCL	EQU	FPC		; (BYTE) Low part
+FPCH	EQU	FPCL+1		; (BYTE) High Part
+FPCBNK	EQU	FPCH+1		; (BYTE) Bank part (0-Main, 1-Aux)
+SPC	EQU	FPCBNK+1	; (3 Bytes) Fetch pointer 
+SPCL	EQU	SPC		; (BYTE) Low part
+SPCH	EQU	SPCL+1		; (BYTE) High Part
+SPCBNK	EQU	SPCH+1		; (BYTE) Bank part (0-Main, 1-Aux)
+
+; Z-STRING MANIPULATION VARIABLES
+
+LINLEN	EQU	SPCBNK+1	; (BYTE) LENGTH OF CURRENT LINE
+SOURCE	EQU	LINLEN+1	; (BYTE) counter for read
+WRDLEN	EQU	SOURCE+1	; (BYTE) LENGTH OF CURRENT WORD
+ESIZE	EQU	WRDLEN+1	; (BYTE) SIZE OF VOCAB TABLE ENTRIES
+PSET	EQU	ESIZE+1		; (BYTE) PERMANENT CHARSET
+TSET	EQU	PSET+1		; (BYTE) TEMPORARY CHARSET
+ZCHAR	EQU	TSET+1		; (BYTE) CURRENT Z-CHAR
+OFFSET	EQU	ZCHAR+1		; (BYTE) F-WORD TABLE OFFSET
+ZFLAG	EQU	OFFSET+1	; (BYTE) Z-WORD ACCESS FLAG
+ZWORD	EQU	ZFLAG+1		; (WORD) CURRENT Z-WORD
+CONCNT	EQU	ZWORD+2		; (BYTE) Z-STRING SOURCE COUNTER
+CONIN	EQU	CONCNT+1	; (BYTE) CONVERSION SOURCE INDEX
+CONOUT	EQU	CONIN+1		; (BYTE) CONVERSION DEST INDEX
+DIRTBL	EQU	CONOUT+1	; (WORD) CONTAINS TBLE TO STORE CHARS TO
+XSIZE	EQU	DIRTBL+2	; (WORD) SCREEN WIDTH FOR TESTS
+RAND    EQU     XSIZE+2         ; (WORD) Random number offset
+CURWIN	EQU	RAND+2		; (BYTE) WHICH WINDOW TO WRITE IN
+LENGTH	EQU	CURWIN+1	; (WORD) CHAR POSITION ON THE SCREEN
+CHRCNT	EQU	LENGTH+2	; (BYTE) CHAR POSITION IN [LBUFF]
+SCRIPT	EQU	CHRCNT+1	; (BYTE) SCRIPT ENABLE FLAG
+LINCNT	EQU	SCRIPT+1	; (BYTE) LINE COUNTER
+IOCHAR	EQU	LINCNT+1	; (BYTE) CHARACTER BUFFER
+COLORP	EQU	IOCHAR+1	; (WORD) Pointer to current background color
+ZSP	EQU	COLORP+2	; (WORD) Z Stack
+SCREENF	EQU	ZSP+2		; (BYTE) DIROUT FLAG FOR SCREEN OUTPUT
+TABLEF	EQU	SCREENF+1	; (BYTE) DIROUT FLAG FOR TABLE OUTPUT
+VOCEND	EQU	TABLEF+1	; (3 BYTES) HOLDS MPC IN VOCAB SEARCH
+DBUFF	EQU	VOCEND+3	; (WORD) RAM PG TO ACCESS (LSB = 0)
+DSKBNK	EQU	DBUFF+2		; (BYTE) MAIN/AUX bank
+ALLFLG	EQU	DSKBNK+1	; (BYTE) IF =1 ALL FCN KEYS (>127) ARE TCHARS
+UNDFLG	EQU	ALLFLG+1	; (BYTE) Underlining flag
+INVFLG	EQU	UNDFLG+1	; (BYTE) Inverse flag
+MEMPAGE	EQU	INVFLG+1	; (BYTE) Save spot for XPAGING stuff
+CPY_COUNT EQU	MEMPAGE+1	; (BYTE) Number of bytes for copy line
+TBLHEIGHT EQU	CPY_COUNT+1	;(BYTE) Number of lines in printing table
+TBLWIDTH EQU	TBLHEIGHT+1	;(BYTE) Number of bytes per line
+TBLCNT	EQU	TBLWIDTH+1	;(BYTE) Counter for table printing
+FONTFLG	EQU	TBLCNT+1	;(BYTE) Which font (!=0 is width)
+TBLPUR	EQU	FONTFLG+1	;(BYTE) first pure table page
+FUNPRE	EQU	TBLPUR+1	;(BYTE) first preloaded function page
+FUNPUR	EQU	FUNPRE+1	;(BYTE)	first pure function page
+FUNPGE	EQU	FUNPUR+1	;(BYTE) -number to get function preload page
+DELAY_COUNTER EQU FUNPGE+1	;(BYTE) counter for delay loop
+;
+; some char-to-screen variables
+;
+CHAR_D1	EQU	DELAY_COUNTER+1	; (BYTE) character data, part 1
+CHAR_D2	EQU	CHAR_D1+1	; (BYTE) char data, part 2
+CW	EQU	CHAR_D2+1	; (BYTE) width of the character
+CLKCTR	EQU	CW+1		; (BYTE) counter for mouse clicking
+MSX	EQU	CLKCTR+1	; (BYTE) mouse cursor X
+MSY	EQU	MSX+1		; (BYTE) mouse cursor Y
+CURRENT	EQU	MSY+1		; (BYTE) current paging bufer
+;CURSOR_OFF EQU  CURRENT+1       ; (BYTE) ==1 if "don't show the blinking cursor"
+MSTBL	EQU	CURRENT+1	; (ADDRESS) pointer to extension table
+LASTZP	EQU	MSTBL+3		; just checking
+;
+; these routines are in non-swapped memory
+;
+ZERO_FB	EQU	LASTZP		; put fetch byte routine in at end of ZP
+ZERO_ZF	EQU	ZERO_FB+11	; and ZPCPNT fetch after that
+ZERO_MF	EQU	ZERO_ZF+9	; and MPCPNT fetch after that
+SAVE_DATA EQU	ZERO_MF+9	; copy data from DBUFF to IOBUFF routine
+;
+; and just to check the end
+;
+ZEE_END EQU	SAVE_DATA+17	; should be == 100
+
+	END

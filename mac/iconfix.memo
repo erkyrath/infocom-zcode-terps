@@ -1,0 +1,30 @@
+To: Product Support
+From: Duncan Blanchard
+Re: Mac Icons
+Date: January 9, 1986
+----------------------------------------------------------------------
+
+    When a Macintosh player saves a Infocom game position onto a second 
+disk, it's possible for the save file not to get associated with the correct
+icon.  Instead of appearing as a picture of an opened book and bookmark, 
+it appears as a blank sheet of paper (the standard default icon).
+
+    This is a general problem with the way the Macintosh Finder works.
+It can occur with any application that creates files with customized icons, 
+including MacWrite and MacPaint.  Among Infocom games, it's most likely 
+to occur with AMFV.  This is because EZIP games are shipped with a special 
+MiniFinder which aggravates the problem.
+
+    The following steps will install the correct icon.  They assume a system
+with a single disk drive.
+
+1.  Boot the computer with any disk (except the save disk!) which contains 
+a normal Finder, and wait for the desktop to appear.  If the application 
+disk has a normal Finder, use it.
+
+2.  If the application disk lacked a normal Finder (e.g. AMFV), eject the 
+Finder disk and insert the application disk now.
+
+3.  Eject the application disk and insert the save disk (un-write-protected).
+A couple of disk swaps may be requested.  The correct icon will be copied
+automatically from the application disk to the save disk.

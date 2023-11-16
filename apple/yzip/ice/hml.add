@@ -1,0 +1,447 @@
+                            ADDENDUM
+
+              Huntsville Microsystems' Linker v2.00
+
+
+     The following changes and/or additions have been made to the 
+Huntsville Microsystems' Linker for version 2.00:
+
+ *   New switch:  "-I".  Allows multi-pass library searches.
+
+ *   New switch:  "-A".  Allows control over ASEG writing into 
+     the .HEX file.
+
+ *   New switch:  "-O".  Allows control over writing COMMON 
+     blocks into the .HEX file, and control over the COMMON block 
+     base address.
+
+ *   New switch:  "-V".  Allows overlap of relocatable segments, 
+     and provides better support of the 8051 and 8048 micro-
+     processors.
+
+ *   New switch:  "-Y".  Allows control over internal .REL file 
+     library requests.
+
+ *   New switch:  "-U".  Allows conversion of all External and 
+     Public labels into upper-case.
+
+ *   Deleted:  "-B" switch.
+
+ *   Support for 8051 BIT space added.
+
+ *   Support for 8051/8048 DATA and IDATA spaces added.
+
+
+
+     HML  version 2.00 is a completely restructured successor  to 
+HML  v1.0,  and provides better support for microprocessors  with 
+overlapping addresses spaces.
+
+
+Using HML v2.00:
+
+     HML v2.00 has a new "Usage" message:
+
+-----------------------------------------------------------------
+
+Usage:  HML [option(s)]
+
+  options:                              default:
+                [d:]filename[.ext]
+          -l    [d:]filename[.ext]
+          -i    [d:]filename[.ext]
+
+          -[n]h [d:][filename][.ext]            -h <userfile>.hex
+          -[n]m [d:][filename][.ext]            -nm
+          -[n]s [d:][filename][.ext]            -s <userfile>.sym
+          -[n]x [d:][filename][.ext]            -nx
+
+          -[n]a                                 -a
+          -[n]c [hex address]                   -c
+          -[n]d [hex address]                   -d
+          -[n]o [hex address]                   -o
+
+          -[n]v [hex address][:hex address]     -nv
+          -[n]y                                 -y
+          -[n]u                                 -nu
+          -f    [d:]filename[.ext]
+
+-----------------------------------------------------------------
+
+The command line options are as follows:
+
+          [d:]filename[.ext]
+
+               Same as before.
+
+
+          -l [d:]filename[.ext]
+
+               Same as before.
+
+
+          -i [d:]filename[.ext]
+
+               The  '-i'  switch  names  a library  file  to  the 
+               linker,  similar  the  to  '-l'  switch,  but  the 
+               library is marked for multi-pass searching.
+
+               A  multi-pass  library is searched until  no  more 
+               modules  are  found in it which  satisfy  unlinked 
+               external references in modules already pulled into 
+               the linkage.   This allows a library with  forward 
+               references to be specified on the HML command line 
+               once, and still be linked properly.
+
+               The '-i' switch must be followed by a filename.
+
+               The default extent for a '-i' file is ".REL" .
+
+
+          -[n]h [d:][filename][.ext]
+
+               Same as before.
+
+
+          -[n]m [d:][filename][.ext]
+
+               Same as before.
+
+
+          -[n]s [d:][filename][.ext]
+
+               Same as before.
+
+
+          -[n]x [d:][filename][.ext]
+
+               Same as before.
+
+
+          -[n]a
+
+               The  '-a'  option tells the HML whether or not  to 
+               write the ASEG into its output .HEX  file.   ('-a' 
+               write ASEG, '-na' do not write ASEG.)
+
+
+          -[n]c [hex address]
+
+               The  '-c' option tells HML whether or not to write 
+               the CSEG into its output .HEX file.  [hex address] 
+               is used to override the default value for the CSEG 
+               start address.
+
+
+          -[n]d [hex address]
+
+               The '-d' option is similar to the '-c' option, but 
+               controls the output of the DSEG.
+
+
+          -[n]o [hex address]
+
+               The  '-o'  option controls the  output  and  start 
+               address  of any COMMON blocks which may be present 
+               in the program.   Current HMAs do not support  the 
+               output  of COMMON blocks,  so this option is  only 
+               useful   when  linking  .REL  files  produced   by 
+               "foreign" cross-assemblers.
+
+
+          -[n]v [hex address][:hex address]
+
+               The '-v' option controls overlap (8051) mode.
+
+               When linking 8051 or 8048 .REL files, overlap mode 
+               is automatically enabled.  When linking other .REL 
+               files,  overlap  mode  is automatically  disabled.  
+               '-v'  will enable overlap mode for  non-8051  .REL 
+               files, but '-nv' will not disable overlap mode for 
+               8051 and 8048 .REL files.
+
+               Overlap  mode disables the checks for  overlapping 
+               CSEG  and DSEG addresses,  and enables support for 
+               the extra 8051 relocatable segments BIT, DATA, and 
+               IDATA.
+
+               The  two  hex addresses which can follow the  '-v' 
+               option  allow control over the start addresses  of 
+               the DATA segment, and BIT segment respectively.  A 
+               colon (:) is used to seperate the two addresses.
+
+               IDATA  space always follows DATA  space,  and  its 
+               start address cannot be overridden.
+
+               Examples:
+                    -v        ; Enable overlap mode.
+                    -v 0      ; Start DATA space at 0.
+                    -v :12    ; Start BIT space at 12H.
+                    -v 40:16  ; Start DATA space at 40H, BIT 
+                              ; space at 16H
+
+
+          -[n]y
+
+               The '-y' option enables/disables HML's honoring of 
+               internal .REL file library requests.  Current HMAs 
+               do  not support the generation of  these  internal 
+               library  requests,  so  this option would only  be 
+               useful when linking "foreign" .REL files.
+
+
+          -[n]u
+
+               The  '-u'  option controls the  'upperization'  of 
+               External  and Public label names.   When the  '-u' 
+               option is enabled,  all public and external labels 
+               are converted to upper case before linking.   When 
+               '-u' is disabled ('-nu',  the default setting), no 
+               labels  are converted,  and linking proceeds  with 
+               all labels used as they naturally occur.
+
+               This option may be useful with some "foreign" .REL 
+               file libraries.
+
+
+          -f [d:]filename[.ext]
+
+               Same as before.
+
+
+
+File Formats:
+
+     .REL files:
+
+          Unchanged.
+
+
+     .HEX files:
+
+          Unchanged.
+
+
+     .SYM files:
+
+          Unchanged.
+
+
+     .BIN files:
+
+          Deleted.
+
+
+     .MAP files:
+
+          The .MAP file format has been altered.
+
+          HML now recognizes seven segments:   ASEG,  CSEG, DSEG, 
+COMMON,   DATA,   IDATA,  and  BIT.   Of  these  seven,  six  are 
+relocatable,  with  ASEG  being  the  only  absolutely  addressed 
+segment.
+
+          The first four segments;  ASEG, CSEG, DSEG, and COMMON; 
+can occur in any Microsoft-formatted .REL file.   The last  three 
+segments occur only in HMA8051-produced .REL files.  (HMA8048 can 
+produce DATA and IDATA segments as well.)
+
+          The following format is now used for HML MAP files:
+
+-----------------------------------------------------------------
+
+ <segment> base: 0xnnnn  size: 0xnnnn
+     .
+     .
+     .
+
+Modules:
+
+     Module: cccccc  <segment> base: 0xnnnn  size: 0xnnnn
+                         .
+                         .
+                         .
+
+     Module: cccccc  <segment> base: 0xnnnn  size: 0xnnnn
+       .
+       .
+       .
+
+Labels:
+
+     cccccc  0xnnnn      cccccc  0xnnnn      cccccc  0xnnnn
+       .
+       .
+       .
+
+-----------------------------------------------------------------
+
+     The  first lines show the segments actually used during  the 
+linkage,  their  assigned  absolute  base  addresses,  and  their 
+aggregate sizes.
+
+     After the initial status lines comes a report on each module 
+pulled into the linkage.  Each module name is shown, along with a 
+list  of  the segments actually used within  that  module,  their 
+assigned absolute base addresses, and sizes.
+
+     After  the module report comes a report on the public labels 
+used.   Three labels are reported on a line.  The label name, and 
+its assigned absolute value are shown.
+
+     'nnnn' stands for a four-digit hexadecimal number.  'cccccc' 
+stands for a string of 1-6 ASCII characters.
+
+
+
+DATA, IDATA and BIT segments, and the 8051 (and 8048):
+
+     HML  v2.00 supports the special relocatable  segments  DATA, 
+IDATA and BIT.   These three segments are provided to support the 
+allocation    of    internal   data   memory    on    8051-family 
+microprocessors.
+
+     The   DATA  and  IDATA  segments  are  used  by  8048-family 
+microprocessors.
+
+     When linking programs for the 8051 (and 8048),  overlap mode 
+is  automatically enabled for HML.   When overlap mode goes  into 
+effect,  CSEG space is assigned to internal program memory,  DSEG 
+space is assigned to external data memory,  BIT space is assigned 
+to  internal bit addressable memory,  DATA space is  assigned  to 
+internal  directly-addressable  data memory,  and IDATA space  is 
+assigned to internal indirectly-addressable memory.  See the 8051 
+microprocessor manual for further details on these memory spaces.  
+ASEG  space  is generally treated as CSEG,  but can be  used  for 
+assigning absolute addresses when necessary.
+
+     In overlap mode, HML only allows the ASEG and CSEG spaces to 
+be written to the output .HEX file.
+
+     BIT  space  is  128 bits in size,  and  occupies  the  bytes 
+physically  located  at addresses 20H-2FH in internal  8051  data 
+memory.  DATA space occupies addresses 0-7FH, and must share with 
+BIT space.   IDATA space occupies addresses 0-0FFH and must share 
+with  DATA and BIT space.   Note that not all microprocessors  in 
+the 8051 family have the full IDATA space allotment.
+
+     HML  assignes addresses in BIT,  DATA,  and IDATA  space  as 
+follows:
+
+     BIT space comes first, and is assigned addresses starting at 
+20H.   When  the last bit is allocated,  HML adds enough  padding 
+bits  to fill out the byte,  and then begins assigning DATA space 
+at  the  first following unused byte.   When all  DATA  space  is 
+allocated,  IDATA  bytes  are then allocated on top of  the  DATA 
+space.
+
+     If BIT,  DATA,  and/or IDATA spaces overlap, or exceed their 
+legal physical address space, a warning message is displayed.
+
+     The  '-v'  option  can  be  used  to  override  the  default 
+assignment  of  start addresses for BIT and  DATA  space.   IDATA 
+space  always  follows  DATA space  immediately,  and  its  start 
+address cannot be overridden.
+
+     BIT space can be started on any address from 00-7F.
+
+     DATA space can be started on any address from 00-7F.
+
+     Be  wary  of  setting  the DATA  start  address  below  20H.  
+Addresses  below 20H are assigned to the internal register  banks 
+on  the  8051 (and to both registers and the stack on the  8048), 
+and could easily cause problems if proper care is not taken.
+
+
+
+Error messages:
+
+     The   following  error  messages  are  used  by  HML  v2.00.  
+Changes, if any, from the previous version are noted:
+
+     Error 1 -- ** Out of Memory **
+
+     Error 2 -- Cannot open:  <filename>
+
+     Error 3 -- Close error on:  <filename>
+
+     Error 4 -- No file(s) to link
+
+     Error 5 -- <filename> is not a proper .REL file
+
+     Error 6 -- Unimplemented link item in <filename>
+
+     Error 7 -- Multiple start addresses
+
+     Warning 8 -- <segment> and <segment> areas overlap
+
+          This error message has been transformed into a warning.  
+The named segments have overlapping address spaces,  and both are 
+to  be  written into the .HEX file.   Make sure this is what  you 
+want.  HML does not stop.
+
+     Error 9 -- Undefined or Multi-defined lables
+
+          The  text of this error message has  changed  slightly.  
+Its meaning is the same.
+
+     Error 10 -- Nothing linked
+
+     Error 11 -- Invalid link item (RPN)
+
+     Error 12 -- HML is confused
+
+
+New error messages:
+
+     Error 13 -- Unwritable segment (<segment>) accessed in File:  
+                 <filename>
+
+          The named segment is a considered to be a segment which 
+holds  data,  and  which  cannot  be initialized  by  the  linker 
+properly (for example,  the DATA segment on the 8051).   The .REL 
+file attempted to initialize data in this segment.
+
+     Error 14 -- Broken chain in File:  <filename>
+
+          EXTRN references in .REL files are resolved by means of 
+EXTRN  chains.   The linkage of one of these chains in the  named 
+file  has been broken,  probably by overlapping addresses in  the 
+same segment.
+
+     Error 15 -- File:  <filename> different on pass 2
+
+          A disk read error has probably occurred.
+
+     Warning 16 -- <segment> space overflow
+
+          The  named segment has overflowed its physical  address 
+boundaries.  HML does not stop.
+
+
+
+Notes:
+
+     1.   .REL  file labels are still restriced to a  maximum  of 
+          six characters in length,  and are not converted to all 
+          upper case (unless the '-u' option is used).
+
+     2.   HML  version 2.00 still supports the special meaning of 
+          the label "$MEMRY".   The bytes at $MEMRY and  $MEMRY+1 
+          will   be  filled  in  with  the  value  COMMON_base  + 
+          COMMON_size at link time, written low-byte-first.
+
+     3.   Uninitialized  bytes are no longer written to the  .HEX 
+          file.
+
+     4.   HML  version 2.00 performs an  "incremental  link",  to 
+          increase  efficiency in memory usage.   HML  completely 
+          links each individual module, and writes its results to 
+          the  .HEX  file,  before going on to the  next  module.  
+          This  allows  HML  v2.00 to allocate memory on  a  per-
+          module   basis,   rather  than  a  per-segment   bases, 
+          resulting  in the ability to link larger programs  with 
+          less  memory.   The maximum amount of memory needed  by 
+          HML now equals the amount of memory used by the largest 
+          module in the link.
+

@@ -1,0 +1,297 @@
+This is just a list of all the version changes for the Apple ][ YZIP
+
+;
+; 1 - 7/29/88 New numbering scheme
+;		Faster text handling
+;
+; 2 - 8/17/88 Gargantu-Games handling
+;		Fixed Restart
+;		Handle COLOR -1
+;		Handle transparent colors in pictures
+;
+; 3 - 8/24/88 Joystick/Mouse handling
+;
+; 4 - 8/30/88 Heavily debugged with/for ZORK0
+;
+; 5 - 9/1/88 Fix cursor x,y in WINGET
+;	Make CLS work on REAL skinny windows
+; 
+; 6 - 9/2/88 No status check on CLOSEs
+;	Only allow alphanumerics for save names
+;
+; 7 - 9/2/88 Don't clear strobe first, do it after getting key
+;	Add /RAM check to boot code - restore /RAM after QUIT
+;
+; 8 - 9/7/88 Flag day
+;	Changed WINGET/WINPUT to like GET/PUT
+;	Add in multi disk stuff
+;
+; 9 - 9/15/88 Preload is in SEGMENT table now
+;	Program name in BOOT.ASM
+;	Copy name to correct place in boot and interpreter
+;	New name of interpreter is now "INFOCOM"
+;	Add verify code too
+;
+;10 - 9/16/88 Keep running count of dirout char width in lo core
+;	Set up pure and pre pointers for tables and functions
+;
+;11 - 9/20/88 Don't forget to add one to x,y pos of window and cursor
+;			in WINGET
+;	Init vocab pointers for default vocab table and use them
+;
+;12 - 9/28/88 Zero zero page stuff in two passes - used to wipe out ProDOS zero page
+;	Data length in pic files is now 3 bytes
+
+;
+;13 - 10/11/88 Picture files and Data files are one and the same now
+;
+;14 - October 24, 1988
+;	Add volumn command to save/restore get name routine
+;
+;15 - November 8, 1988
+;	Search on disk 1 in last resort (hints are probably there)
+;	Use mouse in passive mode
+;
+;16 - November 14, 1988
+;	Make mouse stuff be passive, rather than interrupt driven
+;
+;17- November 15, 1988
+;	Few more fixes 'n' stuff
+;
+;18-November 15, 1988
+;	Clear ZTWIDTH when starting table output
+;
+;19-November 28, 1988
+;	Fix up PUT_NYBBLE and GET_NYBBLE
+;	Reset DSEGS after closing save file
+;	Make FONTSIZE word be Width/Height
+;	Make Chars/line reflect mono spaced char width of 3 in lo core
+;	Change ZTWIDTH to be MSB/LSB, rather than LSB/MSB word
+;	Point to main bank in CHK_MOUSE
+;	Clamp mouse to 136,189, and don't do shift when getting pos
+;	Make CLK_CNT be negative, and set flag to show button state
+;	Set up point to MSTBL (extension table for mouse clicks)
+;	Put X,Y coordinates in MSTBL after click
+;
+;20-December 1, 1988
+;	Don't use [A] in DO_MOUSE unless it is a character
+;	Clear LSB in seek pblock before doing seek
+;	No, really, DON'T use [A] in DO_MOUSE
+;	Make CLK_CNT be 8
+;	Exit normally if double click
+;	Split mouse cursor routine into 2 pieces - off and on
+;	If can't find picture, try opening other file.  If it isn't there
+;		then die with error #$14
+;	Move XPOSTBL and COLORS to page 3 for some elbow room
+;	Save/restore refnum when opening new picture file
+;
+;21-December 2, 1988
+;	Swap back to Bank 1 in pic.asm
+;
+;22-December 5, 1988
+;	Save/restore DSEG in verify
+;	Dec saved filename for passing to Fetch_file in Verify
+;	Fix addition for getting to Picture data in Verify
+;	Check for files 0 & 1 names in different place than 2 & 3 (Verify)
+;	Add STARTPOS to verify
+;	Copy BITOFF to BITTER in picture stuff
+;
+;23-December 6, 1988
+;	Get picture data checksum from the right place
+;	Init counter for picture data checksum to be $FF, not 0
+;	Move "mouse" cursor for joystick too
+;	Do "mouse" cursor pos for button for joystick too
+;	Change movement thresholds for joystick to 120/135
+;	Double movement rate for joystick
+;	Change boundaries check in stick movement to bcs, not beq
+;	Save/restore cursor position in DLINE
+;	Create SWAP2INFOW/SWAPBACK to go to/from info window
+;		and have DLINE & GETSNAME use them
+;	Have only one exit point in GETSNAME
+;	Make DLINE do a CLRBUF upon exitting
+;	Add EOL to end of DELQ
+;	Muck with a few messages in ZSAVRES
+;	Change GAMEPL to maximum (64-15) as can only be a list of directories
+;	Add "Unexpected EOF" error string
+;
+;24-December 8, 1988
+;	Game data starts out on even (512 byte) page boundary
+;
+;25-December 13, 1988
+;	Make pop's FETCHB store afterwards
+;	Make WINGET handle 0-15 words to get
+;	Change order of window parameters, to make user ones the first
+;		16 available
+;	Don't SWAP to infowindow in DLINE, rather do it in routines that
+;		call DLINE
+;	Fix color green in COLORS table
+;
+;26-December 14, 1988
+;	Change PBEGIN to $0200
+;	Scan for mouse slot, rather than asking or assuming
+;	After finding it, save lo byte in arg1+lo to change interpreter
+;		screen holes for interesting stuff
+;	Save/restore printer slot before/after SWAPBACK call
+;
+;27-December 15, 1988
+;	Put paging buffer start back to $0800, cuz screen holes in aux
+;		mem really screw things up
+;	Make only closed-apple key work as function key faker
+;
+;28-December 16, 1988
+;	Need only 8 chars for name, as .SYSTEM adds 7 more, to max 15
+;	Make ZQUIT read RDBNK2, not write
+;
+;29-December 19, 1988
+;	Save disk number when saving refnum, so that we can scan the two
+;		disks currently inserted, then look at all the rest
+;	Pass starting offset for segment list, cuz segments for side 1
+;		start a little weird, cuz preload is the first set of
+;		segments, then the list starts normally
+;	Don't forget to save refnum in all the right places
+;
+;30-December 20, 1988
+;	Use BIT_BITS in both CHAR_LINE and picture stuff
+;	Take out retries - it just doesn't work
+;	Add check for save disk when asking about swapping disk
+;	Copy read buffer to local buffer before doing read
+;
+;31-December 22, 1988
+;	Play with bounds for joystick movement a little further out
+;	Don't script input line
+;	Fix input with timeout, so that the key gets parsed correctly
+;	Only look at button zero for joystick
+;	Call FKEYX instead of KEYX in TIMEK
+;	Check all online volumes before asking for disk by name
+;	Fix length byte before you do
+;	Use CHPTR in volume checking routine
+;	Copy path name to SCRBUFF so we can prepend a '/' in checking volumes
+;	And don't forget to count it in the length byte
+;	Quit if no more volumes to check
+;	More changes to avoid errors in set_prefix, which really seem to gum
+;		up the works
+;
+;32-December 23, 1988
+;	Don't clear interrupts before reading paddles
+;
+;33-January 3, 1989
+;	Spell volume right in error message
+;	Save cursor a little earlier in zdispl
+;	Set/clear savedisk only in close_save
+;
+;34-January 4, 1989
+;	Make sure carry is set before returning from DISK_ERR
+;	Have SET_GAMEPRE use SAVENUM
+;	Push current INVFLG instead of saving in variable in ST_CUR
+;	Check for mouse cursor in timed input please too
+;	Took GOTKEY out, cuz no-one used it any more
+;	Changed order in TIMIN for goodness sake
+;
+;35-January 5, 1989
+;	Try for 512 byte paging buffers
+;
+;36-January 6, 1989
+;	Fix up some more for 512 byte buffers
+;	Muck with paging scheme (oh oh)
+;	Make GETRES take from one to four blocks
+;	Make restore use 4 blocks when doing full restore
+;
+;37-January 9, 1989
+;	Fix multiple block restore problems
+;	Don't destroy DOS return code in GETRES
+;	Clear CLOSE_PB refnum
+;	Make DOS routine be READ_DOS and WRITE_DOS
+;	Fix read so SIB's increment word start
+;	Make WAIT10 check for mouse/joystick cursor movement
+;	Use FKEYX for [MORE] so buttons can be used
+;
+;38-January 10, 1989
+;	Mess with PCHK and other scripting stuff
+;	Use GETKEY for [MORE]
+;	Put in delay before calling PREAD to get joystick status
+;
+;39-January 11, 1989
+;	Make mouse cursor be two colors
+;	Change WAIT10 to be a loop, not an MWAIT call
+;	Clear MSMOVEF flag in MSCURS
+;	Don't check GETKEY's return in MORE
+;	Joystick is > 0, mouse is < 0
+;	Leave mouse status in [A] for CHK_MOUSE
+;	Add DELAY_COUNTER for WAIT10
+;
+;40-January 12, 1989
+;	Fix shift (asl -> rol) when getting position of picture T.O.C.
+;	Don't split Mouse moving/button
+;	Play with Delay counter, doubling it if on a GS
+;	Make sure interupts are turned back on in CHK mouse
+;	Only turn on button flag in CHK mouse, never turn it off
+;	Add another delay loop inside WAIT10
+;	Make INNER & OUTER constant counters, with special ones for GS
+;
+;41-January 13, 1989
+;	Add printer init call to pchk
+;	Play with SCRIPT flag (which allows scripting)
+;		Turn on initially
+;		Turn off at start of save/restore
+;		Turn on at end of save/restore
+;	Add SCRIPTFLG, which says whether window allows scripting
+;
+;42-January 19, 1989
+;       Change to always seek to 512byte block boundary for new DOS
+;               pic.asm
+;
+;43-January 20, 1989
+;       Move copy line for $D000 down to lower memory
+;       Add INFODOS flag for conditional assembly for special dos
+;       Play with boot to get it to work with 512byte blocks
+;       Take out all ROM calls, cept printer stuff; default is now
+;               BNK1SET
+;
+;44-January 26, 1989
+;       Change DESTROY to SETEOF for new InfoDOS.
+;
+;45-January 31, 1989
+;       Make paging stuff goto Bank 2, not bank 1
+;       Make picture stuff goto Bank 1
+;       Add INFODOS flag
+;       Non-sequential page map
+;       If INFODOS==1, then 12Kb preload in $D0-$FF, main bank, bank 2
+;               and check for it in xpaging
+;       Just loop if using InfoDOS upon quit
+;
+;46-February 1, 1989
+;       Don't muck with interrupts cuz InfoDOS don't like it
+;
+;47-February 4, 1989
+;       Fixed set_eof to delete file.
+;       Ignore error returns for set_eof, cuz InfoDOS doesn't like to
+;               SET_EOF on an empty file.
+;       Make boot.asm print out version too
+;       Change special load from Kb's to pages
+;       Do special load 1 page at a time, rather than 2
+;
+;48-February 6, 1989
+;       Change get_special counter to count 2 blocks, not 4
+;       Fix SAVE/RESTORE to do 512 byte pages for InfoDOS
+;       All reads in restore must be 512 bytes minimum
+;
+;49-February 7, 1989
+;       Make SAVE_DATA self-modification be absolute, not relative
+;       Put version number into lower left corner of boot screen
+;       Fix scroll to move cursor to last line before doing any work
+;               and have it count the lines in lincnt, but not
+;               against the scrolling lines
+;
+;50-February 10, 1989
+;       Add no write to TREE files error
+;       Add set_prefix call to OPEN_GAMEF, before opening file the
+;               first time
+;       Start Set-PB off pointing to game boot prefix
+;       Init a few GS registers in boot
+;       Put SET_EOF error check back
+;       Jump to reset vector if in InfoDOS
+;
+;51-February 10, 1989
+;       Huntsville Micro Systems version
+;
+

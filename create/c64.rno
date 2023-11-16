@@ -1,0 +1,148 @@
+.c;HOW TO FORMAT DISKS FOR THE COMMODORE 64
+.s 2
+1. Turn on the monitor, disk drive and CPU.
+.s
+2. Put the create disk in the disk drive.
+.s
+3. The monitor should say READY. Type LOAD"FORMAT",8 and hit the return
+key.
+.s
+4. When the monitor says READY, replace the create disk with a blank
+disk. Type RUN and hit the return key.
+.s
+5. You will be asked NAME? Type the full name of the game to be
+tranferred to that disk, and hit the return key.
+.s
+6. The blank disk in thr drive will now be formatted. It will take about
+a minute or two.
+.s
+7. When the formatting procedure is complete, the monitor will say READY
+again. Type LOAD"$",8 and hit the return key.
+.s
+8. The monitor will say READY. Type LIST and hit the return key.
+.s
+9. The monitor will say [N BLOCKS FREE] where N is the number of free
+blocks on your newly-formatted disk.
+
+.pg
+.c;TRANSFERRING A GAME FROM THE PDP-11 TO THE COMMODORE 64
+.S 2
+NOTE: Since TN20 will not work for sending files to the Commodore, you
+must transfer game files from the PDP-11. Therefore, before beginning
+the following procedure, first make sure that the current version of the
+game file is in the PDP-11's INT directory. If not, then follow the
+instructions for transferring a game file from the DEC-20 to the PDP-11.
+.s
+1. Turn on the Commodore's monitor, disk drive, and CPU. Plug the cable
+labelled "TN" (not TN20) into the Commodore.
+.s
+2. Put the create disk in the disk drive. (Note that there is just one
+create disk for every game, not a separate disk for each game as is the
+case on most other micros.)
+.s
+3. The monitor should say READY. Type LOAD"RCV",8 and hit the return key.
+.s
+4. Replace the create disk with a blank formatted disk. You can format
+this disk yourself by following the formatting procedure on the previous
+page. Preferably, use one of the Dysan pre-formatted disks that should
+be in the Commodore disk tray.
+.s
+5. The monitor should say READY. Type RUN and hit the return key.
+.s
+6. The monitor will say (Z) ZIP OR (G) GAME?  At this point, you want
+to transfer the Commodore interpreter from the PDP-11, so type Z and hit
+the return key.
+.s
+7. Log onto the PDP-11. (If you want to log onto the PDP-11 from a
+DEC-20 account, type 11 at the @-prompt. A prompt that looks like "20>"
+will appear. Type C to connect to the PDP-11.) If you don't have an
+account on the PDP-11, you can log onto account 3,3. The password is GAMES.
+.s
+8. When you see the PDP-11's period-prompt, type INT and hit the return
+key in order to connect to the INT directory.
+.s
+9. Check to make sure that the two switches on the side of the PDP-11
+are set to 1200 baud.
+.s
+10. The PDP-11 terminal should be displaying the period-prompt again.
+Type TN and hit the return key.
+.s
+11. You will get a prompt that looks like "TN>". Type S.
+.s
+12. You will be asked for the name of the file you want to send. At this
+point, you want to send the Commodore interpreter. Type ZIP.C64 and hit
+the return key.
+.s
+13. You will told [N blocks], the size of the Commodore interpreter. The
+"TN>" prompt will re-appear. Type B.
+.s
+14. Shortly, a line of A's will begin appearing on the PDP-11 terminal,
+and a line of dots will begin appearing on the Commodore monitor. Often,
+the first block will not transfer on the first attempt, and a T will
+appear at the beginning of the line of A's. Don't worry about it.
+.s
+15. The interpreter will take around two or three minutes to transfer.
+The Commodore monitor should say READY, and the PDP-11 terminal should
+be displaying the "TN>" prompt.
+.s
+16. Replace the game disk with the create disk. Type LOAD"RCV",8 and hit
+the return key.
+.s
+17. The monitor will say READY. Replace the create disk with the game
+disk. Type RUN and hit return.
+.s
+18. You will once again be asked whether you want to transfer the
+interpreter or the game file. This time, you want to transfer the game,
+so type G and hit return.
+.s
+19. Return to the PDP-11 terminal, which should be displaying the "TN>"
+prompt. Type S.
+.s
+20. You will be asked what file you want to send. Type the six
+letter PDP-11 abbreviation for that particular game, followed by .IML
+(Some examples: ZORK1.IML, DEADLN.IML SUSPEN.IML). Hit the return key.
+.s
+21. You will be told [N blocks], the size of the file to be transferred,
+and then the "TN>" prompt will reappear. Type B to begin the transfer.
+.s
+22. The transfer will take 20 to 30 minutes. Lots of A's should appear
+on the PDP-11's monitor and lots of dots should appear on the
+Commodore's monitor.
+.s
+23. When the transfer is complete, the "TN>" prompt should reappear.
+Type Q. When you see the period-prompt, logout from the PDP-11. (If you
+connected from the DEC-20, hit the BREAK key at this point. You will get
+the "20>" prompt. Type Q to return to the DEC-20 Exec.)
+.s
+24. Return to the Commodore. Replace the game disk with the create
+disk. The monitor should say READY. Type LOAD"GAME",8 and hit return.
+.s
+25. Replace the create disk with the game disk. The monitor should say
+READY. Type SAVE"GAME",8 and hit return.
+.s
+43. The game disk should now be complete and functional. Check it by
+booting it and, when the game prompt appears, typing "$verify".
+
+.pg
+.c;BOOTING GAME DISKS ON THE COMMODORE 64
+.s 2
+1. Turn on the Commodore's monitor (switch on the front), disk drive
+(switch in the back), and CPU (switch on the right side).
+.s
+2. Put the game disk in the disk drive, with the label facing up and the
+oval cut-out toward the rear. Close the drive door.
+.s
+3. The monitor should say READY. Type LOAD"GAME",8 and hit the return
+key.
+.s
+4. After a few seconds, the monitor will say READY again. Type RUN and
+hit the return key.
+.s
+5. You will told to wait 1.5 minutes. After this period of time, the
+game should come up. If the entire opening does not fit on one screen
+you will have to hit the space bar when the monitor says MORE.
+.s
+6. When the game prompt (">") appears, you can verify the disk by type
+"$VE" and hitting the return key. WARNING: Verifying a disk on the
+Commodore takes around five minutes.
+ 

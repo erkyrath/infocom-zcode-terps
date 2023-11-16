@@ -1,0 +1,77 @@
+
+             HMA-02R 65C02 Cross Assembler Addendum
+
+
+The following features have been added to HMA-02R for v1.82:
+
+     1)   NUL (Empty) Macro Argument testing.
+
+     2)   HIGH and LOW byte isolation operators.
+
+     3)   Large Data Memory Model.
+
+
+Added Feature #1:  NUL (Empty) Macro Argument testing.
+
+     The standard HMA conditional test, IF, has been extended to 
+allow for the testing of empty macro arguments.
+
+     To test for an empty macro parameter, use the conditional IF 
+test, followed by the keyword NUL, followed by a #, the parameter 
+being tested, and another #.
+
+     For example, to test for the occurrance of macro parameter 
+P1, which may be empty, use the following:
+
+          IF NUL #P1#
+               (Stuff to do if P1 is empty)
+          ELSE
+               (Stuff to do if P1 is not empty)
+          ENDIF
+
+     The NUL test checks the input line from the end of the NUL 
+keyword to the end of the line.  If a character is encountered 
+before the end of the line which is not a space character, nor a 
+semicolon character, the NUL test is considered to be false, 
+otherwise, the NUL test is true.  Note that a macro parameter 
+which starts with a ';' character will fool the NUL test into 
+being true when it should be false.
+
+
+Added Feature #2:  HIGH and LOW byte isolation operators.
+
+     Two new mathematical operators, HIGH and LOW, have been 
+added.  These operators have been assigned the highest precedence 
+in the HMA mathematical hierarchy.  Only one HIGH or LOW operator 
+may be used in a mathematical expression, and must be the first 
+operator on the line.
+
+     The HIGH operator takes the result of the mathematical 
+expression to its immediate left, isolates the high byte of this 
+value, and places it in the low byte position of a 16 bit word.  
+The high byte of this word is zeroed.
+
+     The LOW operator takes the result of the mathematical 
+expression to its immediate left, and places a zero in the high 
+byte position of this 16 bit value.  The low byte of this value is 
+unchanged.
+
+     HIGH and LOW may be used with any operator or pseudo-op 
+which generates code or data.
+
+     Examples:
+                    DB   HIGH 1234h     ; generates 12h
+                    DW   LOW  1234h     ; generates 0034h
+
+
+Added Feature #3:  Large Data Memory Model.
+
+     All Huntsville Microsystems software products which have the 
+suffix 'L' on their version number (see the signon message issued 
+by the product in question when it is first started) use the 
+Large Data memory model.  Use of a Large Data model in these 
+programs means that, when running, all available free memory will 
+be used for data storage, rather than the previous Small Data 
+model limit of 64K.
+
+

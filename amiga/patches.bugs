@@ -1,0 +1,64 @@
+
+PATCHES TO AMIGA-SUPPLIED INCLUDE FILES
+==============================================================================
+
+[] Workbench/Workbench.h
+------------------------------
+
+WAS
+	enum	WBObjectType	wo_type;
+
+	(in struct DiskObject)
+
+PROBLEM
+	Amiga expects this field in the icon data file to be 16 bits wide,
+	but Lattice 68K treats type "enum" as 32 bits.
+
+	Assignments to subsequent fields end up mis-aligned.
+
+FIX
+	short	dummy;
+
+
+[] Exec/Types.h, Exec/IO.h
+------------------------------
+
+WAS
+	typedef	unsigned char	*STRPTR;	/* string pointer */
+	typedef	STRPTR		*APTR;		/* absolute memory pointer */
+
+PROBLEM
+	Exec/IO.h defines a structure IOStdReq, which contains the field
+	io_Data, of type APTR.  
+
+	My routine "write_console" calls DoIO (IOStdReq), with the io_Data 
+	field holding a pointer to the text buffer.  (It's not a pointer to
+	a pointer, as implied by the typedef).
+
+	If the buffer starts at an odd address, the compiler generates code
+	to round down the pointer.  Ouch.
+
+FIX
+	typedef	unsigned char	*APTR;		/* absolute memory pointer */
+
+BETTER FIX (10/30)
+
+	In Exec/IO.h, define a new structure IOStdReq_MUNGED.  The io_Data 
+	field is of type STRPTR.  Use this structure for AmigaZIP globals.
+
+
+[] Workbench/Workbench.h
+------------------------------
+
+WAS
+	UWORD	woIconDisk:1;
+
+	(four fields of this form, in struct WBObject)
+
+PROBLEM
+	Didn't compile.
+
+FIX
+	UWORD	woIconDisk;
+
+

@@ -1,0 +1,8 @@
+UNIX DIP -- to do
+------------------------------------------------------------------------
+    verify
+	[] needs to check data section, as well as code section
+	[] avoid the printf (scrolls screen)
+
+    save/restore
+	[] define a "cancel" key

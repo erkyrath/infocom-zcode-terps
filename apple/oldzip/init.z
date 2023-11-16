@@ -1,0 +1,144 @@
+ .TITLE  "ZORK - INITIALIZATION"
+ .PAGE
+ 
+ START   CLD                     ;Clear Decimal Mode
+	 LDA     #0
+	 LDX     #ZPGOFF
+ $1      STA     0,X             ;Clear Zero Page
+	 INX
+	 BNE     $1
+ 
+	 LDX     #0FF            ;INIT CONTROL STACK
+	 TXS
+	 JSR     SINIT           ;DO SYSTEM-DEPENDENT INITIALIZATION
+	 
+	 LDA     #FALSE
+	 STA     ZPCFLG
+	 STA     MPCFLG          ;NO VALID MEMORY IN FROM DISK
+	 MOVE    #1,ZSTAKC       ;INIT STACK
+	 MOVEI   ZSTACK+<2*ZSTAKL>,ZSTAKP
+         MOVE    #0FF,ZSTBUI+6
+ 
+	 MOVEI   PGTOFF,PGTBL    ;INIT PAGE TABLES
+	 MOVEI   PGTOFF+MAXPGS,PGTBH
+	 MOVEI   PGTOFF+<2*MAXPGS>,PGTBLF
+	 MOVEI   PGTOFF+<3*MAXPGS>,PGTBLB
+	 LDY     #0
+         LDX     #MAXPGS
+ START1  LDA     #0FF
+	 STA     @PGTBL,Y        ;NO PAGE IN MEMORY
+	 STA     @PGTBH,Y
+	 TYA
+	 CLC
+	 ADC     #1              ;POINT ONE DOWN
+         STA     @PGTBLF,Y       ;FORWARD POINTER
+	 TYA
+	 SEC
+	 SBC     #1
+	 STA     @PGTBLB,Y       ;BACK POINTER
+	 INY                     ;CONTINUE LOOP
+	 DEX
+	 BNE     START1
+         DEY                     ;CORRECT FOR NO FORWARD POINTER FOR LAST PAGE
+	 LDA     #0FF
+	 STA     @PGTBLF,Y
+	 MOVE    #0,PGTOP        ;TOP PAGE
+	 MOVE    #MAXPGS-1,PGBOT ;BOTTOM PAGE
+ 
+	 MOVEI   THEEND,ZCODEP   ;FIRST Z LOCATION
+         MOVEW   ZCODEP,TEMP
+	 MOVEI   0,VAL
+	 JSR     GETDSK          ;READ IN FIRST SECTION
+         LDY     #ZENDLD+<LO^INVERT>
+         LDA     #0FF
+	 STA     @ZCODEP,Y
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y       ;ALL THIS TO GET TO BLOCK BOUNDARY
+         STA     ZMEMT           ;NUMBER OF PAGES
+         INC     ZMEMT           ;PAGE NUMBER
+	 LDA     #0
+ START2  CLC                     ;LOAD PRE-LOAD
+	 ADC     #1
+	 TAX
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 LDA     ZCODEP+LO
+	 STA     TEMP+LO
+	 TXA
+	 CMP     ZMEMT
+	 BEQ     START3          ;DONE
+	 PHA
+	 STA     VAL+LO
+	 LDA     #0
+	 STA     VAL+HI
+	 JSR     GETDSK
+	 PLA
+	 JMP     START2
+ 
+ START3  LDY     #ZSWAP
+	 LDA     @ZCODEP,Y
+	 
+	 ORA     #20             ;SET SPLIT SCREEN BIT IN MODE BYTE
+	 STA     @ZCODEP,Y
+	 	 
+	 .IF     SMALLD          ;SMALL-DISK CODE?
+	 PHA
+	 .ENDC
+	 AND     #2
+	 STA     TIMEFL          ;NON-ZERO IF TIME-MODE BIT SET
+	 .IF     SMALLD
+	 PLA
+	 AND     #4
+	 STA     TWODFL          ;NON-ZERO IF 2-DISK BIT SET
+	 BEQ     $1
+	 JSR     DISK2           ;SWITCH TO DISK #2
+	 .ENDC
+ $1      LDY     #ZSTART+<LO^INVERT>
+	 LDA     @ZCODEP,Y
+	 STA     ZPCL            ;GET STARTING ADDRESS
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 STA     ZPCH+LO
+	 LDA     #0
+	 STA     ZPCH+HI
+ 
+         LDY     #ZGLOBA+<LO^INVERT>
+	 LDA     @ZCODEP,Y
+	 STA     GLOBAL+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 CLC
+	 ADC     ZCODEP+HI       ;GET REAL ADDRESS OF GLOBAL TABLE
+	 STA     GLOBAL+HI
+ 
+         LDY     #ZFWORD+<LO^INVERT>
+	 LDA     @ZCODEP,Y
+	 STA     FWORDS+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 CLC
+	 ADC     ZCODEP+HI       ;GET REAL ADDRESS OF FWORDS TABLE
+	 STA     FWORDS+HI
+ 
+	 LDA     #0
+	 STA     PGBUFP+LO
+	 LDA     ZMEMT
+	 CLC
+	 ADC     ZCODEP+HI
+	 STA     PGBUFP+HI       ;TOP LOCATION
+	 
+         JSR     MEMTOP
+	 SEC
+	 SBC     PGBUFP+HI       ;SWAPPING SPACE
+	 BCC     ZERL            ;NOT ENOUGH SPACE
+	 TAY
+	 INY
+	 STY     NPGS
+	 TAY
+	 STY     PGBOT
+         LDA     #0FF            ;SET LAST PAGE
+	 STA     @PGTBLF,Y
+	 JMP     MLOOP
+ 
+ ZERL    JSR     ZER
+ 

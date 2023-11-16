@@ -1,0 +1,334 @@
+ .NOLIST
+ .TITLE  "ZORK FOR THE APPLE II"
+ 
+	;Split screen mod finished and transfered to 20 on Feb. 14th 1984
+	;NOTE: Apple Zip can extend to
+	;23FF if necessary without any
+	;changes to CREATE, etc.
+ .ABSOLUTE
+ 
+ .PROC   ZORK
+ 
+ THEEND  .EQU    2E00            ;Should be just past end of code + RWTS
+                                 ;*** NOTE: Modified FROM 2C00 to 2E00 on
+				 ;10/27/83  See Apple IIe Zip Notebook
+ 
+ TRUE    .EQU    0FF
+ FALSE   .EQU    0
+ 
+ LO      .EQU    0               ;MACHINE HAS LOW-BYTE|HIGH-BYTE
+ HI      .EQU    1
+ INVERT  .EQU    1               ;INVERT LSB & MSB (FROM SENSE OF 6502)?
+ 
+ SMALLD  .EQU    FALSE           ;NO SMALL DISKS ON AN APPLE
+ 
+ .MACRO  NEXT
+	 .IF     %1
+0INY
+	 .ELSE
+0DEY
+	 .ENDC
+ .ENDM
+ 
+ ;INIT VALUES
+ ZVERS   .EQU    0
+ ZSWAP   .EQU    1
+ ZID     .EQU    2
+ ZENDLD  .EQU    4
+ ZSTART  .EQU    6
+ ZVOCAB  .EQU    8
+ ZOBJEC  .EQU    10.
+ ZGLOBA  .EQU    12.
+ ZPURBT  .EQU    14.
+ ZSCRIP  .EQU    16.
+ ZFWORD  .EQU    24.
+ ZLENTH  .EQU    26.
+ ZCHKSM  .EQU    28.
+ 
+ ;GLOBALS FOR WHOLIN
+ ROOMG   .EQU    10
+ MOVESG  .EQU    12
+ SCOREG  .EQU    11
+ 
+ ;********** Definition of Zero Page data locations **********
+ 
+ ZPGOFF  .EQU    80              ;placed here away from APPLE II Monitor
+ 
+ INSOFF  .EQU    ZPGOFF
+ OPCODE  .EQU    INSOFF          ;Byte = CURRENT OPCODE
+ ARGCNT  .EQU    INSOFF+1        ;Byte = ARG COUNT
+ ARG1    .EQU    INSOFF+2        ;Word = OPERAND 1
+ ARG2    .EQU    INSOFF+4        ;Word = " 2
+ ARG3    .EQU    INSOFF+6        ;Word = " 3
+ ARG4    .EQU    INSOFF+8        ;Word = " 4
+ 
+ ZPCOFF  .EQU    INSOFF+0A
+ ZPCL    .EQU    ZPCOFF          ;Byte = LOW ORDER 8 BITS OF ZPC
+ ZPCH    .EQU    ZPCOFF+1        ;Word = HIGH ORDER 9 BITS OF ZPC
+ ZPCPNT  .EQU    ZPCOFF+3        ;Word = REAL POINTER TO PC page
+ ZPCFLG  .EQU    ZPCOFF+5        ;Byte = TRUE IF VALID PC POINTER
+ ZPCPG   .EQU    ZPCOFF+6        ;Byte = PAGE OF ZPC
+ 
+ MPCOFF  .EQU    ZPCOFF+7
+ MPCH    .EQU    MPCOFF          ;Word = HIGH ORDER 8 BITS OF MEMORY POINTER
+ MPCL    .EQU    MPCOFF+2        ;Byte = LOW ORDER 8 BITS OF MEMORY POINTER
+ MPCPNT  .EQU    MPCOFF+3        ;Word = REAL POINTER TO MEMORY LOCATION
+ MPCFLG  .EQU    MPCOFF+5        ;Byte = TRUE IF VALID MPCPNT
+ MPCPG   .EQU    MPCOFF+6        ;Byte = PAGE NUMBER OF PC PAGE
+ 
+ VAROFF  .EQU    MPCOFF+7
+ GLOBAL  .EQU    VAROFF          ;Word = POINTER TO GLOBALS
+ LOCALS  .EQU    VAROFF+2        ;15 Words = STORAGE FOR LOCALS
+ 
+ PTVOFF  .EQU    VAROFF+32.      ;page tables variables
+ PGBUFP  .EQU    PTVOFF          ;Word = BUFFER POINTER
+ ZCODEP  .EQU    PTVOFF+2        ;Word = LOW MEM STARTING POINTER
+ ZMEMT   .EQU    PTVOFF+4        ;Byte = FIRST PAGE IN SWAPPING SPACE
+ NPGS    .EQU    PTVOFF+5        ;Byte = NUMBER OF PAGES
+ PGTOP   .EQU    PTVOFF+6        ;Byte = TOP OF LIST PAGE
+ PGBOT   .EQU    PTVOFF+7        ;Byte = BOTTOM OF LIST
+ PGTBL   .EQU    PTVOFF+8        ;Word = ptr to PAGE NUMBERS, -1 IMPLIES FREE
+ PGTBH   .EQU    PTVOFF+10.      ;Word = ptr to PAGE HIGH BIT
+ PGTBLF  .EQU    PTVOFF+12.      ;Word = ptr to NEXT LINKS, -1 IMPLIES END
+ PGTBLB  .EQU    PTVOFF+14.      ;Word = ptr to PREVIOUS LINKS
+ MAXPGS  .EQU    80
+ PGTOFF  .EQU    2C00            ;Where the page tables are placed, pgs 8 & 9
+@;*** NOTE: Page tables relocated 10/27/83
+@;to make more room for interp
+ 
+ STKOFF  .EQU    PTVOFF+16.
+ ZSTAKL  .EQU    224.            ;LENGTH OF ZSTACK (in words)
+ ZSTACK  .EQU    0228            ;ZSTACK, most of pg 2 and most of pg 3
+ ZSTAKC  .EQU    STKOFF          ;Byte = STACK COUNT, 1=>O IMPLIES OVERPOP,
+ ZSTAKP  .EQU    STKOFF+1        ;Word = POINTER TO CURRENT STACK
+ OZSTKP  .EQU    STKOFF+3        ;Word = OLD ZSTACK POINTER
+ OZSTKC  .EQU    STKOFF+5        ;Byte = OLD ZSTACK COUNT
+ 
+ STROFF  .EQU    STKOFF+6
+ CSTEMP  .EQU    STROFF          ;Byte = 0FF IF NOT TEMP CHAR SET, ELSE SET
+ CSPERM  .EQU    STROFF+1        ;Byte = PERM CHARACTER SET
+ STBYTF  .EQU    STROFF+2        ;Byte = 0 FOR FIRST BYTE, 1 FOR 2,
+@;2 FOR 3, 0FF FOR END.
+ ZSTWRD  .EQU    STROFF+3        ;Word = WORD STORAGE
+ ZSTBUI  .EQU    STROFF+5        ;6 Bytes = ZSTR INPUT BUFFER
+@;Byte = End Marker (0FF)
+ ZSTBUO  .EQU    STROFF+12.      ;6 Bytes = OUTPUT BUFFER
+ RTABP   .EQU    STROFF+18.      ;Byte = TEMP FOR ZREAD, RESULT TABLE POINTER
+ STABP   .EQU    STROFF+19.      ;Byte = TEMP FOR ZREAD, SOURCE TABLE POINTER
+ FWORDS  .EQU    STROFF+20.      ;Word = Pointer to FWORDS table
+ 
+ XTROFF  .EQU    STROFF+22.
+ VAL     .EQU    XTROFF          ;Word = Value Return location (DE)
+ TEMP    .EQU    XTROFF+2        ;Word = Temp storage location (HL)
+ MASK    .EQU    XTROFF+4        ;Word = bit mask location (BC)
+ SIGNF   .EQU    XTROFF+6        ;Byte = STORAGE FOR SIGN IN MULT AND DIVIDE
+ 
+ MACOFF  .EQU    XTROFF+7
+ CHRPNT  .EQU    MACOFF          ;Byte = POINTER INTO COUT BUFFER
+ CPSAV   .EQU    MACOFF+1        ;Byte = SAVED VERSION OF CHRPNT
+ LINCNT  .EQU    MACOFF+2        ;Byte = COUNT OF LINES OUTPUT
+ ALTCSW  .EQU    MACOFF+3        ;Word = SCRIPT OUTPUT SWITCH
+ PCSAV   .EQU    MACOFF+5        ;3Bytes = saved ZPC from MLOOP
+ TIMEFL  .EQU    MACOFF+8.       ;BYTE = TRUE IF TIME MODE FOR WHOLINE
+ 
+ .IF     <MACOFF+8>&0FF00        ;OVERFLOWED ZERO PAGE?
+	 ERROR!                  ;ZERO PAGE OVERFLOW
+ .ENDC
+ 
+ .PAGE
+ ;********************     MACRO DEFINITIONS     ********************
+ 
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  move byte from location or immediate %1 to location %2
+ 
+ .MACRO  MOVE
+	 LDA     %1
+	 STA     %2
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  move word from location %1 to location %2
+ 
+ .MACRO  MOVEW
+	 LDA     %1
+	 STA     %2
+	 LDA     %1+1
+	 STA     %2+1
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  move word from immediate %1 to location %2
+ 
+ .MACRO  MOVEI
+	 LDA     #1*%1&0FF
+	 STA     %2
+	 LDA     #1*%1/100
+	 STA     %2+1
+ .ENDM
+ 
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  pushes word from location %1 onto stack
+ 
+ .MACRO  PUSHW
+	 LDA     %1
+	 PHA
+	 LDA     %1+1
+	 PHA
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  pop word from stack into location %1
+ 
+ .MACRO  PULLW
+	 PLA
+	 STA     %1+1
+	 PLA
+	 STA     %1
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  increments word at location %1
+ 
+ .MACRO  INCW
+	 INC     %1
+	 BNE     *+4
+	 INC     %1+1
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  adds to the word at location %1 the byte or immediate %2
+ 
+ .MACRO  ADDB
+	 LDA     %1
+	 CLC
+	 ADC     %2
+	 STA     %1
+	 BCC     *+4
+	 INC     %1+1
+ .ENDM
+ 
+ ; - - - - - - - - - - - - - - - - -
+ ;  subtracts from the word at location %1 the byte or immediate %2
+ 
+ .MACRO  SUBB
+	 LDA     %1
+	 SEC
+	 SBC     %2
+	 STA     %1
+	 BCS     *+4
+	 DEC     %1+1
+ .ENDM
+ 
+ 
+ .ORG    0800            ;Starting Address of Zork Interpreter Code
+ 
+ 
+ .INCLUDE        INIT.TEXT
+ 
+ 
+ .TITLE  "ZORK - OPCODE DISPATCH TABLES"
+ .PAGE
+ 
+ OP0T:   .WORD   RTRUE
+	 .WORD   RFALSE
+	 .WORD   PRINTI
+	 .WORD   PRINTR
+	 .WORD   ZNOP
+	 .WORD   SAVE
+	 .WORD   RESTOR
+	 .WORD   RESTAR
+	 .WORD   RSTACK
+	 .WORD   POPSTK
+	 .WORD   QUIT
+	 .WORD   CRLF
+         .WORD   WHOLIN
+         .WORD   VERIFY
+ OP0M    .EQU    *-OP0T/2
+ 
+ OP1T:   .WORD   ZEROP
+	 .WORD   NEXTP
+	 .WORD   FIRSTP
+	 .WORD   LOC
+	 .WORD   PTSIZE
+	 .WORD   INC1
+	 .WORD   DEC1
+	 .WORD   PRINTB
+	 .WORD   ZER
+	 .WORD   REMOVC
+	 .WORD   PRINTD
+	 .WORD   RETURN
+	 .WORD   JUMP
+	 .WORD   PRINT
+	 .WORD   VALUE
+	 .WORD   BCOM
+ OP1M    .EQU    *-OP1T/2
+ 
+ OP2T:   .WORD   ZER
+	 .WORD   EQUALP
+	 .WORD   LESSP
+	 .WORD   GRTRP
+	 .WORD   DLESSP
+	 .WORD   IGRTRP
+	 .WORD   INP
+	 .WORD   BTST
+	 .WORD   BOR
+	 .WORD   BAND
+	 .WORD   FSETP
+	 .WORD   FSET
+	 .WORD   FCLEAR
+	 .WORD   ZSET
+	 .WORD   ZMOVE
+	 .WORD   GET
+	 .WORD   GETB
+	 .WORD   GETP
+	 .WORD   GETPT
+	 .WORD   NXTP
+	 .WORD   ZADD
+	 .WORD   ZSUB
+	 .WORD   MUL
+	 .WORD   DIV
+	 .WORD   ZMOD
+ OP2M    .EQU    *-OP2T/2
+ 
+ OPXT:   .WORD   ZCALL
+	 .WORD   PUT
+	 .WORD   PUTB
+	 .WORD   PUTP
+	 .WORD   ZREAD
+	 .WORD   PRINTC
+	 .WORD   PRINTN
+	 .WORD   RANDOM
+	 .WORD   ZPUSH
+	 .WORD   ZPOP
+	 .WORD   SPLIT
+	 .WORD   SCREN
+	 
+ OPXM    .EQU    *-OPXT/2
+ 
+ ;**********************************************************************
+ ;********************    MAIN BODY OF ZORK CODE    ********************
+ 
+ .INCLUDE        MAIN.TEXT
+ 
+ .INCLUDE        0.OPS.TEXT
+ 
+ .INCLUDE        1.OPS.TEXT
+ 
+ .INCLUDE        2.OPS.TEXT
+ 
+ .INCLUDE        EXT.OPS.TEXT
+ 
+ .INCLUDE        RANDOM.TEXT
+ 
+ .INCLUDE        PAGING.TEXT
+ 
+ .INCLUDE        STRING.TEXT
+ 
+ .INCLUDE        MACH1.DEP.TEXT
+ 
+ .INCLUDE        MACH2.DEP.TEXT
+ 
+ .END
+ 

@@ -1,0 +1,368 @@
+* FILE ZIP91-ASM
+
+*****************************************
+* TI-99 DISK I/O FUNCTIONS              *
+*****************************************
+
+        RORG
+        DEF  GETBLK,GTBLKS,OPNFIL,CLSFIL
+        DEF  INFORM,FATAL,FINISH
+        DEF  JSR
+
+        REF  VSBW,VMBW,VSBR,VMBR,DSRLNK
+        REF  TTYIN,TTYOUT,OUTSTR
+
+GAMPAB  EQU  >0F00
+SAVPAB  EQU  >0F80
+PABBUF  EQU  >1000           256 BYTE BUFFER IN VDP
+
+PABPTR  EQU  >835C           USED BY DSRLNK
+PABSTA  EQU  >837C           (NEEDED ONLY IF NO DSRLNK)
+
+* (GAME) PAB DATA
+* OPEN/FIX-INT-INPUT-REL,VDP BUF,(FIX)256/ ,REC #, /NAM LEN
+
+PGDATA  DATA >000D,0,>FF00,0,>0009
+        TEXT 'DSK1.GAME'
+        EVEN
+
+* (SAVE) PAB DATA
+* OPEN/FIX-INT-UPDAT-REL,VDP BUF,256/256,REC #,  /NAM LEN
+
+PSDATA  DATA >0008,0,>FFFF,0,>0009
+        TEXT 'DSKx.SAVx'
+        EVEN
+
+*------------------------------------------------------------------
+* POSSIBLE LOADING SITUATIONS:
+*     ZIP  ---> RAM  (SYS LOADER)   GAME ---> VDP
+*    SAVx <---> RAM                 GAME ---> RAM
+
+* FILE OPS : USE OF AND EFFECTS ON PAB I/O OP CODES
+*    READ  - EXPECTS READ, LEAVES READ
+*    WRITE -             ,             (ALWAYS FOLLOWED BY CLOSE)
+*    OPEN  - EXPECTS OPEN, LEAVES READ
+*    CLOSE -             , LEAVES OPEN
+*------------------------------------------------------------------
+
+PABT1   DATA 0               PAB TARGET ADDR
+PABT2   DATA >FF00           FIX 256 (READ ONLY)
+PABT3   DATA 0               RECORD #
+
+RCSIZE  DATA 256             LENGTH, 1 RECORD (READ ONLY)
+
+* MOVE ONE (GAME) PAGE (512 BYTES = 2 RECS) FROM DISK TO VDP
+*    R0 = PAGE NUMBER
+*    R1 = VDP STARTING ADDRESS
+
+GETBLK  MOV  R2,R8           SAVE OLD R2
+        MOV  R1,@PABT1       SAVE TARGET TOO
+
+        SLA  R0,1            FIRST RECORD TO GET
+        MOV  R0,@PABT3       SAVE IT
+
+        LI   R0,GAMPAB+2     START WITH VDP BUF SLOT
+        LI   R1,PABT1
+        LI   R2,6            # BYTES TO WRITE
+        BLWP @VMBW           FIX THE GAME PAB
+
+        LI   R9,GAMPAB+9     NAM LEN SLOT
+        MOV  R9,@PABPTR
+        BLWP @DSRLNK         READ FIRST REC INTO VDP
+        DATA 8
+        JEQ  X815            ERROR?
+
+        A    @RCSIZE,@PABT1  SECOND HALF OF VDP BUFFER
+        INC  @PABT3          SECOND REC #
+        BLWP @VMBW           FIX THE PAB AGAIN
+
+        MOV  R9,@PABPTR
+        BLWP @DSRLNK         READ SECOND RECORD
+        DATA 8
+        JEQ  X815            ERROR?
+
+        MOV  R8,R2           RESTORE OLD R2
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X815    BL   @JSR
+        DATA  FATAL
+        TEXT 'GAME FILE READ ERROR'
+        TEXT '$'
+        EVEN
+*-----------------------------------------------------------------
+
+* MOVE A SERIES OF BLOCKS FROM DISK TO (PABBUF TO) CPU RAM
+* GIVEN : PABPTR = POINTER TO DESIRED PAB -- SLOT 0
+*    R0 = FIRST BLOCK #
+*    R1 = TARGET STARTING ADDRESS
+*    R2 = TOTAL NUMBER OF BLOCKS
+
+* USE THIS ROUTINE FOR 3 SITUATIONS:
+*    GAME FILE, BLOCK 1
+*    GAME FILE, BLOCKS 2 - MAX
+*    A SAVE FILE, BLOCKS 1 - ENDLOD
+
+GTBLKS  MOV  @PABPTR,R10     SAVE A COPY
+        INCT R10             POINT TO PAB BUF SLOT
+
+        SLA  R2,1            CONVERT TO RECORD COUNT
+        MOV  R2,R9           SAVE (LOOP COUNTER)
+        MOV  R1,R8           SAVE RAM TARGET ADDR TOO
+
+        SLA  R0,1            CONVERT TO REC #
+        MOV  R0,@PABT3       SAVE IT
+
+        MOV  R10,R0
+        LI   R1,PABBUF
+        BLWP @VSBW
+        INC  R0
+        SWPB R1
+        BLWP @VSBW           FIX PAB (BUFFER SLOT)
+
+        AI   R10,4           POINT TO REC # SLOT
+        MOV  R10,R11
+        AI   R11,3           POINT TO NAM LEN SLOT
+
+X816    MOV  R10,R0          REC # SLOT
+        LI   R1,PABT3        REC #
+        LI   R2,2            WRITE 2 BYTES
+        BLWP @VMBW           UPDATE REC # SLOT
+
+        MOV  R11,@PABPTR
+        BLWP @DSRLNK         READ A RECORD INTO VDP
+        DATA 8
+        JEQ  X818            ERROR?
+
+        LI   R0,PABBUF       VDP SOURCE
+        MOV  R8,R1           RAM TARGET
+        LI   R2,256          1 RECORD = 256 BYTES
+        BLWP @VMBR           GET IT
+
+        DEC  R9              DONE?
+        JEQ  X817            YES
+
+        AI   R8,256          NO, POINT TO NEXT RAM TARGET
+        INC  @PABT3          NEXT RECORD #
+        JMP  X816
+
+X817    MOV  *R6+,R11
+        B    *R11            RETURN
+
+X818    BL   @JSR
+        DATA  FATAL
+        TEXT 'DISK READ ERROR'
+        TEXT '$'
+        EVEN
+
+*------------------------------------------------------------------
+
+* OPEN A FILE
+*    GIVEN : PABPTR POINTS TO DESIRED PAB -- NAM LEN SLOT
+*        THE PAB I/O CODE = "OPEN"
+*    RETURN : PAB I/O CODE = "READ"
+
+OPNFIL  MOV  R0,R8
+        MOV  R1,R9           SAVE OLD REGS
+        MOV  @PABPTR,R0      SAVE POINTER
+
+        BLWP @DSRLNK         OPEN THE FILE
+        DATA 8
+        JEQ  X819            DIE ON ERROR
+
+        AI   R0,-9           POINT TO PAB I/O SLOT
+        LI   R1,>0200        "READ" CODE
+        BLWP @VSBW           CHANGE THE PAB
+
+        MOV  R9,R1
+        MOV  R8,R0           RESTORE REGS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X819    BL   @JSR
+        DATA  FATAL
+        TEXT 'FILE OPEN ERROR'
+        BYTE 0
+        EVEN
+
+*------------------------------------------------------------------
+
+* CLOSE A FILE
+*    GIVEN : PABPTR POINTS TO DESIRED PAB - NAM LEN SLOT
+*    RETURN : PAB I/O CODE = "OPEN"
+
+CLSFIL  MOV  R0,R8
+        MOV  R1,R9           SAVE OLD REGS
+        MOV  @PABPTR,R0      GET POINTER
+
+        AI   R0,-9           POINT TO PAB I/O SLOT
+        LI   R1,>0100        "CLOSE" CODE
+        BLWP @VSBW           FIX PAB
+
+        BLWP @DSRLNK         CLOSE THE FILE
+        DATA 8
+        JEQ  X820            TEST ERROR
+
+        CLR  R1              "OPEN" CODE
+        BLWP @VSBW           LEAVE PAB SET TO OPEN
+
+        MOV  R9,R1
+        MOV  R8,R0           RESTORE OLD REGS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X820    BL   @JSR
+        DATA  FATAL          (SHOULD NEVER OCCUR DURING SAVE)
+        TEXT 'FILE CLOSE ERROR'
+        BYTE 0
+        EVEN
+
+*****************************************************
+* MESSAGE ROUTINES                                  *
+*****************************************************
+
+* PRINT AN INFORMATIONAL MESSAGE  (DESTROYS R0)
+*    MESSAGE FOLLOWS THE CALLING POINT
+*    TERMINATING CHARACTER : 0 = CR, >80 = NO CR
+
+INFORM  MOV  *R6,R8          GET STRING POINTER
+        CLR  R9              "CR"
+        LI   R10,>8000       "NO CR"
+
+X821    CB   *R8+,R9         SEARCH FOR END OF STRING
+        JEQ  X822            FOUND IT
+
+        CB   *R8,R10         SEARCH FOR END OF STRING
+        JEQ  X822            FOUND IT
+        JMP  X821            CONTINUE
+
+X822    INC  R9              SET TO ONE
+        CZC  R9,R8           IS R8 EVEN? (R8 NOW = FINAL+1)
+        JEQ  X823            YES
+        INC  R8              NO, ADVANCE TO EVEN ADDR
+
+X823    MOV  *R6,R0          GET ORIGINAL STRING POINTER
+        MOV  R8,*R6          FIX THE STACK LINKAGE
+        B    @OUTSTR         GO PRINT THE MESSAGE
+
+*-------------------------------------------------------------------
+
+* FATAL ROUTINE - PRINT ERROR MESSAGE AND DIE
+*    STRING POINTER FOLLOWS CALLING POINT
+
+FATAL   BL   @JSR
+        DATA  INFORM         PRINT ERROR HEADER
+        TEXT '<FATAL>  '
+        BYTE >80
+
+        MOV  *R6,R0          GET STRING POINTER
+        BL   @JSR
+        DATA  OUTSTR         PRINT ERROR MESSAGE
+
+        BL   @JSR
+        DATA  INFORM         PRINT ERROR FOOTER
+        TEXT 'PRESS ANY KEY TO RESTART SYSTEM'
+        BYTE >80
+        EVEN
+
+        BL   @JSR
+        DATA  TTYIN          WAIT FOR A KEY, IGNORE IT
+        JMP  X824
+
+* END THE GAME
+
+FINISH  BL   @JSR
+        DATA  INFORM         PRINT TEASER
+        TEXT 'ARE YOU SURE YOU WANT TO QUIT NOW?  '
+        BYTE >80
+        EVEN
+
+        BL   @JSR
+        DATA  TTYIN          GET A KEY
+        BL   @JSR
+        DATA  TTYOUT         ECHO IT
+
+        LI   R8,'Yy'
+        CB   R8,R0           AFFIRMATIVE?
+        JEQ  X824            OK, QUIT
+
+        SWPB R8
+        CB   R8,R0           AFFIRMATIVE?
+        JEQ  X824            YES, QUIT
+
+        MOV  *R6+,R11
+        B    *R11            ELSE, RETURN
+
+X824    LI   R8,GAMPAB
+        MOV  R8,@PABPTR      SET UP DSRLNK
+
+        BL   @JSR
+        DATA  CLSFIL         CLOSE THE GAME FILE
+
+        B    @0              RESTART THE SYSTEM
+
+*****************************************************
+* MISCELLANEOUS                                     *
+*****************************************************
+
+* JUMP TO SUBROUTINE
+*    TARGET ADDRESS IS FIRST WORD AFTER JSR CALL
+*    NEXT INSTRUCTION IS SECOND WORD AFTER JSR CALL
+*    ALWAYS CALL VIA : BL @JSR
+
+JSR     DECT R6              MAKE ROOM ON STACK
+        MOV  R11,*R6         PUSH WRONG RETURN ADDR
+        INCT *R6             FIX IT
+
+        MOV  *R11,R11        GET TARGET ADDRESS
+        B    *R11            GO THERE
+
+
+* GET A RANDOM NUMBER, RETURN IN R0
+
+GTRAND  MOV  @>8378,R0       GRAB A NUMBER FROM PAD
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+*///////////////////////////////////////////////////////////////////
+
+        DEF  START
+
+START   LWPI >8300           DEFINE REGS IN PAD
+        LI   R6,>F800        DEFINE TOP OF STACK
+
+        BL   @JSR
+        DATA  GTRAND
+
+        LI   R0,GAMPAB
+        LI   R1,PGDATA
+        LI   R2,19
+        BLWP @VMBW           INITIALIZE THE GAME PAB
+
+        LI   R8,GAMPAB+9
+        MOV  R8,@PABPTR      SET UP DSRLNK
+
+        BL   @JSR
+        DATA  OPNFIL         OPEN THE GAME FILE
+
+        CLR  R0              START WITH BLOCK 0
+        LI   R1,>2700        MOVE TO LOW MEM EXPANSION
+        LI   R2,2            2 BLOCKS = 4 RECORDS
+
+        BL   @JSR
+        DATA  GTBLKS         GET THEM
+
+        LI   R8,GAMPAB+9
+        MOV  R8,@PABPTR      SET UP DSRLNK
+
+        BL   @JSR
+        DATA  CLSFIL         CLOSE THE GAME FILE
+
+        JMP  START
+
+
+        END
+

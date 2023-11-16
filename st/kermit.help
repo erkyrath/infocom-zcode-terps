@@ -1,0 +1,60 @@
+
+GUIDELINES FOR USING KERMIT ON THE ATARI ST
+--------------------------------------------------------------------------
+
+    [Note: the following bug might have resulted from not saying "SET FILE 
+BYTESIZE 8" in 20Kermit, before entering the server -- dbb]
+
+    ST Kermit has a bug that has sometimes prevents binary files on the 
+DEC20 from transferring correctly.  It has occurred with two games so far, 
+Zork II and Sorcerer.  To avoid the bug, transfer the file in two steps, 
+first to a PC or Compaq running Kermit, then to the ST.
+
+    The bug symptoms are that the file on the ST ends up about 80 bytes 
+longer than the original file on the DEC20.  Also the game crashes when 
+loaded, or doesn't $VERIFY correctly if it does load.
+
+
+ST KERMIT COMMANDS
+--------------------------------------------------------------------------
+
+kermit	c	connect [lbiphe] line/baud/image/par/ecs-char
+	g	get
+	f	finish	(shut down server)
+	r	receive
+	s	send
+	v	server	(enter server mode)
+	x	exit
+
+TO COMMUNICATE WITH DEC20, USING SERVER:
+--------------------------------------------------------------------------
+
+	(on DEC20, terminal speed should be 9600)
+
+[]	kermit c	(on DEC20, @20kermit <CR>, then 20>server <CR>)
+
+[]	kermit s  filename.txt		(send ascii file)
+    or  kermit g  filename.txt		(get ascii file)
+    or	kermit gi filename.dat		(get binary file)
+    or  kermit gi "*.whatever"		(wildcard, needs quotes)
+
+[]	kermit f			(close down the server)
+
+
+    If you run kermit with no argument, you get a screen of instructions.
+It says, among other things, that send (s) can handle multiple files, by using
+a wildcard but not the double quotes.  I haven't gotten this to work.
+
+	kermit s  a:*.txt		(send ascii files)
+
+
+TO COMMUNICATE WITH A COMPAQ:
+--------------------------------------------------------------------------
+
+	9600 baud at Compaq.  Connect on both sides to check if OK.
+Getting a response at one end (the Compaq) but not at the other means you
+aren't using the right cables.
+
+	on ST: kermit r
+	on Compaq: send filename
+

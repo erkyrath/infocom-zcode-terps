@@ -1,0 +1,260 @@
+@Style[TabWidth 8 chars]
+@Style[Spacing 2 lines]
+@Style[Indent 8 chars]
+@Style[Justification no]
+@Verbatim{
+Interactive Fiction Reference Card for the  
+
+Commodore {R} Amiga {R}
+__________________________________________________________ 
+}
+This booklet tells you how to run your Infocom story on your computer,
+and provides a few other handy bits of information.
+
+@Verbatim{
+I.  What You Need 
+
+Required 
+
+	[] Amiga computer
+
+Optional 
+
+ 	[] Extra 3 1/2 inch disks (for SAVEs) 
+
+	[] Second disk drive (for convenience with SAVEs) 
+
+ 	[] Compatible printer (for SCRIPTing) 
+
+
+II.  Making a Backup Copy } 
+
+In accordance with the licensing agreement in your package, we recommend
+that you make a backup copy of the original story disk for your personal
+use.  See your hardware manual for instructions on how to make disk
+copies.  Store your original disk in a safe place and always start the
+story from the backup.
+
+@Verbatim{
+III.  Starting the Story
+}
+  	
+Turn on the Amiga and wait for the Workbench to appear. Insert the story
+disk and open the disk icon into a window, then double- click on the
+story icon.
+
+The story can also be started from within the Command Line  Interpreter
+(CLI) by typing its name.
+
+@Verbatim{
+IV.  Talking to the Story 
+}
+
+Whenever you see the prompt (>), the story is waiting for your
+instructions.  You may type a full line of instructions at a time.  If
+you make a mistake, use the backspace key to erase the error.  When you
+have finished typing in your instructions, press the RETURN key. The
+story will respond and the prompt (>) will reappear.
+
+If a description will not fit on the screen all at once, [MORE] will
+appear at the bottom of the screen.  After reading the screen, press any
+key to see the rest of the description.
+
+@Verbatim{
+V.  The Status Line 
+}
+
+At the top of the screen is a status line.  This line is updated after
+every move to show your current position in the story.  Depending upon
+the type of story, it may also show other information.
+
+@Verbatim{
+Score and Moves 
+}
+
+In stories that keep a score, such as the @U{Zork} underground
+adventures, the right side of the status line will show something like
+this:
+@Verbatim{
+
+        Score: 245/920 
+}
+
+The first number is your score and the second is the total number  of
+moves you have made.  In the example above, you have 245 points in 920
+moves.
+
+@Verbatim{
+Time 
+}
+
+In stories that keep track of the time, such as the mystery thriller
+@U{Deadline}, the right side of the status line will look something like
+the following:
+@Verbatim{
+
+        Time: 9:22 a.m. 
+
+This shows the current time of day in the story. 
+
+
+VI.  SCRIPTing 
+}
+
+You can use the SCRIPT command to print out a transcript of your moves
+as you go along.  SCRIPTing is an optional feature which is not
+necessary to complete the story and may not be available with certain
+hardware.
+
+1. Connect the printer to the appropriate port at the back of the
+computer. Use the Preferences tool (see Section IX below) to make sure
+the system is configured correctly for your printer.
+
+2. Turn on the printer and make sure it is ready.
+
+3. Type SCRIPT at the prompt (>) to start the transcript.  To stop the
+transcript, type UNSCRIPT.
+
+4. SCRIPT and UNSCRIPT may be used as often as desired.
+
+
+If a problem occurs with the printer, the story will "timeout" (appear
+to hang) for 30 seconds or so, then a printer error message will appear.
+If you don't correct the problem before the 30 seconds are up,
+scripting is automatically cancelled.
+
+@Verbatim{
+VII.  Saving a Story Position
+}
+
+You can save your current story position to a disk in any drive, space
+permitting.  The save disk must have been previously initialized.  No
+other data on the save disk will be affected.
+
+
+1. Type SAVE at the prompt (>).  A message will appear asking you to
+type in a name for the save file.
+
+2. If you want to SAVE to the story disk itself, just enter a file name.
+If you want to SAVE to another disk, you must prefix the file name with
+either the name of the second disk (e.g., Saves:) or the name of the
+drive containing it (e.g., df0:).  The prefix is  needed even if the two
+disks were swapped using a single drive.
+
+
+The disk drive will spin for several seconds.  If all is well, the story
+will respond:
+@Verbatim{
+
+	OK 
+
+If it responds: 
+
+	FAILED 
+
+consult the Troubleshooting section below.
+}
+After saving your position, you may continue with the story.
+
+
+Note: The file Icon.Data is used to create icons for new save files.  If
+you delete or rename this file, new save files will not be visible in
+the save disk under Workbench.
+
+@Verbatim{
+VIII.  Restoring a Saved Story Position 
+}
+
+You can return to a previously saved story position at any time.  Type
+RESTORE at the prompt (>), and enter the name of the save file, as in
+Section VII.
+
+If you want to return to the most recently saved or restored  position
+(the one displayed as the default), you can just press the RETURN key.
+@Verbatim{
+IX.  Amiga Preferences
+}
+
+Several aspects of the story presentation can be changed using the Amiga
+Preferences tool, including text size (60 or 80 columns) and color.  The
+size can be changed only before the story is started. You also use
+Preferences to specify your type of printer and the port to which it is
+connected.  The Amiga supports both parallel and serial devices.
+
+@Verbatim{
+X.  Memory Usage and Multi-tasking
+}
+
+On a multi-tasking computer such as the Amiga, tasks must share the
+available memory.  Some tasks may require that a certain amount of free
+memory be available at all times.  Also, actions like opening,  resizing
+and hiding windows can require large amounts of memory.
+
+When the Infocom story loads, it will always leave a specified amount of
+memory free.  The default minimum amount is 64 Kbytes.  This can be
+changed by starting the story from the CLI with a special argument of
+the form F/n, where n is the new minimum number of bytes to leave free
+(for example, Deadline F/32000).  If you supply an argument, memory use
+statistics will be displayed when the story loads.
+
+You may need to increase the amount of free memory if, for example, you
+are running several tasks and switching between them causes the system
+to hang.  On the other hand, you can probably decrease free memory if
+you are running only the story.  This may reduce or eliminate the amount
+of disk activity on versions of the Amiga with limited memory.
+
+@Verbatim{
+XI.  Troubleshooting 
+} 
+
+A. If the story fails to load properly, or if SAVE, RESTORE, or SCRIPT
+fails, check each of the following items.  If none of these offers a
+solution, consult your Commodore Amiga dealer for assistance.
+
+1. Inspect all disks carefully for any visible damage. 
+
+2. For SAVEs, make sure the save disk is not write-protected (the small
+opening in the corner of the disk should be covered).
+
+3. For SCRIPTing, make sure the printer is connected properly, enabled
+for printing, not out of paper, etc.
+
+4. Try again; the problem may only be momentary. 
+
+
+If all else fails, you can call the Infocom Technical Hotline at (617)
+576-3190.  Please note that this number is for technical problems only.
+
+
+B. If the story produces an error message, run the following procedure: 
+
+Restart the story.  When the initial screen appears, type $VERIFY.  The
+disk drive will spin for a minute or so, and a message similar to one of
+the following will appear.
+
+1. "DISK CORRECT."  The disk has not been damaged; the data is intact.
+This may indicate a problem with your hardware (usually with the disk
+drive).  It is also possible the story contains a bug. If you suspect a
+bug, call the Infocom Technical Hotline number.
+
+
+2. "DISK FAILED" or "DISK READ ERROR."  This reply indicates either
+hardware trouble or disk damage.  Repeat the $VERIFY process several
+times.  Also try the $VERIFY process on another computer (such as your
+dealer's).  If the story ever replies "DISK CORRECT," the problem is in
+your hardware.
+
+If you repeatedly get an error message on more than one computer, the
+disk has most likely been damaged.  Please send the
+@U{disk only} to Infocom for testing and replacement.
+
+--------------------------------------------------------- 
+
+Amiga is a registered trademark of Commodore Business Machines, Inc.
+
+@U{Zork} and @U{Deadline} are registered trademarks of Infocom, Inc.
+
+
+Infocom logo 
+
+Infocom, Inc., 125 CambridgePark Drive, Cambridge, MA  02140

@@ -1,0 +1,462 @@
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 1
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+                ;
+                ;
+                ; Note:	Instructions marked with a "[C]" are for CMOS devices on
+ly
+                ;
+                ;
+0020            n	EQU	0020h
+0584            w	EQU	0584h
+0005            z	EQU	0005h
+                ;
+0000'           	CSEG
+                ;
+0000'           first_label:
+0000'6920       	adc	#%100000	; Add memory to accumulator with
+ carry
+0002'6505       	ADC	z			; (Default to zero page 
+addressing)
+0004'7505       	ADC	<z,x			; (Force zero page addre
+ssing)
+0006'6D8405     	ADC	w			; (Default to extended a
+ddressing)
+0009'7D8405     	ADC	>w,X			; (Force extended addres
+sing)
+000C'798405     	ADC	w,y
+000F'7205       	ADC	(z)		; [C]
+0011'6105       	ADC	(z,X)
+0013'7105       	ADC	(z),Y
+
+0015'2920       	and	#$20		; "AND" memory with accumulator
+0017'2505       	AND	z
+0019'3505       	AND	z,X
+001B'2D8405     	AND	w
+001E'3D8405     	AND	w,X
+0021'398405     	AND	w,Y
+0024'3205       	AND	(z)		; [C]
+0026'2105       	AND	(z,X)
+0028'3105       	AND	(z),Y
+
+002A'0A         	asl	a		; Shift left one bit
+002B'0605       	ASL	z
+002D'1605       	ASL	z,X
+002F'0E8405     	ASL	w
+0032'1E8405     	ASL	w,X
+
+0035'0F05C8     	bbr	0,z,first_label	; Branch on bit reset  [C]
+0038'1F05C5     	BBR	1,z,first_label	; [C]
+003B'2F05FD     	BBR	2,z,$		; [C]
+003E'3F05FD     	BBR	3,z,*		; [C]
+0041'4F0500     	BBR	4,z,$+3		; [C]
+0044'5F05FA     	BBR	5,z,*-3		; [C]
+0047'6F053A     	BBR	6,z,destination	; [C]
+004A'7F0537     	BBR	7,z,destination	; [C]
+
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 2
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+004D'8F0534     	bbs	0,z,destination	; Branch on bit set  [C]
+0050'9F0531     	BBS	1,z,destination	; [C]
+0053'AF05FD     	BBS	2,z,*		; [C]
+0056'BF05FD     	BBS	3,z,$		; [C]
+0059'CF05FA     	BBS	4,z,$-3		; [C]
+005C'DF0500     	BBS	5,z,*+3		; [C]
+005F'EF059E     	BBS	6,z,first_label	; [C]
+0062'FF059B     	BBS	7,z,first_label	; [C]
+
+0065'9099       	bcc	first_label	; Branch on carry clear
+
+0067'B097       	bcs	first_label	; Branch on carry set
+
+0069'F0FE       	beq	$		; Branch on result zero
+
+006B'8920       	bit	#20h		; Test bits in memory with accum
+ulator [C]
+006D'2405       	BIT	z
+006F'3405       	BIT	z,X		; [C]
+0071'2C8405     	BIT	w
+0074'3C8405     	BIT	w,X		; [C]
+
+0077'30FE       	bmi	*		; Branch on result minus
+
+0079'D000       	bne	$+2		; Branch on result not zero
+
+007B'10FC       	bpl	*-2		; Branch on result plus
+
+007D'8000       	bra	2+*		; Branch always  [C]
+
+007F'00         	brk			; Force break
+
+0080'5002       	bvc	destination	; Branch on overflow clear
+
+0082'7000       	bvs	destination	; Branch on overflow set
+
+0084'           destination:
+
+0084'18         	clc			; Clear carry flag
+
+0085'D8         	cld			; Clear decimal mode
+
+0086'58         	cli			; Clear interrupt disable bit
+
+0087'B8         	clv			; Clear overflow flag
+
+0088'C920       	cmp	#100000b	; Compare memory and accumulator
+
+008A'C505       	CMP	z
+008C'D505       	CMP	z,X
+008E'CD8405     	CMP	w
+0091'DD8405     	CMP	w,X
+0094'D98405     	CMP	w,Y
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 3
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+0097'D205       	CMP	(z)		; [C]
+0099'C105       	CMP	(z,X)
+009B'D105       	CMP	(z),Y
+
+009D'E020       	cpx	#n		; Compare memory and index X
+009F'E405       	CPX	z
+00A1'EC8405     	CPX	w
+
+00A4'C020       	cpy	#n		; Compare memory and index Y
+00A6'C405       	CPY	z
+00A8'CC8405     	CPY	w
+
+00AB'3A         	dec	A		; Decrement memory by one  [C]
+00AC'C605       	DEC	z
+00AE'D605       	DEC	z,X
+00B0'CE8405     	DEC	w
+00B3'DE8405     	DEC	w,X
+
+00B6'CA         	dex			; Decrement index X by one
+
+00B7'88         	dey			; Decrement index Y by one
+
+00B8'4920       	eor	#n		; "Exclusive-Or" memory with acc
+umulator
+00BA'4505       	EOR	z
+00BC'5505       	EOR	z,X
+00BE'4D8405     	EOR	w
+00C1'5D8405     	EOR	w,X
+00C4'598405     	EOR	w,Y
+00C7'5205       	EOR	(z)		; [C]
+00C9'4105       	EOR	(z,X)
+00CB'5105       	EOR	(z),Y
+
+00CD'1A         	inc	A		; Increment memory by one  [C]
+00CE'E605       	INC	z
+00D0'F605       	INC	z,X
+00D2'EE8405     	INC	w
+00D5'FE8405     	INC	w,X
+
+00D8'E8         	inx			; Increment index X by one
+
+00D9'C8         	iny			; Increment index Y by one
+
+00DA'4C8405     	jmp	w		; Jump to new location
+00DD'6C8405     	JMP	(w)
+00E0'7C8405     	JMP	(w,X)		; [C]
+
+00E3'208405     	jsr	w		; Jump to new location saving re
+turn address
+
+00E6'A920       	lda	#n		; Load accumulator with memory
+00E8'A505       	LDA	z
+00EA'B505       	LDA	z,X
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 4
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+00EC'AD8405     	LDA	w
+00EF'BD8405     	LDA	w,X
+00F2'B98405     	LDA	w,Y
+00F5'B205       	LDA	(z)		; [C]
+00F7'A105       	LDA	(z,X)
+00F9'B105       	LDA	(z),Y
+
+00FB'A220       	ldx	#n		; Load index X with memory
+00FD'A605       	LDX	z
+00FF'B605       	LDX	z,Y
+0101'AE8405     	LDX	w
+0104'BE8405     	LDX	w,Y
+
+0107'A020       	ldy	#n		; Load index Y with memory
+0109'A405       	LDY	z
+010B'B405       	LDY	z,X
+010D'AC8405     	LDY	w
+0110'BC8405     	LDY	w,X
+
+0113'4A         	lsr	A		; Shift right one bit
+0114'4605       	LSR	z
+0116'5605       	LSR	z,X
+0118'4E8405     	LSR	w
+011B'5E8405     	LSR	w,X
+
+011E'EA         	NOP			; No operation
+
+011F'0920       	ora	#n		; "OR" memory with accumulator
+0121'0505       	ORA	z
+0123'1505       	ORA	z,X
+0125'0D8405     	ORA	w
+0128'1D8405     	ORA	w,X
+012B'198405     	ORA	w,Y
+012E'1205       	ORA	(z)		; [C]
+0130'0105       	ORA	(z,X)
+0132'1105       	ORA	(z),Y
+
+0134'48         	pha			; Push accumulator on stack
+
+0135'08         	php			; Push processor status on stack
+
+
+0136'DA         	phx			; Push index X on stack  [C]
+
+0137'5A         	phy			; Push index Y on stack  [C]
+
+0138'68         	pla			; Pull accumulator from stack
+
+0139'28         	plp			; Pull processor status from sta
+ck
+
+013A'FA         	plx			; Pull index X from stack  [C]
+
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 5
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+013B'7A         	ply			; Pull index Y from stack  [C]
+
+013C'0705       	rmb	0,z		; Reset memory bit  [C]
+013E'1705       	RMB	1,z		; [C]
+0140'2705       	RMB	2,z		; [C]
+0142'3705       	RMB	3,z		; [C]
+0144'4705       	RMB	4,z		; [C]
+0146'5705       	RMB	5,z		; [C]
+0148'6705       	RMB	6,z		; [C]
+014A'7705       	RMB	7,z		; [C]
+
+014C'2A         	rol	A		; Rotate one bit left
+014D'2605       	ROL	z
+014F'3605       	ROL	z,X
+0151'2E8405     	ROL	w
+0154'3E8405     	ROL	w,X
+
+0157'6A         	ror	A		; Rotate one bit right
+0158'6605       	ROR	z
+015A'7605       	ROR	z,X
+015C'6E8405     	ROR	w
+015F'7E8405     	ROR	w,X
+
+0162'40         	rti			; Return from interrupt
+
+0163'60         	rts			; Return from subroutine
+
+0164'E920       	sbc	#n		; Subtract memory from accumulat
+or with borrow
+0166'E505       	SBC	z
+0168'F505       	SBC	z,X
+016A'ED8405     	SBC	w
+016D'FD8405     	SBC	w,X
+0170'F98405     	SBC	w,Y
+0173'F205       	SBC	(z)		; [C]
+0175'E105       	SBC	(z,X)
+0177'F105       	SBC	(z),Y
+
+0179'38         	sec			; Set carry flag
+
+017A'F8         	sed			; Set decimal mode
+
+017B'78         	sei			; Set interrupt disable status
+
+017C'8705       	smb	0,z		; Set memory bit  [C]
+017E'9705       	SMB	1,z		; [C]
+0180'A705       	SMB	2,z		; [C]
+0182'B705       	SMB	3,z		; [C]
+0184'C705       	SMB	4,z		; [C]
+0186'D705       	SMB	5,z		; [C]
+0188'E705       	SMB	6,z		; [C]
+018A'F705       	SMB	7,z		; [C]
+
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 6
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Alphabetical listing of 65C02 mnemonics
+
+018C'8505       	sta	z		; Store accumulator in memory
+018E'9505       	STA	z,X
+0190'8D8405     	STA	w
+0193'9D8405     	STA	w,X
+0196'998405     	STA	w,Y
+0199'9205       	STA	(z)		; [C]
+019B'8105       	STA	(z,X)
+019D'9105       	STA	(z),Y
+
+019F'8605       	stx	z		; Store index X in memory
+01A1'9605       	STX	z,Y
+01A3'8E8405     	STX	w
+
+01A6'8405       	sty	z		; Store index Y in memory
+01A8'9405       	STY	z,X
+01AA'8C8405     	STY	w
+
+01AD'6405       	stz	z		; Store zero  [C]
+01AF'7405       	STZ	z,X		; [C]
+01B1'9C8405     	STZ	w		; [C]
+01B4'9E8405     	STZ	w,X		; [C]
+
+01B7'AA         	tax			; Transfer accumulator to index 
+X
+
+01B8'A8         	tay			; Transfer accumulator to index 
+Y
+
+01B9'1405       	trb	z		; Test and reset bits  [C]
+01BB'1C8405     	TRB	w		; [C]
+
+01BE'0405       	tsb	z		; Test and set bits  [C]
+01C0'0C8405     	TSB	w		; [C]
+
+01C3'BA         	tsx			; Transfer stack pointer to inde
+x X
+
+01C4'8A         	txa			; Transfer index X to accumulato
+r
+
+01C5'9A         	txs			; Transfer index X to stack poin
+ter
+
+01C6'98         	tya			; Transfer index Y to accumulato
+r
+
+01C7'           last_label:
+01C7'           	END	first_label
+
+
+     0 errors
+
+
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.82L  Page 7
+
+Title:  HMA6502 test file                                     Module:  6502TEST
+        Symbol Table
+
+C 0084 destination     C 0000 first_label     C 01C7 last_label
+  0020 n                 0001 pass2             0584 w
+  0005 z
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,31 @@
+
+How to make a master Amiga game disk
+--------------------------------------------------------------------
+
+Notes:  When removing a disk from an Amiga disk drive, always wait 
+several seconds and watch the red access light to make sure the system
+is done with it.
+
+Under AmigaDOS (the CLI or Command Line Interpreter), the internal drive
+is "df0:" and the external is "df1:".
+
+
+1.  Make a copy of the Amiga Create disk.  It's not necessary to format
+    the blank disk, as this happens automatically.
+
+    The copy can be done within CLI by typing "diskcopy from df0: to df1:"
+    and following the prompts, or from Workbench by just dragging disk icons.
+
+2.  Run TFTP.   See the note TFTP.INFO.
+
+3.  Make the data file READ-ONLY:
+
+	Remove TFTP disk, and insert Workbench disk in drive 0.
+
+	>protect df1:Story.Data r
+
+4.  Rename the game disk (e.g., Zork 1 Disk) and the interpreter file 
+    (e.g., Zork 1).
+
+5.  Remove the finished disk ond open the Write-Protect tab.
+

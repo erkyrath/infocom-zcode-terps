@@ -1,0 +1,15 @@
+
+Notes re conversion of (XZIP) 68K sources,
+  ST Lattice (Motorola format) --> Mac (MPW format)
+
+() PROC/ENDPROC		(once at start)
+() * -> ;		(or use BLANKS OFF)
+
+() PAGE -> EJECT
+() ____TEXT -> ____CODE
+
+() IFEQ -> IF/THEN	(CZIP/EZIP/DEBUG)
+() ENDC -> ENDIF
+
+() XREF -> IMPORT
+() XDEF -> EXPORT

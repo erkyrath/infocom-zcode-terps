@@ -1,0 +1,225 @@
+* FILE ZIP80-ASM
+
+****************************************************************
+* PAGING ROUTINES                                              *
+****************************************************************
+
+        RORG
+        DATA >DD80           MARK START OF MODULE
+
+        DEF  NEWZPC,GETPAG,FINDPG
+        DEF  CURPAG
+
+        REF  ZPC1,ZPC2,TOPLOD,BUFFER
+        REF  PAGTAB,PAGES,GETBLK
+
+*===============================================================
+CURPAG  DATA 0       CURRENT PAGE (WHERE ZPC IS) POINTER
+CURBLK  BYTE 0,0     CURRENT BLOCK <LO>, USUALLY SAME AS ZPC1
+CURTAB  DATA 0       CURRENT PAGE TABLE POINTER +1
+
+RTIME1  BYTE 0,0     REFERENCE TIME <HI>, 1.5 WORDS USED 
+RTIME2  DATA 0
+
+LPAGE   BYTE 0,0     LAST REFERENCED PAGE NUMBER <HI>
+LPLOC   DATA 0         AND ITS CORE LOCATION
+LPTAB   DATA 0         AND ITS TABLE POINTER
+
+MINUS1  DATA -1
+*===============================================================
+
+* NORMALIZE ZPC AND (IF NECESSARY) GET PROPER PAGE
+
+NEWZPC  CLR  R8              USE DOUBLE WORD ARITHMETIC
+        MOV  @ZPC1,R9        GET BLOCK-POINTER
+        SWPB R9
+        ANDI R9,>FF00        POSITION IT
+
+        SLA  R9,1            CONVERT TO BYTES
+        JNC  X751
+        INC  R8              SHIFT CARRY INTO R8
+
+X751    CLR  R10
+        MOV  @ZPC2,R11       GET BYTE-OFFSET -- NEGATIVE?
+        JGT  X752            NO
+        JEQ  X752            NO
+        LI   R10,-1          YES, EXTEND SIGN INTO R10
+
+X752    A    R11,R9          ADD LEAST-SIGNIFICANT WORDS
+        JNC  X753
+        INC  R8              ADD CARRY INTO R8
+X753    A    R10,R8          ADD MOST-SIGNIFICANT WORDS
+
+        MOV  R9,R10
+        ANDI R10,>01FF       EXTRACT BYTE-OFFSET
+        MOV  R10,@ZPC2       SAVE IT
+
+        SRA  R9,9
+        ANDI R9,>007F        EXTRACT BLOCK-POINTER
+
+        ANDI R8,>0001        TEST 17TH BIT
+        JEQ  X755            WAS ZERO
+        LI   R8,>0080        WAS ONE,
+        SOC  R8,R9             SET PROPER BIT IN BLOCK-POINTER
+X755    MOV  R9,@ZPC1        SAVE IT
+
+        C    R9,@CURBLK      HAS IT CHANGED?
+        JEQ  X759            NO, EXIT
+
+        MOV  R9,@CURBLK      YES, REMEMBER NEW BLOCK
+        MOV  @CURTAB,R8      IS OLD PAGE IN PAGING SPACE?
+        JEQ  X756            NO
+
+        MOVB @RTIME1,*R8+    YES, STORE CURRENT REF TIME 
+        MOV  @RTIME2,*R8+      FOR OLD PAGE
+
+X756    C    R9,@TOPLOD      NEW PAGE ALREADY IN CORE?
+        JLT  X757            YES
+*----------------------------
+        MOV  R9,R0           NO,
+        BL   @JSR
+        DATA  GETPAG         GET NEW PAGE
+        MOV  R0,R9
+
+        MOV  @LPTAB,R8       GET NEW PAGE TABLE POINTER
+        INC  R8              POINT TO REF SLOT
+        MOV  R8,@CURTAB      SAVE THIS POINTER FOR LATER
+
+        MOVB @MINUS1,*R8+    STORE HIGHEST RTIME
+        MOV  @MINUS1,*R8        TO KEEP PAGE FOR US
+        JMP  X758
+*----------------------------
+X757    SLA  R9,9            CALCULATE PAGE ADDRESS
+        AI   R9,BUFFER
+        CLR  @CURTAB         CLEARING POINTER MEANS PAGE IS PRELOADED
+
+X758    MOV  R9,@CURPAG      UPDATE PAGE POINTER
+
+X759    MOV  *R6+,R11
+        B    *R11            RETURN
+
+*--------------------------------------------------------------------
+
+* GET THE PAGE WHOSE NUMBER IS IN R0 LOW (R0 HIGH = 0)
+*    RETURN A POINTER TO IT IN R0
+
+GETPAG  SWPB R0
+        CB   R0,@LPAGE       IS THIS THE SAME PAGE AS LAST REFERENCED?
+        JNE  X760            NO
+
+        MOV  @LPLOC,R0       YES, WE ALREADY HAVE LOCATION
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X760    MOVB R0,@LPAGE       SAVE NEW PAGE NUMBER
+        INC  @RTIME2         UPDATE REFERENCE TIME (COUNT)
+        JNC  X761
+        LI   R8,>0100        SHIFT THE CARRY BIT
+        A    R8,@RTIME1        TO RTIME1 <HIGH BYTE>
+
+X761    DECT R6
+        MOV  R1,*R6          SAVE OLD R1
+        MOV  @PAGTAB,R1      GET POINTER TO PAGE INFO TABLE
+
+*----------------------------
+X762    CB   R0,*R1+         SEARCH FOR DESIRED BLOCK
+        JNE  X764            NOT IT
+*----------------------------
+
+        SWPB R0              FOUND IT (MOVE PAGE NO. LOW)
+        C    R0,@CURBLK      BUT IS IT THE CURRENT CODE PAGE?
+        JEQ  X763            YES, DON'T TOUCH REF TIME
+
+        MOVB @RTIME1,*R1+    NO, UPDATE ITS REF TIME
+        MOV  @RTIME2,*R1
+        DEC  R1              BACKUP POINTER TO <RTIME1> SLOT
+
+X763    DEC  R1              BACKUP POINTER TO <PAGE NO.>
+        MOV  R1,@LPTAB       SAVE THE POINTER
+
+        S    @PAGTAB,R1      CALCULATE ADDRESS OF PAGE
+        SLA  R1,7
+        A    @PAGES,R1       (THEY'RE IN SAME ORDER AS TABLE)
+        JMP  X765            AND RETURN PAGE POINTER
+
+*----------------------------
+X764    AI   R1,3            SKIP REFERENCE TIME
+        C    *R1,@MINUS1     END OF TABLE?
+        JNE  X762            NO, CONTINUE SEARCH
+*----------------------------
+
+        BL   @JSR
+        DATA  FINDPG         YES, FIND A PAGE TO LOAD INTO
+
+        DECT R6
+        MOV  R0,*R6          SAVE THE PAGE POINTER
+        MOV  R1,@LPTAB       STORE THE PAGE TABLE POINTER
+        
+        MOV  @LPAGE,R0       (R0 HIGH = PAGE NO, LOW = 0)
+        MOVB R0,*R1+         SAVE NEW BLOCK NUMBER
+
+        MOVB @RTIME1,*R1+    SAVE CURRENT REF TIME
+        MOV  @RTIME2,*R1
+
+        SWPB R0              (PAGE NO. IN R0 LOW)
+        MOV  *R6+,R1         RESTORE PAGE POINTER
+        BL   @JSR
+        DATA  GETBLK         GET THE BLOCK
+
+X765    MOV  R1,R0           RETURN PAGE POINTER IN R0
+        MOV  R1,@LPLOC       AND SAVE A COPY FOR LATER
+        MOV  *R6+,R1         RESTORE OLD R1
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+*-------------------------------------------------------------------
+
+* FIND A GOOD (LEAST RECENTLY REFERENCED) PAGE
+*    RETURN PAGE POINTER IN R0 & PAGTAB POINTER IN R1
+
+FINDPG  MOV  @PAGTAB,R0      POINT TO START OF PAGE TABLE
+        INC  R0              SKIP FIRST BLOCK NUMBER
+
+        LI   R8,-1           FAKE BEST-CASE REFERENCE COUNT
+        MOV  R8,R9              (R8 HIGH = MOST SIGNIFICANT BYTE)
+
+X771    CB   *R0+,R8         IS THIS REF TIME WORSE THAN CURRENT WORST?
+        JH   X773            NO
+        JL   X772            YES
+
+        C    *R0,R9          MAYBE, COMPARE LOW-ORDER WORDS, WORSE?
+        JHE  X773            NO
+
+X772    MOV  *R0,R9          YES, SAVE REF COUNT (LOW 2 BYTES)
+        DEC  R0
+        MOVB *R0,R8          SAVE REF COUNT (HIGH BYTE)
+        INC  R0
+        MOV  R0,R1           SAVE THIS LOCATION (+2)
+
+X773    INCT R0              SKIP SECOND WORD IN PAGTAB
+        CB   *R0+,@MINUS1    END OF TABLE?
+        JNE  X771            NOT YET
+
+        INC  R8              WAS A PAGE REALLY FOUND?
+        JEQ  X774            NO, GROSS BUG!
+
+        DECT R1              ADJUST PAGTAB POINTER
+
+        MOV  R1,R0           CALCULATE PAGE LOCATION
+        S    @PAGTAB,R0
+        SLA  R0,7
+        A    @PAGES,R0
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X774    BL   @JSR
+        DATA  FATAL
+        TEXT 'NO FREE PAGES'
+        BYTE 0
+        EVEN
+
+
+        END
+

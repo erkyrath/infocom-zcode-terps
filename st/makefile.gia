@@ -1,0 +1,12 @@
+gia.tos: gia.o pumpsnd.o
+	cc -o gia.tos gia.o pumpsnd.o
+
+gia.o: gia.c sound.h
+	cc -c gia.c
+	cp gia.c f:\mwback\gia.c
+
+pumpsnd.o: pumpsnd.s
+	mac -fm pumpsnd.s
+	cp pumpsnd.s f:\mwback\pumpsnd.s
+
+

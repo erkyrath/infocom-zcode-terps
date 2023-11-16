@@ -1,0 +1,2730 @@
+  Wed Jun  7 1989 12:04                                                                                                  Page    1
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT DATA STRUCTURES ---"
+
+
+
+
+               2500 A.D. 6502 Macro Assembler  -  Version 4.01a
+               ------------------------------------------------
+
+                       Input  Filename : BOOT.asm
+                       Output Filename : BOOT.obj
+
+
+    1   0000               		TITLE	"APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+    2                      	
+    3   0000               		INCLUDE 	ZIP.EQU
+    4   0000               		STTL	"--- YZIP EQUATES ---"
+    5                      		PAGE 
+  Wed Jun  7 1989 12:04                                                                                                  Page    2
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- YZIP EQUATES ---"
+
+    6                      	
+    7          000D        	VERSID	EQU	13	; VERSION OF INTERPRETER
+    8                      				; See file "versions" for complete descriptions
+    9                      	
+   10          00FF        	TRUE	EQU	$FF	
+   11          0000        	FALSE	EQU	0	
+   12                      	
+   13                      	; ---------------------
+   14                      	; Segment table equates
+   15                      	; ---------------------
+   16          0000        	SGTDISKS EQU	0		; number of disks
+   17          0002        	SGTPAD	EQU	SGTDISKS+2	; just some extra room
+   18          0012        	SGTCHKS1 EQU	SGTPAD+16	; Checksum for disk 1 (PRELOAD)
+   19          0014        	SGTPICOF1 EQU	SGTCHKS1+2	; N/A
+   20          0016        	SGTSEG1 EQU	SGTPICOF1+2	; # of segments
+   21          0018        	SGTGPOF1 EQU    SGTSEG1+2       ; Global Picture Directory
+   22          001A        	SGTTBLS	EQU	SGTGPOF1+2	; Start of table preload (should be 0)
+   23          001C        	SGTTBLE	EQU	SGTTBLS+2	; Last page of table preload
+   24          001E        	SGTTBLX	EQU	SGTTBLE+2	; N/A
+   25          0020        	SGTFUNS	EQU	SGTTBLX+2	; First page of function preload
+   26          0022        	SGTFUNE	EQU	SGTFUNS+2	; End page of function preload
+   27          0024        	SGTFUNX	EQU	SGTFUNE+2	; N/A
+   28          0026        	SGTDSK	EQU	SGTFUNX+2	; Actual start of disk segment tables
+   29                      	
+   30          0000        	SGTCHKS EQU	0	; check sum for file
+   31          0002        	SGTPICOF EQU	2	; picture data offset
+   32          0004        	SGTNSEG	EQU	4	; # of segments in this list
+   33          0006        	SGTGPOF EQU     6       ; Global Directory Offset 
+   34          0008        	SGTSEG	EQU	8	; start of segments
+   35                      	; ---------------------
+   36                      	; Z-CODE HEADER OFFSETS
+   37                      	; ---------------------
+   38                      	
+   39          0000        	ZVERS	EQU	0	; VERSION BYTE
+   40          0001        	ZMODE	EQU	1	; MODE SELECT BYTE
+   41          0002        	ZID	EQU	2	; GAME ID WORD
+   42          0004        	ZENDLD	EQU	4	; # OF QUADWORDS ON SIDE 1 OF DISK
+   43          0006        	ZGO	EQU	6	; EXECUTION ADDRESS
+   44          0008        	ZVOCAB	EQU	8	; START OF VOCABULARY TABLE
+   45          000A        	ZOBJEC	EQU	10	; START OF OBJECT TABLE
+   46          000C        	ZGLOBAL	EQU	12	; START OF GLOBAL VARIABLE TABLE
+   47          000E        	ZPURBT	EQU	14	; START OF "PURE" Z-CODE
+   48          0010        	ZFLAGS	EQU	16	; FLAG WORD
+   49          0012        	ZSERIA	EQU	18	; 3-WORD SERIAL NUMBER
+   50          0018        	ZFWORD	EQU	24	; START OF FWORDS TABLE
+   51          001A        	ZLENTH	EQU	26	; LENGTH OF Z-PROGRAM IN WORDS
+   52          001C        	ZCHKSM	EQU	28	; Z-CODE CHECKSUM WORD
+   53          001E        	ZINTWD	EQU	30	; INTERPRETER ID WORD (SUPPLIED BY EZIP)
+   54          0020        	ZSCRWD	EQU	32	; SCREEN PARAMETER WORD ( "     "   "  )
+   55          0022        	ZHWRD	EQU	34	; DISPLAY WIDTH IN PIXELS
+   56          0024        	ZVWRD	EQU	36	; DISPLAY HEIGHT IN PIXELS
+   57          0026        	ZFWRD	EQU	38	; FONT HEIGHT, FONT WIDTH
+   58          0028        	ZFOFF	EQU	40	; FUNCTION OFFSET
+   59          002A        	ZSOFF	EQU	42	; STRING OFFSET
+   60          002C        	ZCLRWD	EQU	44	; FORGROUND COLOR, BACKGROUND COLOR
+   61          002E        	ZTCHAR	EQU	46	; POINTER TO TBL OF TERMINATING CHARS
+   62          0030        	ZTWIDTH	EQU	48	; Running counter for table output char width
+  Wed Jun  7 1989 12:04                                                                                                  Page    3
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- YZIP EQUATES ---"
+
+   63          0032        	ZCRFUNC	EQU	50	; FUNCTION FOR CARRIAGE RETURNS
+   64          0034        	ZCHRSET	EQU	52	; POINTER TO CHAR SET TBL
+   65          0036        	ZEXTAB	EQU	54	; Points to extension table, if needed
+   66                      	;
+   67                      	; Extension table offsets
+   68                      	;
+   69          0000        	ZEXTLEN	EQU	0	; Length of extension table
+   70          0002        	ZMSLOCX	EQU	2	; x location of mouse
+   71          0004        	ZMSLOCY	EQU	4	; y location of mouse
+   72          0006        	ZMSETBL	EQU	6	; MOUSE TBL CHANGE WORD
+   73          0008        	ZMSEDIR	EQU	8	; DIRECTION MENU
+   74          000A        	ZMSEINV	EQU	10	; INVENTORY MENU
+   75          000C        	ZMSEVRB	EQU	12	; FREQUENT VERB MENU
+   76          000E        	ZMSEWRD	EQU	14	; FREQUENT WORD MENU
+   77          0010        	ZBUTTN	EQU	16	; BUTTON HANDLER
+   78          0012        	ZJOYST	EQU	18	; JOYSTICK HANDLER
+   79          0014        	ZBSTAT	EQU	20	; BUTTON STATUS
+   80          0016        	ZJSTAT	EQU	22	; JOYSTICK STATUS
+   81                      	;
+   82                      	; ZFLAGS values
+   83                      	;
+   84          0001        	FSCRI	EQU	$01	; scripting?
+   85          0002        	FMONO	EQU	$02	; mono spaced font?
+   86          0004        	FSTAT	EQU	$04	; status line refresh?
+   87          0008        	FDISP	EQU	$08	; uses DISPLAY operations?
+   88          0010        	FUNDO	EQU	$10	; uses UNDO?
+   89          0020        	FMOUS	EQU	$20	; uses mouse?
+   90          0040        	FCOLO	EQU	$40	; uses color?
+   91          0080        	FMENU	EQU	$80	; uses menus?
+   92                      	;---------------
+   93                      	; Picture data
+   94                      	;---------------
+   95                      	;=== DATA HEADER ===
+   96          0000        	PHFID	EQU	0		; File ID
+   97          0001        	PHFLG	EQU	PHFID+1		; Flags
+   98          0002        	PHHUFF	EQU	PHFLG+1		; Pointer to Huffman data
+   99          0004        	PHNLD	EQU	PHHUFF+2	; # entries in local directory
+  100          0006        	PHNGD	EQU	PHNLD+2		; # entries in global directory
+  101          0008        	PHDSIZE	EQU	PHNGD+2		; Local directory entry size
+  102          000A        	PHCHKS	EQU	PHDSIZE+2	; File Checksum
+  103          000C        	PHFVERS	EQU	PHCHKS+2	; File Version (N/A)
+  104          000E        	PHEXTRA	EQU	PHFVERS+2	; Extra room for getting fatter
+  105          0010        	PHSIZE	EQU	16		; 16 bytes is header size
+  106                      	;=== DATA HEADER FLAGS ===
+  107          0001        	PHFGD	EQU	$1		; data has global directory
+  108          0002        	PHFHUFF	EQU	$2		; Huffman encoded pictures
+  109          0004        	PHFHUFF1 EQU	$4		; All pictures use same Huff tree
+  110          0008        	PHFPAL	EQU	$8		; No pallette information
+  111                      	;=== LOCAL DIRECTORY ===
+  112          0000        	PLDID	EQU	0		; Picture ID
+  113          0002        	PLDWID	EQU	PLDID+2		; Picture Width
+  114          0003        	PLDHGHT	EQU	PLDWID+1	; Picture Height
+  115          0004        	PLDFLG	EQU	PLDHGHT+1	; Flags
+  116          0005        	PLDPTR	EQU	PLDFLG+1	; Pointer to picture data
+  117          0008        	PLDSIZE	EQU	PLDPTR+3	; size of local directory entry
+  118                      	
+  119   0000               		END
+  Wed Jun  7 1989 12:04                                                                                                  Page    4
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- YZIP EQUATES ---"
+
+  120                      	
+  121   0000               		INCLUDE		ZERO.EQU
+  122   0000               		STTL	"--- ZERO PAGE VARIABLES ---"
+  123                      		PAGE 
+  Wed Jun  7 1989 12:04                                                                                                  Page    5
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZERO PAGE VARIABLES ---"
+
+  124                      	
+  125          0000        	SCRCX	EQU	0		; CURSOR HORIZONTAL
+  126          0001        	SCRCY	EQU	SCRCX+1		; CURSOR VERTICAL
+  127          0002        	SCRBTM	EQU	SCRCY+1		; first line outside current window
+  128          0003        	MAXLINES EQU	SCRBTM+1	; maximum number of lines in window
+  129          0004        	LEFTMRG	EQU	MAXLINES+1	; left edge + left margin in current window
+  130          0005        	WINDOW	EQU	LEFTMRG+1	; (WORD) address of current window structure
+  131          0007        	LINE_X  EQU     WINDOW+2        ; (WORD) width of line counter
+  132          0009        	CC_OFF  EQU     LINE_X+2        ; save offset for char drawing
+  133          000A        	CLSLEFT	EQU	CC_OFF+1	; screen limits for CLS code
+  134          000B        	CLSTOP	EQU	CLSLEFT+1	; top of screen
+  135          000C        	CLSWIDTH EQU	CLSTOP+1	; # of columns 
+  136          000D        	CLSHEIGHT EQU	CLSWIDTH+1	; # of lines
+  137                      	;
+  138                      	; some variables for all the screen positioning code
+  139                      	;
+  140          000E        	NY_DATA	EQU	CLSHEIGHT+1	; place for GET/PUT_NYBBLE to use
+  141          000F        	CH_OFFSET EQU	NY_DATA+1	; offset into char data table
+  142          0010        	DATALOOP EQU	CH_OFFSET+1 	; loop counter for byte works
+  143          0011        	BITOFF	EQU	DATALOOP+1	; bit offset into screen byte
+  144          0012        	CH_DATA	EQU	BITOFF+1	; actual char data being worked on
+  145          0013        	SCR_DATA EQU	CH_DATA+1	; screen byte being worked on
+  146          0014        	SH_LOOP	EQU	SCR_DATA+1	; loop counter for bit shifting
+  147          0015        	SCROLLY	EQU	SH_LOOP+1	; save spot for y pos when scrolling
+  148          0016        	RETRIES EQU	SCROLLY+1	; (BYTE) Machine ID
+  149          0017        	CHRMAX	EQU	RETRIES+1	; (BYTE) # CHARS CAN INPUT FROM KEYBOARD
+  150          0018        	SCLLINES EQU	CHRMAX+1	; (BYTE) how many lines to scroll
+  151          0019        	FMTTBL	EQU	SCLLINES+1	; (BYTE) flag to show formatted table output
+  152          001A        	STMASK	EQU	FMTTBL+1	; (BYTE) Mask to use on first byte of CLS
+  153          001B        	ENDMASK	EQU	STMASK+1	; (BYTE) Mask to use on last byte of CLS
+  154          001C        	CHPTR	EQU	ENDMASK+1	; (WORD) pointer to char data
+  155          001C        	SCOFF	EQU	CHPTR		;(BYTE) Offset used by scroll
+  156          001D        	SCLDIR	EQU	CHPTR+1		;(BYTE) Direction of scroll - >0 up, <0 down
+  157          001E        	DSEGS	EQU	CHPTR+2 	; (WORD) Pointer to current disk's segments
+  158                      	;WIDE_FLAG EQU   SCOFF+1         ; (BYTE) <> 0 if 16 bytes in char data
+  159                      	;DSEGS	EQU	WIDE_FLAG+1	; (WORD) Pointer to current disk's segments
+  160          0020        	LASTWV	EQU	DSEGS+2		; last of the WINDOW variables
+  161                      	
+  162          0050        	ZEROPG	EQU	$50		; FIRST FREE Z-PAGE LOCATION
+  163                      	;
+  164                      	; these are first, cuz ZBOOT inits them so we don't want to clear them
+  165                      	; at ZBEGIN warm start
+  166                      	;
+  167          0050        	GLOBAL	EQU	ZEROPG		; (Relative Addr.) GLOBAL VARIABLE POINTER
+  168          0052        	VOCAB	EQU	GLOBAL+2	; (ADDRESS) Vocab table pointer
+  169          0055        	FWORDS	EQU	VOCAB+3		; (ADDRESS) F-WORDS TABLE POINTER
+  170          0058        	MOUSEF	EQU	FWORDS+3	; (BYTE) ==-1/1 if we have mouse/joystick
+  171          0059        	INFODOS EQU     MOUSEF+1        ; (WORD) if <>0, then pointer to D2SEG
+  172          005B        	FUNOFF	EQU	INFODOS+2	; (ADDRESS) Function Offset (ZFOFF*8)
+  173          005B        	FOFFH	EQU	FUNOFF		; (BYTE) Hi part 
+  174          005C        	FOFFM	EQU	FUNOFF+1	; (BYTE) Middle part
+  175          005D        	FOFFL	EQU	FUNOFF+2	; (BYTE) Lo part
+  176          005E        	STROFF	EQU	FUNOFF+3	; (ADDRESS) String Offset (ZSOFF*8)
+  177          005E        	SOFFH	EQU	STROFF		; (BYTE) Hi part 
+  178          005F        	SOFFM	EQU	STROFF+1	; (BYTE) Middle part
+  179          0060        	SOFFL	EQU	STROFF+2	; (BYTE) Lo part
+  180                      	;
+  Wed Jun  7 1989 12:04                                                                                                  Page    6
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZERO PAGE VARIABLES ---"
+
+  181                      	; Beginning of warm start zeroing
+  182                      	;
+  183          0061        	OPCODE	EQU	STROFF+3	; (BYTE) CURRENT OPCODE
+  184          0062        	NARGS	EQU	OPCODE+1	; (BYTE) # ARGUMENTS
+  185          0063        	ARG1	EQU	OPCODE+2	; (WORD) ARGUMENT #1
+  186          0065        	ARG2	EQU	OPCODE+4	; (WORD) ARGUMENT #2
+  187          0067        	ARG3	EQU	OPCODE+6	; (WORD) ARGUMENT #3
+  188          0069        	ARG4	EQU	OPCODE+8	; (WORD) ARGUMENT #4
+  189          006B        	ARG5	EQU	OPCODE+10	; (WORD)
+  190          006D        	ARG6	EQU	OPCODE+12	; (WORD)
+  191          006F        	ARG7	EQU	OPCODE+14	; (WORD)
+  192          0071        	ARG8	EQU	OPCODE+16	; (WORD)
+  193          0073        	ABYTE	EQU	OPCODE+18	; (BYTE) X-OP ARGUMENT BYTE
+  194          0074        	BBYTE	EQU	OPCODE+19	; (BYTE) XCALL ARG BYTE (EZIP)
+  195          0075        	ADEX	EQU	OPCODE+20	; (BYTE) X-OP ARGUMENT INDEX
+  196          0076        	VALUE	EQU	OPCODE+21	; (WORD) VALUE RETURN REGISTER
+  197          0078        	I	EQU	VALUE+2		; (WORD) GEN-PURPOSE REGISTER #1
+  198          007A        	J	EQU	VALUE+4		; (WORD) GEN-PURPOSE REGISTER #2
+  199          007C        	K	EQU	VALUE+6		; (WORD) GEN-PURPOSE REGISTER #3
+  200          007E        	L	EQU	VALUE+8		; (WORD) GEN-PURPOSE REGISTER #4
+  201          0080        	ZPC	EQU	VALUE+10	; (3 BYTES) ZIP PROGRAM COUNTER
+  202          0080        	ZPCL	EQU	ZPC		; (BYTE) <8 BITS OF [ZPC]
+  203          0081        	ZPCM	EQU	ZPC+1		; (BYTE) MIDDLE 8 BITS OF [ZPC]
+  204          0082        	ZPCH	EQU	ZPC+2		; (BYTE) >BIT OF [ZPC]
+  205          0083        	ZPCPNT	EQU	ZPC+3		; (3 BYTES) ABS POINTER TO CURRENT Z-PAGE
+  206          0083        	ZPNTL	EQU	ZPCPNT		; FIRST 2 BYTES = SAME AS FOR ZIP (EZIP)
+  207          0084        	ZPNTH	EQU	ZPCPNT+1	; (BYTE)
+  208          0085        	ZPCBNK	EQU	ZPCPNT+2	; (BYTE) INDICATES AUXILIARY MEMORY
+  209          0086        	MPC	EQU	ZPCPNT+3	; (3 BYTES) MEMORY PROGRAM COUNTER
+  210          0086        	MPCL	EQU	MPC		; (BYTE) <8 BITS OF [MPC]
+  211          0087        	MPCM	EQU	MPC+1		; (BYTE) MIDDLE 8 BITS OF [MPC]
+  212          0088        	MPCH	EQU	MPC+2		; (BYTE) >BIT OF [MPC]
+  213          0089        	MPCPNT	EQU	MPC+3		; (3 BYTES) ABS POINTER TO CURRENT M-PAGE
+  214          0089        	MPNTL	EQU	MPCPNT		; FIRST 2 BYTES = SAME AS FOR ZIP (EZIP)
+  215          008A        	MPNTH	EQU	MPCPNT+1	; (BYTE)
+  216          008B        	MPCBNK	EQU	MPCPNT+2	; (BYTE) INDICATES AUXILIARY MEMORY
+  217          008C        	FPC	EQU	MPCBNK+1	; (3 Bytes) Fetch pointer 
+  218          008C        	FPCL	EQU	FPC		; (BYTE) Low part
+  219          008D        	FPCH	EQU	FPCL+1		; (BYTE) High Part
+  220          008E        	FPCBNK	EQU	FPCH+1		; (BYTE) Bank part (0-Main, 1-Aux)
+  221          008F        	SPC	EQU	FPCBNK+1	; (3 Bytes) Fetch pointer 
+  222          008F        	SPCL	EQU	SPC		; (BYTE) Low part
+  223          0090        	SPCH	EQU	SPCL+1		; (BYTE) High Part
+  224          0091        	SPCBNK	EQU	SPCH+1		; (BYTE) Bank part (0-Main, 1-Aux)
+  225                      	
+  226                      	; Z-STRING MANIPULATION VARIABLES
+  227                      	
+  228          0092        	LINLEN	EQU	SPCBNK+1	; (BYTE) LENGTH OF CURRENT LINE
+  229          0093        	SOURCE	EQU	LINLEN+1	; (BYTE) counter for read
+  230          0094        	WRDLEN	EQU	SOURCE+1	; (BYTE) LENGTH OF CURRENT WORD
+  231          0095        	ESIZE	EQU	WRDLEN+1	; (BYTE) SIZE OF VOCAB TABLE ENTRIES
+  232          0096        	PSET	EQU	ESIZE+1		; (BYTE) PERMANENT CHARSET
+  233          0097        	TSET	EQU	PSET+1		; (BYTE) TEMPORARY CHARSET
+  234          0098        	ZCHAR	EQU	TSET+1		; (BYTE) CURRENT Z-CHAR
+  235          0099        	OFFSET	EQU	ZCHAR+1		; (BYTE) F-WORD TABLE OFFSET
+  236          009A        	ZFLAG	EQU	OFFSET+1	; (BYTE) Z-WORD ACCESS FLAG
+  237          009B        	ZWORD	EQU	ZFLAG+1		; (WORD) CURRENT Z-WORD
+  Wed Jun  7 1989 12:04                                                                                                  Page    7
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZERO PAGE VARIABLES ---"
+
+  238          009D        	CONCNT	EQU	ZWORD+2		; (BYTE) Z-STRING SOURCE COUNTER
+  239          009E        	CONIN	EQU	CONCNT+1	; (BYTE) CONVERSION SOURCE INDEX
+  240          009F        	CONOUT	EQU	CONIN+1		; (BYTE) CONVERSION DEST INDEX
+  241          00A0        	DIRTBL	EQU	CONOUT+1	; (WORD) CONTAINS TBLE TO STORE CHARS TO
+  242          00A2        	XSIZE	EQU	DIRTBL+2	; (WORD) SCREEN WIDTH FOR TESTS
+  243          00A4        	RAND    EQU     XSIZE+2         ; (WORD) Random number offset
+  244          00A6        	CURWIN	EQU	RAND+2		; (BYTE) WHICH WINDOW TO WRITE IN
+  245          00A7        	LENGTH	EQU	CURWIN+1	; (WORD) CHAR POSITION ON THE SCREEN
+  246          00A9        	CHRCNT	EQU	LENGTH+2	; (BYTE) CHAR POSITION IN [LBUFF]
+  247          00AA        	SCRIPT	EQU	CHRCNT+1	; (BYTE) SCRIPT ENABLE FLAG
+  248          00AB        	LINCNT	EQU	SCRIPT+1	; (BYTE) LINE COUNTER
+  249          00AC        	IOCHAR	EQU	LINCNT+1	; (BYTE) CHARACTER BUFFER
+  250          00AD        	COLORP	EQU	IOCHAR+1	; (WORD) Pointer to current background color
+  251          00AF        	ZSP	EQU	COLORP+2	; (WORD) Z Stack
+  252          00B1        	SCREENF	EQU	ZSP+2		; (BYTE) DIROUT FLAG FOR SCREEN OUTPUT
+  253          00B2        	TABLEF	EQU	SCREENF+1	; (BYTE) DIROUT FLAG FOR TABLE OUTPUT
+  254          00B3        	VOCEND	EQU	TABLEF+1	; (3 BYTES) HOLDS MPC IN VOCAB SEARCH
+  255          00B6        	DBUFF	EQU	VOCEND+3	; (WORD) RAM PG TO ACCESS (LSB = 0)
+  256          00B8        	DSKBNK	EQU	DBUFF+2		; (BYTE) MAIN/AUX bank
+  257          00B9        	ALLFLG	EQU	DSKBNK+1	; (BYTE) IF =1 ALL FCN KEYS (>127) ARE TCHARS
+  258          00BA        	UNDFLG	EQU	ALLFLG+1	; (BYTE) Underlining flag
+  259          00BB        	INVFLG	EQU	UNDFLG+1	; (BYTE) Inverse flag
+  260          00BC        	MEMPAGE	EQU	INVFLG+1	; (BYTE) Save spot for XPAGING stuff
+  261          00BD        	CPY_COUNT EQU	MEMPAGE+1	; (BYTE) Number of bytes for copy line
+  262          00BE        	TBLHEIGHT EQU	CPY_COUNT+1	;(BYTE) Number of lines in printing table
+  263          00BF        	TBLWIDTH EQU	TBLHEIGHT+1	;(BYTE) Number of bytes per line
+  264          00C0        	TBLCNT	EQU	TBLWIDTH+1	;(BYTE) Counter for table printing
+  265          00C1        	FONTFLG	EQU	TBLCNT+1	;(BYTE) Which font (!=0 is width)
+  266          00C2        	TBLPUR	EQU	FONTFLG+1	;(BYTE) first pure table page
+  267          00C3        	FUNPRE	EQU	TBLPUR+1	;(BYTE) first preloaded function page
+  268          00C4        	FUNPUR	EQU	FUNPRE+1	;(BYTE)	first pure function page
+  269          00C5        	FUNPGE	EQU	FUNPUR+1	;(BYTE) -number to get function preload page
+  270          00C6        	DELAY_COUNTER EQU FUNPGE+1	;(BYTE) counter for delay loop
+  271                      	;
+  272                      	; some char-to-screen variables
+  273                      	;
+  274          00C7        	CHAR_D1	EQU	DELAY_COUNTER+1	; (BYTE) character data, part 1
+  275          00C8        	CHAR_D2	EQU	CHAR_D1+1	; (BYTE) char data, part 2
+  276          00C9        	CW	EQU	CHAR_D2+1	; (BYTE) width of the character
+  277          00CA        	CLKCTR	EQU	CW+1		; (BYTE) counter for mouse clicking
+  278          00CB        	MSX	EQU	CLKCTR+1	; (BYTE) mouse cursor X
+  279          00CC        	MSY	EQU	MSX+1		; (BYTE) mouse cursor Y
+  280          00CD        	CURRENT	EQU	MSY+1		; (BYTE) current paging bufer
+  281                      	;CURSOR_OFF EQU  CURRENT+1       ; (BYTE) ==1 if "don't show the blinking cursor"
+  282          00CE        	MSTBL	EQU	CURRENT+1	; (ADDRESS) pointer to extension table
+  283          00D1        	LASTZP	EQU	MSTBL+3		; just checking
+  284                      	;
+  285                      	; these routines are in non-swapped memory
+  286                      	;
+  287          00D1        	ZERO_FB	EQU	LASTZP		; put fetch byte routine in at end of ZP
+  288          00DC        	ZERO_ZF	EQU	ZERO_FB+11	; and ZPCPNT fetch after that
+  289          00E5        	ZERO_MF	EQU	ZERO_ZF+9	; and MPCPNT fetch after that
+  290          00EE        	SAVE_DATA EQU	ZERO_MF+9	; copy data from DBUFF to IOBUFF routine
+  291                      	;
+  292                      	; and just to check the end
+  293                      	;
+  294          00FF        	ZEE_END EQU	SAVE_DATA+17	; should be == 100
+  Wed Jun  7 1989 12:04                                                                                                  Page    8
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZERO PAGE VARIABLES ---"
+
+  295                      	
+  296   0000               		END
+  297                      	
+  298   0000               		INCLUDE		PRODOS.EQU
+  299   0000               		STTL	"--- ProDOS EQUATES ---"
+  300                      		PAGE 
+  Wed Jun  7 1989 12:04                                                                                                  Page    9
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ProDOS EQUATES ---"
+
+  301                      	
+  302                      	;
+  303                      	; some parameter structures
+  304                      	;
+  305          0000        	OPEN_PARM	EQU	0
+  306          0000        	OP_PCOUNT	EQU	OPEN_PARM	; must be 3 for open
+  307          0001        	OP_PATHNAME	EQU	OP_PCOUNT+1	; address of pathname
+  308          0003        	OP_FILEBUFF	EQU	OP_PATHNAME+2	; address of file data buffer
+  309          0005        	OP_REFNUM	EQU	OP_FILEBUFF+2	; file reference number
+  310          0006        	OPEN_PSIZE	EQU	OP_REFNUM+1	; size of parameter buffer
+  311                      	
+  312          0000        	READ_PARM	EQU	0		; to read things
+  313          0000        	RD_PCOUNT	EQU	READ_PARM	; param count (=4)
+  314          0001        	RD_REFNUM	EQU	RD_PCOUNT+1	; ref num of file
+  315          0002        	RD_BUFFER	EQU	RD_REFNUM+1	; where to
+  316          0004        	RD_BUFFLEN	EQU	RD_BUFFER+2	; length of buffer
+  317          0006        	RD_LENGTH	EQU	RD_BUFFLEN+2	; actual length of read
+  318          0008        	READ_PSIZE	EQU	RD_LENGTH+2	; length of parm block
+  319                      	
+  320          0000        	CLOSE_PARM	EQU	0		; for closing file
+  321          0000        	CL_PCOUNT	EQU	CLOSE_PARM	; paramter count (=1)
+  322          0001        	CL_REFNUM	EQU	CL_PCOUNT+1	; refnum of file to be closed
+  323          0002        	CLOSE_PSIZE	EQU	CL_REFNUM+1	; this is the size, thank you
+  324                      	
+  325          0000        	WRITE_PARM	EQU	0		; to write things
+  326          0000        	WR_PCOUNT	EQU	WRITE_PARM	; parm count (= 4)
+  327          0001        	WR_REFNUM	EQU	WR_PCOUNT+1	; file refnum
+  328          0002        	WR_BUFFER	EQU	WR_REFNUM+1	; data buffer address
+  329          0004        	WR_BUFFLEN	EQU	WR_BUFFER+2	; data buffer length
+  330          0006        	WR_LENGTH	EQU	WR_BUFFLEN+2	; actual length written
+  331          0008        	WRITE_PSIZE	EQU	WR_LENGTH+2	; length of parm block
+  332                      	
+  333          0000        	SETMARK_PARM	EQU	0
+  334          0000        	SM_PCOUNT	EQU	SETMARK_PARM	; parm count (=2)
+  335          0001        	SM_REFNUM	EQU	SM_PCOUNT+1	; file refnum
+  336          0002        	SM_FPOS		EQU	SM_REFNUM+1	; 3 byte file pos 
+  337          0005        	SETMARK_PSIZE	EQU	SM_FPOS+3	; length of parm block
+  338                      	
+  339          0000        	SETPREFIX_PARM	EQU	0	
+  340          0000        	SP_PCOUNT	EQU	SETPREFIX_PARM	; parm count (=1)
+  341          0001        	SP_PATHNAME	EQU	SP_PCOUNT+1	; pointer to path name
+  342          0003        	SETPREFIX_PSIZE	EQU	SP_PATHNAME+2	; length of block
+  343                      	
+  344          0000        	SETEOF_PARM     EQU     0
+  345          0000        	SE_PCOUNT       EQU     SETEOF_PARM     ; parm count (=2)
+  346          0001        	SE_REFNUM       EQU     SE_PCOUNT+1     ; reference number
+  347          0002        	SE_NEWEOF       EQU     SE_REFNUM+1     ; new EOF position
+  348          0005        	SETEOF_PSIZE    EQU     SE_NEWEOF+3     ; length of parm block
+  349                      	
+  350   0000               		END
+  351                      	
+  352   0000               		INCLUDE 	APPLE.EQU
+  353   0000               		STTL "--- APPLE ][ HARDWARE STUFF ---"
+  354                      		PAGE	
+  Wed Jun  7 1989 12:04                                                                                                  Page   10
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  355                      	; -------------------
+  356                      	; APPLE II MEMORY MAP
+  357                      	; -------------------
+  358          0001        	AUX	EQU	1	; offset to Auxillary mem switches
+  359          0000        	MAIN	EQU	0	; for main memory switches
+  360                      	
+  361                      	;
+  362                      	; some hardware spots
+  363                      	;
+  364          2000        	SCREEN	EQU	$2000		; START OF Double HiRes SCREEN RAM
+  365                      	
+  366          BF00        	PRGLBL	EQU	$BF00		; ProDOS Globals page in main mem
+  367          BF58        	PR_BITMAP EQU	$BF58		; ProDOS system bitmap
+  368          BFFF        	KVERSION EQU    $BFFF           ; ProDOS version (== $FF if InfoDOS)
+  369          00FF        	INFODOS_ID EQU  $FF
+  370                      	
+  371          C000        	IOADDR	EQU	$C000		; start of I/O registers
+  372          D000        	PROADR	EQU	$D000		; start of ProDOS
+  373                      	
+  374          0200        	LBUFF	EQU	$0200		; LINE INPUT BUFFER
+  375          0273        	PIC1BUF EQU	$0300-141	; we can use line buffer for one picture buffer
+  376          0280        	SCRBUFF	EQU	LBUFF+$80	; screen line buffer
+  377          2000        	BORG	EQU	$2000		; ORIGIN OF .SYSTEM CODE 
+  378                      	;
+  379                      	; some page 3 storage relocated stuff
+  380                      	;
+  381          0300        	PAGE3STUFF EQU	$300
+  382          0300        	MOUSER	EQU	PAGE3STUFF	; this is where mouse subroutine goes
+  383          0312        	COLORS	EQU	MOUSER+$12
+  384          0352        	XPOSTBL	EQU	COLORS+$40
+  385                      	
+  386          0400        	SV_PCL	EQU	$400		; for scrolling data
+  387          0600        	SV_PCH	EQU	$600
+  388                      	
+  389          0800        	IOBUFF	EQU	$0800		; 1Kb DATA BUFFER BUFFER
+  390                      	
+  391          0C00        	PAGING_MEM EQU	IOBUFF+$400	; Paging table stuff
+  392          0C00        	NEXTPNT	EQU	PAGING_MEM
+  393          0C40        	PREVPNT	EQU	NEXTPNT+$40	
+  394          0C80        	VPAGEH	EQU	PREVPNT+$40	
+  395          0CC0        	VPAGEL	EQU	VPAGEH+$40	
+  396          0200        	PAGELEN	EQU	$200		; length of paged read
+  397                      	
+  398          0D00        	ZSTKBL	EQU	PAGING_MEM+$100	; Z-STACK  BOTTOM,LO  (1K STACK FOR EZIP)
+  399          0E00        	ZSTKTL	EQU	ZSTKBL+$100	; TOP, LO
+  400          0F00        	ZSTKBH	EQU	ZSTKBL+$200	; BOTTOM, HI
+  401          1000        	ZSTKTH	EQU	ZSTKBL+$300	; TOP, HI
+  402                      	;
+  403                      	; now define some file i/o buffers and such
+  404                      	;
+  405          1100        	GAME1FIO EQU	ZSTKBL+$400	; Game file I/O buffer
+  406          1500        	GAME2FIO EQU	GAME1FIO+$400	; Second game file i/o buffer
+  407          1900        	SEGTBL	EQU	GAME2FIO+$400	; segment table for multi disks
+  408          1C74        	PIC2BUF	EQU	SEGTBL+($400-140) ; picture buffer is 140 bytes long
+  409          1D00        	TCHARTBL EQU	SEGTBL+$400	; 208 bytes for (possible) terminating
+  410          1D50        	COPY_LINE EQU   TCHARTBL+$50    ; copy line in screen memory
+  411          1D7C        	CPY_MOD1_SRC equ   COPY_LINE+$2C   ; special self-modifying places
+  Wed Jun  7 1989 12:04                                                                                                  Page   11
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  412          1D7F        	CPY_MOD1_DST equ CPY_MOD1_SRC+3
+  413          1DA0        	CPY_MOD2_SRC equ   COPY_LINE+$50
+  414          1DA3        	CPY_MOD2_DST equ CPY_MOD2_SRC+3
+  415                      	
+  416          1DD0        	DSKSEG	EQU	TCHARTBL+$D0	; spot to stash pointers for disk segments
+  417          1DD0        	D1SEG	EQU	DSKSEG		; where in SEGTBL for Disk 1
+  418          1DD2        	D2SEG	EQU	D1SEG+2
+  419          1DD4        	D3SEG	EQU	D2SEG+2
+  420          1DD6        	D4SEG	EQU	D3SEG+2
+  421          1DD8        	D5SEG	EQU	D4SEG+2
+  422          1DDA        	D6SEG	EQU	D5SEG+2
+  423          1DDC        	D7SEG	EQU	D6SEG+2
+  424          1DDE        	D8SEG	EQU	D7SEG+2
+  425          1DE0        	LOCAL_SV EQU	TCHARTBL+$E0	; to save locals before restore
+  426          1E00        	LOCALS	EQU	TCHARTBL+$100	; LOCAL VARIABLE STORAGE (30 BYTES)
+  427          1E20        	BUFSAV	EQU	LOCALS+$20	; TEMP SPACE FOR SAVE/RESTORE (80 BYTES)
+  428          1F00        	SCR_LINE EQU	LOCALS+$100	; place to build displayed line
+  429          1F8C        	CHARSET EQU     SCR_LINE+140    ; spot for charset to go
+  430                      	;
+  431                      	; now for some interpreter data
+  432                      	;
+  433          4000        	INTR_BEGIN EQU	$4000		; START OF Interpreter CODE in main
+  434          5600        	INTR_SIZE EQU	(43*512)	; size of interpreter
+  435                      	
+  436          9600        	ZBEGIN	EQU	(INTR_BEGIN+INTR_SIZE) ; start of Z code
+  437          7F00        	MMSIZE	EQU	PRGLBL-INTR_BEGIN ; free memory in main bank
+  438          0029        	Z1SIZE	EQU	>(PRGLBL-ZBEGIN) ; size of preload, part 1
+  439                      	;
+  440                      	; this is in Bank 2, Main mem
+  441                      	;
+  442                      	;
+  443                      	; Picture directory goes in Bank 2, Aux mem
+  444                      	;
+  445          D000        	PIC_DIR	EQU	$D000		; picture local directory
+  446          DC00        	GBL_DIR EQU     $DC00           ; global directory
+  447                      	;
+  448                      	; some special markers if we are using InfoDOS
+  449                      	;
+  450          0000        	SP_BANK EQU     MAIN
+  451          D000        	SP_START EQU    $D000           ; start of special area
+  452          0017        	SP_SIZE EQU     ((($FE->SP_START)*256)/512)     ; how many pages
+  453                      	;SP_SIZE EQU     (((>SCREEN->SP_START)*256)/512)     ; how many pages
+  454                      	
+  455          0001        	PB_BANK EQU     AUX          ; paging buffers in which bank
+  456          0800        	PBEGIN	EQU	$0800		; start of paging buffers
+  457          0018        	NUMBUFS	EQU	>(SCREEN-PBEGIN) ; how many 256k paging buffers
+  458                      	;NUMBUFS	EQU	>($100-PBEGIN) ; how many 256k paging buffers
+  459                      	
+  460          0029        	P2PAGE	EQU	>(PRGLBL-ZBEGIN) ; first page of zcode in aux bank
+  461          4000        	Z2BEGIN	EQU	$4000		; start of part 2 in aux mem
+  462                      					; just after the dhires screen
+  463          0040        	Z2PAGE	EQU	>Z2BEGIN	; get me just the page address
+  464          007F        	Z2SIZE	EQU	>(PRGLBL-Z2BEGIN) ; size of preload, part 2
+  465          00A8        	P3PAGE	EQU	Z1SIZE+Z2SIZE	; first page in aux mem part 3
+  466          D000        	Z3BEGIN	EQU	$D000		; start of 3 part in aux mem
+  467          00D0        	Z3PAGE	EQU	>Z3BEGIN	; get me page number too
+  468          002E        	Z3SIZE	EQU	<($FE-Z3PAGE)	; size of part 3, in pages
+  Wed Jun  7 1989 12:04                                                                                                  Page   12
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  469                      	
+  470                      	;
+  471                      	; other numba's
+  472                      	;
+  473          00D6        	PGBEGIN	EQU	(P3PAGE+Z3SIZE)	; first paged page
+  474          00D6        	PRESIZE EQU	(Z1SIZE+Z2SIZE+Z3SIZE)	; size of preload, # pages
+  475          2000        	SCRSZE	EQU	INTR_BEGIN-SCREEN ; size of Double HiRes screen (8k, each bank)
+  476          EE00        	RAMDSK	EQU	(119*512)	; size of RAM disk in aux mem
+  477          B500        	RAMSAVE	EQU	$B500		; save this much to cover HiRes screen in
+  478                      					; aux and the rest of the preload, up to
+  479                      					; PRGLBL ($bf00)
+  480          3900        	FREERAM	EQU	RAMDSK-RAMSAVE	; size of Free RAM after 'saving' 
+  481                      					; special AUX memory
+  482          2200        	DSKSZE	EQU	(512*273)	; size of ProDOS data disk file
+  483                      	
+  484                      	; ---------
+  485                      	; CONSTANTS
+  486                      	; ---------
+  487                      	
+  488          0002        	IIeID	EQU	2	; Apple ][e Yzip
+  489          0009        	IIcID	EQU	9	; ][c Yzip
+  490          000A        	IIgsID	EQU 	10	; ][gs Yzip
+  491                      	
+  492          00FF        	P3BANK	EQU	$FF	; show upper aux mem
+  493          0000        	LO	EQU	0	
+  494          0001        	HI	EQU	1	
+  495          0002        	ABANK	EQU	2	; for address variables
+  496                      	
+  497          0000        	OFF	EQU	0	; for toggling soft-switches
+  498          0001        	ON	EQU	1
+  499                      	
+  500          0003        	RETRY_COUNT EQU 3       ; how many retries before message
+  501                      	
+  502          0009        	TAB     EQU     $09     ; Tab char
+  503          000B        	EOS     EQU     $0B     ; End of Sentence
+  504          000D        	EOL	EQU	$0D	; EOL CHAR
+  505          000A        	LF	EQU	$0A	; LINE FEED
+  506          0020        	SPACE	EQU	$20	; SPACE CHAR
+  507          0008        	BACKSPACE EQU	$08	; BACKSPACE CHAR
+  508          001B        	ESCAPE	EQU	$1B	; ESCAPE Key
+  509          003F        	VOLCHAR EQU	'?'	; Key to hit for ONLINE command
+  510                      	;
+  511                      	; Screen Defs
+  512                      	;
+  513          008C        	MAXWIDTH EQU	140	; 560 / 4 = max "pixels"
+  514          0230        	REAL_MAXW EQU	MAXWIDTH*4
+  515          00C0        	MAXHEIGHT EQU	192	; 192 screen lines
+  516          0002        	FONT_W	EQU	2	; font width (for game, anyway)
+  517          0009        	FONT_H	EQU	9	; font height
+  518          0003        	MFONT_W	EQU	3	; mono spaced font width, to game
+  519          000C        	MONOFONT_W EQU	MFONT_W*4	; how wide the mono font really is
+  520                      	
+  521          0008        	SPACE_WIDTH EQU	8	; default space width
+  522          0003        	BLINK_RATE EQU	3	; tenths of seconds between blinks
+  523                      	
+  524          001C        	OUTER_DELAY EQU	$1C	; outside delay loop counter
+  525          0003        	INNER_DELAY EQU	3	; inner delay loop
+  Wed Jun  7 1989 12:04                                                                                                  Page   13
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  526                      	
+  527          0072        	GS_OUTER_DELAY EQU $72	; ][gs outside counter
+  528          0002        	GS_INNER_DELAY EQU 2	; ][gs inside counter
+  529                      	
+  530                      	; ----------------------
+  531                      	; BOOT ZERO PAGE EQUATES
+  532                      	; ----------------------
+  533                      	
+  534          0026        	BADDR	EQU	$26	; (WORD) ROM BOOT ADDRESS
+  535          002B        	BSLOT	EQU	$2B	; (BYTE) ROM BOOT SLOT
+  536                      	
+  537          0280        	START_NAME EQU     $280    ; name upon boot is stored here
+  538                      	; ----------------
+  539                      	; HARDWARE EQUATES
+  540                      	; ----------------
+  541                      	
+  542          C000        	KBD	EQU	$C000	; KEY STROBE
+  543          C000        	STORE80 EQU	$C000	; video aux mem switch
+  544          C002        	RDBNK	EQU	$C002	; READ MAIN MEMORY (+MAIN, +AUX)
+  545          C004        	WRTBNK	EQU	$C004	; WRITE MAIN 48K OF MEMORY (+MAIN, +AUX)
+  546          C008        	ALTZP	EQU	$C008	; R/W MAIN (C009 = AUX) >MEM
+  547          C00C        	COL80SW	EQU	$C00C	; 80 Column switch
+  548          C010        	ANYKEY 	EQU	$C010	; ANY KEY DOWN FLAG
+  549          C019        	VERTBLNK EQU	$C019	; Vertical Blanking Flag
+  550          C029        	IIGSVID EQU     $C029   ; GS MEGA ][ video register
+  551          C030        	SPKR	EQU	$C030	; SPEAKER FLAG (MAKE A NOISE)
+  552          C035        	IIGSSHD EQU     $C035   ; ][GS shadowing reg
+  553          C050        	TEXTSW	EQU	$C050	; Graphics Switch
+  554          C052        	MIXEDSW EQU	$C052	; Mixed Text/Graphics
+  555          C054        	PAGE2SW EQU	$C054	; Page select
+  556          C056        	HIRESSW	EQU	$C056	; Select HiRes
+  557          C05E        	DHIRESW	EQU	$C05E	; Double HiRes switch (backwards: +0 on +1 off)
+  558          C07E        	IOUDIS	EQU	$C07E	; Double HiRes Switch enabler (same backass way)
+  559          C083        	BNK2SET	EQU	$C083	;READ/READ      READ RAM WRITE RAM BANK 2
+  560          C08B        	BNK1SET	EQU	$C08B	;READ/READ      READ RAM WRITE RAM BANK 1
+  561          C082        	RDROM	EQU	$C082	; READ READ ROM NO WRITE
+  562          C088        	RDBNK1	EQU	$C088	; READ ram, bank 1
+  563          C080        	RDBNK2	EQU	$C080	; Read ram, bank 2
+  564                      	
+  565                      	; -----------------
+  566                      	; MONITOR VARIABLES
+  567                      	; -----------------
+  568                      	
+  569          0036        	CSW	EQU	$36	; CHARACTER OUTPUT VECTOR (for scripting)
+  570          C061        	APKEY1	EQU	$C061	; open apple key flag
+  571          C062        	APKEY2	EQU	$C062	; closed apple key flag
+  572                      	
+  573          0002        	CURSW	EQU	2		; width of cursor
+  574          0004        	CURSH	EQU	4		; height of cursor
+  575                      	; -----------
+  576                      	; MOUSE STUFF
+  577                      	; -----------
+  578          C412        	MTABLE	EQU	$C412	; Mouse ROM table
+  579          0310        	MSVECTOR EQU	MOUSER+16	; where vector is stored
+  580          0312        	MSMOVEF	EQU	MSVECTOR+2	; Mouse moved flag
+  581          0313        	MSBTNF	EQU	MSMOVEF+1	; Mouse button flag
+  582                      	;
+  Wed Jun  7 1989 12:04                                                                                                  Page   14
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  583                      	; MOUSE screen holes
+  584                      	;
+  585          0478        	CLMPMINL EQU	$478		; lo part of clamping min
+  586          0578        	CLMPMINH EQU	$578		; hi part of    "      "
+  587          04F8        	CLMPMAXL EQU	$4F8		; lo part of clamping max
+  588          05F8        	CLMPMAXH EQU	$5F8		; hi part of    "      "
+  589          0478        	MOUSEXL	EQU	$478		; lo part of mouse X
+  590          0578        	MOUSEXH	EQU	$578		; hi part of mouse X
+  591          04F8        	MOUSEYL	EQU	$4F8		; lo part of mouse Y
+  592          05F8        	MOUSEYH	EQU	$5F8		; hi part of mouse Y
+  593          0778        	MOUSEST	EQU	$778		; status byte
+  594                      	;
+  595                      	; some mouse constants
+  596                      	;
+  597          0081        	SGL_CLK	EQU	$81	; single click char
+  598          0082        	DBL_CLK	EQU	$82	; double click char
+  599          0006        	CLK_CNT	EQU	6	; counts between single and double click
+  600                      	; Subroutine offsets
+  601          0000        	SETM	EQU	0
+  602          0001        	SERVEM	EQU	1
+  603          0002        	READM	EQU	2
+  604          0003        	CLEARM	EQU	3
+  605          0004        	POSM	EQU	4
+  606          0005        	CLAMPM	EQU	5
+  607          0006        	HOMEM	EQU	6
+  608          0007        	INITM	EQU	7
+  609                      	
+  610                      	; --------------
+  611                      	; PRODOS GLOBALS
+  612                      	; --------------
+  613          BF90        	PRODATE	EQU	$BF90	; date and
+  614          BF92        	PROTIME	EQU	$BF92	; time
+  615          BF98        	MACHID	EQU	$BF98	; machine id
+  616                      	
+  617                      	; ----------------
+  618                      	; MONITOR ROUTINES
+  619                      	; ----------------
+  620          FB1E        	MPREAD	EQU	$FB1E	; Read for joystick control
+  621          FC22        	MBASCAL	EQU	$FC22	; CALC LINE BASE ADDRESS
+  622          FF3A        	MBELL	EQU	$FF3A	; MAKE A NOISE
+  623          FFFC        	RESET_VECTOR EQU $FFFC  ; force warm reboot
+  624          FC9C        	MCLEOL	EQU	$FC9C	; CLEAR TO END OF LINE
+  625          FC42        	MCLEOS	EQU	$FC42	; CLEAR TO END OF SCREEN
+  626          FC58        	MHOME	EQU	$FC58	; CLEAR SCREEN/HOME CURSOR
+  627          FDED        	MCOUT	EQU	$FDED	; CHAR OUTPUT
+  628          FDF0        	MCOUT1	EQU	$FDF0	; CHAR OUTPUT TO SCREEN
+  629          FD0C        	MRDKEY	EQU	$FD0C	; READ KEY
+  630          FD6F        	MGETLN1	EQU	$FD6F	; GET LINE
+  631          FCA8        	MWAIT	EQU	$FCA8	; WASTE SO MUCH TIME
+  632                      	;
+  633                      	; Some /RAM spots
+  634                      	;
+  635          BF26        	RAMVEC	EQU	$BF26	; /RAM drive vector
+  636          077E        	OLDVEC	EQU	$77E	; spot to save the drive vector
+  637          BF16        	UNSVEC	EQU	$BF16	; "Uninstalled Device" vector
+  638          BF31        	DEVCNT	EQU	$BF31	; Device count
+  639          BF32        	DEVNUM	EQU	$BF32	; Device list
+  Wed Jun  7 1989 12:04                                                                                                  Page   15
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ][ HARDWARE STUFF ---"
+
+  640                      	
+  641                      	;
+  642                      	; machine info spots
+  643                      	;
+  644          FBB3        	MACHID1	EQU	$FBB3	; first part
+  645          FBC0        	MACHID2	EQU	$FBC0	; second part
+  646          FE1F        	MACHCHK	EQU	$FE1F	; differentiate between ][e and gs
+  647                      				; do sec, then jsr, and if still set, = ][e
+  648   0000               		END
+  649                      	
+  650   0000               		INCLUDE		MACROS.ASM
+  651   0000               		STTL	"--- MACROS ---"
+  652                      		PAGE 
+  Wed Jun  7 1989 12:04                                                                                                  Page   16
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- MACROS ---"
+
+  653                      	
+  654                      	;
+  655                      	; MACROS for Apple ][ Yzip
+  656                      	;
+  657                      	DLINE:	.MACRO	STRING,SLEN
+  658                      		ldx	#<STRING	; get part of STRING
+  659                      		lda	#>STRING	; get other part of string
+  660                      		IFMA	2		; check to see if length passed in
+  661                      		ldy	SLEN		; then just fetch it
+  662                      		ELSE
+  663                      		ldy	#STRING|L	; get length of string
+  664                      		ENDIF
+  665                      		jsr	DLINE		; print the string
+  666                      		.MACEND
+  667                      	;
+  668                      	; ProDOS macros
+  669                      	;
+  670                      	PRODOS:	.MACRO	CODE, PADDR
+  671                      		jsr	$BF00	; ProDOS handler
+  672                      		DB	CODE	; ProDOS function code
+  673                      		DW	PADDR	; Function Parameter Block address
+  674                      		.MACEND
+  675                      	
+  676                      	QUIT:	.MACRO	PBLOCK
+  677                      		PRODOS 	$65, PBLOCK
+  678                      		.MACEND
+  679                      	
+  680                      	READ_BLOCK: .MACRO PBLOCK
+  681                      		PRODOS	$80, PBLOCK
+  682                      		.MACEND
+  683                      	
+  684                      	WRITE_BLOCK: .MACRO PBLOCK
+  685                      		PRODOS	$81, PBLOCK
+  686                      		.MACEND
+  687                      	
+  688                      	GET_TIME: .MACRO PBLOCK
+  689                      		PRODOS	$82, PBLOCK
+  690                      		.MACEND
+  691                      	
+  692                      	CREATE:	.MACRO	PBLOCK
+  693                      		PRODOS	$C0, PBLOCK
+  694                      		.MACEND
+  695                      	
+  696                      	DESTROY: .MACRO	PBLOCK
+  697                      		PRODOS	$C1, PBLOCK
+  698                      		.MACEND
+  699                      	
+  700                      	RENAME: .MACRO PBLOCK
+  701                      		PRODOS	$C2, PBLOCK
+  702                      		.MACEND
+  703                      	
+  704                      	SET_FILE_INFO: .MACRO PBLOCK
+  705                      		PRODOS	$C3, PBLOCK
+  706                      		.MACEND
+  707                      	
+  708                      	GET_FILE_INFO: .MACRO PBLOCK
+  709                      		PRODOS	$C4, PBLOCK
+  Wed Jun  7 1989 12:04                                                                                                  Page   17
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- MACROS ---"
+
+  710                      		.MACEND
+  711                      	
+  712                      	ONLINE: .MACRO PBLOCK
+  713                      		PRODOS	$C5, PBLOCK
+  714                      		.MACEND
+  715                      	
+  716                      	SET_PREFIX: .MACRO PBLOCK
+  717                      		PRODOS	$C6, PBLOCK
+  718                      		.MACEND
+  719                      	
+  720                      	GET_PREFIX: .MACRO PBLOCK
+  721                      		PRODOS	$C7, PBLOCK
+  722                      		.MACEND
+  723                      	
+  724                      	OPEN: .MACRO PBLOCK
+  725                      		PRODOS	$C8, PBLOCK
+  726                      		.MACEND
+  727                      	
+  728                      	NEWLINE: .MACRO PBLOCK
+  729                      		PRODOS	$C9, PBLOCK
+  730                      		.MACEND
+  731                      	
+  732                      	READ: .MACRO PBLOCK
+  733                      		PRODOS	$CA, PBLOCK
+  734                      		.MACEND
+  735                      	
+  736                      	WRITE: .MACRO PBLOCK
+  737                      		PRODOS	$CB, PBLOCK
+  738                      		.MACEND
+  739                      	
+  740                      	CLOSE: .MACRO PBLOCK
+  741                      		PRODOS	$CC, PBLOCK
+  742                      		.MACEND
+  743                      	
+  744                      	FLUSH: .MACRO PBLOCK
+  745                      		PRODOS	$CD, PBLOCK
+  746                      		.MACEND
+  747                      	
+  748                      	SET_MARK: .MACRO PBLOCK
+  749                      		PRODOS	$CE, PBLOCK
+  750                      		.MACEND
+  751                      	
+  752                      	GET_MARK: .MACRO PBLOCK
+  753                      		PRODOS	$CF, PBLOCK
+  754                      		.MACEND
+  755                      	
+  756                      	SET_EOF: .MACRO PBLOCK
+  757                      		PRODOS	$D0, PBLOCK
+  758                      		.MACEND
+  759                      	
+  760                      	SET_BUF: .MACRO PBLOCK
+  761                      		PRODOS	$D1, PBLOCK
+  762                      		.MACEND
+  763                      	
+  764                      	GET_BUF: .MACRO PBLOCK
+  765                      		PRODOS	$D2, PBLOCK
+  766                      		.MACEND
+  Wed Jun  7 1989 12:04                                                                                                  Page   18
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- MACROS ---"
+
+  767                      	
+  768   0000               		END
+  769                      	
+  770                      	
+  771   0000               		STTL	"--- APPLE ProDOS BOOT CODE ---"
+  772                      		PAGE
+  Wed Jun  7 1989 12:04                                                                                                  Page   19
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+  773                      	
+  774          0024        	CHZ	EQU	$24	; CURSOR HORIZONTAL
+  775          057B        	EHZ	EQU	$57B	; CURSOR HORIZONTAL
+  776          0025        	CVT	EQU	$25	; CURSOR VERTICAL
+  777                      	
+  778                      	;
+  779                      	; my own little error checking macro
+  780                      	;
+  781          0000        	ERRVAL	.VAR	0
+  782                      	;
+  783                      	; this macros checks for carry being set (ProDOS error) and if it is
+  784                      	; loads an error code in x and jumps to the error handler
+  785                      	ERRCHK .MACRO
+  786                      	ERRVAL	.VAR	ERRVAL+1
+  787                      		bcc	BOOT|<ERRVAL>
+  788                      		ldy	#ERRVAL	
+  789                      		jmp	BOOT_ERROR
+  790                      	BOOT|<ERRVAL>:
+  791                      		.MACEND
+  792                      	
+  793   2000               		ORG	BORG	
+  794   2000   4C 0C 20    		jmp	BOOT_BEGIN	; just jump to beginning
+  795   2003               	PROGNAME:
+  796   2003               		BLKB	9,0		; 8 bytes for name + 1 for ending zero
+  797   200C               	BOOT_BEGIN:
+  798   200C   AD 82 C0    	        lda     RDROM           ; swap in rom
+  799   200F   8D 51 C0    		sta	TEXTSW+ON	; turn on text
+  800   2012   8D 0C C0    		sta	COL80SW+OFF	; turn on 80 column
+  801                      	
+  802                      	;
+  803                      	; make sure we are on a ][c, or ][e+
+  804                      	;
+  805   2015   20 AE 26    		jsr	MACHINE		; check it out, returns if good
+  806   2018   A5 65       		lda	ARG2+LO		; check machine
+  807   201A   C9 0A       		cmp	#IIgsID		; 2gs?
+  808   201C   D0 10       		bne	ZBOOTGS		; nope
+  809   201E   AD 29 C0    	        lda     IIGSVID         ; get current video setting
+  810   2021   29 1F       	        and     #$1F            ; turn off upper 3 bits
+  811   2023   8D 29 C0    	        sta     IIGSVID         ; make sure double hires works
+  812   2026   AD 35 C0    	        lda     IIGSSHD         ; get shadowing reg
+  813   2029   29 A0       	        and     #$A0            ; turn on shadowing everywhere
+  814   202B   8D 35 C0    	        sta     IIGSSHD         ; okay
+  815   202E               	ZBOOTGS:
+  816   202E   20 5C 28    		jsr	FIXRAM		; check and clear RAM disk
+  817   2031   20 6C 29    	        jsr     DO_PREFIX       ; go set my current prefix
+  818                      	
+  819   2034   20 58 FC    		jsr	MHOME		; clear and home
+  820   2037   A9 09       		lda	#9		; CENTER DISPLAY
+  821   2039   85 25       		sta	CVT	
+  822   203B   A9 08       		lda	#8
+  823   203D   85 24       		sta	CHZ
+  824   203F   8D 7B 05    	        sta     EHZ
+  825   2042   20 22 FC    		jsr	MBASCAL		; move cursor there!	
+  826   2045               		DLINE	STRYM
+  827   2045   A2 5C       		ldx	#<STRYM	; get part of STRYM
+  828   2047   A9 2A       		lda	#>STRYM	; get other part of string
+  829          [01]        		IFMA	2		; check to see if length passed in
+  Wed Jun  7 1989 12:04                                                                                                  Page   20
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+  830                      		ldy	M		; then just fetch it
+  831          [01]        		ELSE
+  832   2049   A0 18       		ldy	#STRYML	; get length of string
+  833          [00]        		ENDIF
+  834   204B   20 D5 26    		jsr	DLINE		; print the string
+  835   204E               		.MACEND
+  836                      	;
+  837                      	; move down to lower left and print out version number
+  838                      	;
+  839   204E   A9 15       	        lda     #21
+  840   2050   85 25       	        sta     CVT
+  841   2052   A9 01       	        lda     #1
+  842   2054   85 24       	        sta     CHZ             ; move to 1,20
+  843   2056   8D 7B 05    	        sta     EHZ
+  844   2059   20 22 FC    		jsr	MBASCAL		; move cursor there!	
+  845   205C               	        DLINE   VERMSG          ; show me the version
+  846   205C   A2 42       		ldx	#<VERMSG	; get part of VERMSG
+  847   205E   A9 2B       		lda	#>VERMSG	; get other part of string
+  848          [01]        		IFMA	2		; check to see if length passed in
+  849                      		ldy			; then just fetch it
+  850          [01]        		ELSE
+  851   2060   A0 0A       		ldy	#VERMSGL	; get length of string
+  852          [00]        		ENDIF
+  853   2062   20 D5 26    		jsr	DLINE		; print the string
+  854   2065               		.MACEND
+  855   2065   A9 01       	        lda     #VERSID/10      ; get version
+  856   2067   09 B0       	        ora     #$B0            ; make normal char for ][
+  857   2069   20 ED FD    	        jsr     MCOUT
+  858   206C   A9 03       	        lda     #VERSID.MOD.10
+  859   206E   09 B0       	        ora     #$B0            ; make normal char for ][
+  860   2070   20 ED FD    	        jsr     MCOUT
+  861                      	
+  862   2073   A9 FF       		lda	#$FF		; init invflg to normal
+  863   2075   85 BB       		sta	INVFLG		; okay
+  864                      	
+  865   2077   A9 00       		lda	#0		; zero out bit map
+  866   2079   A2 17       		ldx	#$17		; 17 bytes in ProDOS system bitmap
+  867   207B               	CLRPRD:
+  868   207B   9D 58 BF    		sta	PR_BITMAP,X	; and zero out the memory
+  869   207E   CA          		dex
+  870   207F   10 FA       		bpl	CLRPRD		; and zero entire bitmap
+  871                      	
+  872   2081   A9 C0       		lda	#$C0		; start out the bitmap with c0 at start
+  873   2083   8D 58 BF    		sta	PR_BITMAP
+  874   2086   A9 01       		lda	#$01		; and a 1 at the end
+  875   2088   8D 6F BF    		sta	PR_BITMAP+$17	; thankx
+  876                      	;
+  877                      	; now we need to load in the interpreter
+  878                      	;
+  879   208B               		OPEN	INTR_OPEN	; open up interpreter file
+  880   208B               		PRODOS	$C8, INTR_OPEN
+  881   208B   20 00 BF    		jsr	$BF00	; ProDOS handler
+  882   208E   C8          		DB	$C8	; ProDOS function code
+  883   208F   1B2A        		DW	INTR_OPEN	; Function Parameter Block address
+  884   2091               		.MACEND
+  885   2091               		.MACEND
+  886   2091               		ERRCHK
+  Wed Jun  7 1989 12:04                                                                                                  Page   21
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+  887          0001        	ERRVAL	.VAR	ERRVAL+1
+  888   2091   90 05       		bcc	BOOT1
+  889   2093   A0 01       		ldy	#ERRVAL	
+  890   2095   4C AB 26    		jmp	BOOT_ERROR
+  891   2098               	BOOT1:
+  892   2098               		.MACEND
+  893                      	
+  894   2098   AD 20 2A    		lda	INTR_OPEN+OP_REFNUM 	; get refnum for intr file
+  895   209B   8D 30 2A    		sta	READ_BLOCK+RD_REFNUM 	; and save for read
+  896   209E   8D 22 2A    		sta	CLOSE_BLOCK+CL_REFNUM 	; close up interpreter file
+  897                      	
+  898   20A1   A9 03       	        lda     #RETRY_COUNT    ; set retry
+  899   20A3   85 16       	        sta     RETRIES         ; just use this for now
+  900   20A5               	RDINTR:
+  901   20A5               		READ	READ_BLOCK	; read in interpreter
+  902   20A5               		PRODOS	$CA, READ_BLOCK
+  903   20A5   20 00 BF    		jsr	$BF00	; ProDOS handler
+  904   20A8   CA          		DB	$CA	; ProDOS function code
+  905   20A9   2F2A        		DW	READ_BLOCK	; Function Parameter Block address
+  906   20AB               		.MACEND
+  907   20AB               		.MACEND
+  908   20AB   90 0B       	        bcc     RDINTR1         ; it worked fine
+  909   20AD   C6 16       	        dec     RETRIES         ; try again
+  910   20AF   10 F4       	        bpl     RDINTR          ; fine
+  911   20B1               	        ERRCHK                  ; then just die
+  912          0002        	ERRVAL	.VAR	ERRVAL+1
+  913   20B1   90 05       		bcc	BOOT2
+  914   20B3   A0 02       		ldy	#ERRVAL	
+  915   20B5   4C AB 26    		jmp	BOOT_ERROR
+  916   20B8               	BOOT2:
+  917   20B8               		.MACEND
+  918   20B8               	RDINTR1:
+  919   20B8               		CLOSE	CLOSE_BLOCK	; done with interpreter
+  920   20B8               		PRODOS	$CC, CLOSE_BLOCK
+  921   20B8   20 00 BF    		jsr	$BF00	; ProDOS handler
+  922   20BB   CC          		DB	$CC	; ProDOS function code
+  923   20BC   212A        		DW	CLOSE_BLOCK	; Function Parameter Block address
+  924   20BE               		.MACEND
+  925   20BE               		.MACEND
+  926                      	;
+  927                      	; now read in first part of preload
+  928                      	;
+  929   20BE   A2 00       		ldx	#0		; start at first letter
+  930   20C0               	MVPRE:
+  931   20C0   BD 03 20    		lda	PROGNAME,X	; get letter
+  932   20C3   F0 06       		beq	MVPREX		; all done
+  933   20C5   9D 40 2A    		sta	PRE_NAME,X	; save letter
+  934   20C8   E8          		inx			; next letter
+  935   20C9   D0 F5       		bne	MVPRE		; do gen
+  936   20CB               	MVPREX:
+  937                      	;
+  938                      	; now add on ".d1" suffix for the preload
+  939                      	;
+  940   20CB   A9 2E       		lda	#'.'		; get '.'
+  941   20CD   9D 40 2A    		sta	PRE_NAME,X	; save it
+  942   20D0   E8          		inx			; next char
+  943   20D1   A9 44       		lda	#'D'		; 'D' char
+  Wed Jun  7 1989 12:04                                                                                                  Page   22
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+  944   20D3   9D 40 2A    		sta	PRE_NAME,X	; save it
+  945   20D6   E8          		inx			; next char
+  946   20D7   A9 31       		lda	#'1'		; preload is .1
+  947   20D9   9D 40 2A    		sta	PRE_NAME,X	; saved
+  948   20DC   E8          		inx			; count the .1
+  949   20DD   8E 3F 2A    		stx	PRELOAD_NAME	; save length of name
+  950                      	
+  951   20E0               		OPEN	PRELOAD_OPEN	; so now open preload file
+  952   20E0               		PRODOS	$C8, PRELOAD_OPEN
+  953   20E0   20 00 BF    		jsr	$BF00	; ProDOS handler
+  954   20E3   C8          		DB	$C8	; ProDOS function code
+  955   20E4   292A        		DW	PRELOAD_OPEN	; Function Parameter Block address
+  956   20E6               		.MACEND
+  957   20E6               		.MACEND
+  958   20E6               		ERRCHK
+  959          0003        	ERRVAL	.VAR	ERRVAL+1
+  960   20E6   90 05       		bcc	BOOT3
+  961   20E8   A0 03       		ldy	#ERRVAL	
+  962   20EA   4C AB 26    		jmp	BOOT_ERROR
+  963   20ED               	BOOT3:
+  964   20ED               		.MACEND
+  965                      	
+  966   20ED   AD 2E 2A    		lda	PRELOAD_OPEN+OP_REFNUM	; get refnum
+  967   20F0   8D 30 2A    		sta	READ_BLOCK+RD_REFNUM 	; save refnum for read
+  968   20F3   8D 25 2A    		sta	PSEEK+SM_REFNUM		; and for moving around
+  969                      	;
+  970                      	; first, get the segment table
+  971                      	;
+  972   20F6   A9 08       		lda	#>IOBUFF	; just read in size
+  973   20F8   8D 32 2A    		sta	READ_BLOCK+RD_BUFFER+HI ; and where to begin next read
+  974   20FB   A9 04       		lda	#4              ; read in first 1 Kb
+  975   20FD   8D 34 2A    		sta	READ_BLOCK+RD_BUFFLEN+HI ; to show how much to read
+  976   2100   A9 00       		lda	#0		; get size in words
+  977   2102   8D 33 2A    		sta	READ_BLOCK+RD_BUFFLEN+LO ; to show how much to read
+  978   2105               			
+  979   2105               		READ	READ_BLOCK	; and read first block
+  980   2105               		PRODOS	$CA, READ_BLOCK
+  981   2105   20 00 BF    		jsr	$BF00	; ProDOS handler
+  982   2108   CA          		DB	$CA	; ProDOS function code
+  983   2109   2F2A        		DW	READ_BLOCK	; Function Parameter Block address
+  984   210B               		.MACEND
+  985   210B               		.MACEND
+  986   210B               		ERRCHK
+  987          0004        	ERRVAL	.VAR	ERRVAL+1
+  988   210B   90 05       		bcc	BOOT4
+  989   210D   A0 04       		ldy	#ERRVAL	
+  990   210F   4C AB 26    		jmp	BOOT_ERROR
+  991   2112               	BOOT4:
+  992   2112               		.MACEND
+  993                      	;
+  994                      	; now copy segtable to low mem
+  995                      	;
+  996   2112   A9 08       	        lda     #>IOBUFF
+  997   2114   85 7B       	        sta     J+HI
+  998   2116   A9 00       	        lda     #<IOBUFF
+  999   2118   85 7A       	        sta     J+LO
+ 1000   211A   A9 18       	        lda     #>(SEGTBL-2)
+  Wed Jun  7 1989 12:04                                                                                                  Page   23
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+ 1001   211C   85 7D       	        sta     K+HI
+ 1002   211E   A9 FE       	        lda     #<(SEGTBL-2)
+ 1003   2120   85 7C       	        sta     K+LO
+ 1004                      	
+ 1005   2122   AD 01 08    	        lda     IOBUFF+1        ; get LSB
+ 1006   2125   0A          	        asl     A               ; *2, to pick up the carry
+ 1007   2126   AD 00 08    	        lda     IOBUFF          ; get how many words
+ 1008   2129   2A          	        rol     A               ; *2 for number of bytes
+ 1009   212A   8D 27 2A    		sta	PSEEK+SM_FPOS+HI	; set page number
+ 1010   212D   AA          	        tax                     ; make it a counter
+ 1011   212E   A0 02       	        ldy     #2              ; start at second byte, after length
+ 1012   2130               	CPSEGT:
+ 1013   2130   B1 7A       	        lda     (J),y           ; get byte
+ 1014   2132   91 7C       	        sta     (K),y           ; save byte
+ 1015   2134   C8          	        iny                     ; next byte
+ 1016   2135   D0 F9       	        bne     CPSEGT          ; go do it
+ 1017   2137   E6 7B       	        inc     J+HI
+ 1018   2139   E6 7D       	        inc     K+HI
+ 1019   213B   A0 00       	        ldy     #0              ; restart at beginning of block
+ 1020   213D   CA          	        dex                     ; count page
+ 1021   213E   10 F0       	        bpl     CPSEGT          ; next page
+ 1022                      	;
+ 1023                      	; now, seek to page following seg table
+ 1024                      	;
+ 1025   2140   EE 27 2A    		inc	PSEEK+SM_FPOS+HI	; next page
+ 1026   2143   AD 27 2A    		lda	PSEEK+SM_FPOS+HI	; make sure it is an even 512 page
+ 1027   2146   29 01       		and	#$01			; is it odd?
+ 1028   2148   F0 07       		beq	BTSK0			; nope, so we be okay
+ 1029   214A   EE 27 2A    		inc	PSEEK+SM_FPOS+HI	; next page
+ 1030   214D   A9 03       	        lda     #RETRY_COUNT    ; set retry
+ 1031   214F   85 16       	        sta     RETRIES         ; just use this for now
+ 1032   2151               	BTSK0:
+ 1033   2151               		SET_MARK PSEEK		; and point to beginning of game data
+ 1034   2151               		PRODOS	$CE, PSEEK
+ 1035   2151   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1036   2154   CE          		DB	$CE	; ProDOS function code
+ 1037   2155   242A        		DW	PSEEK	; Function Parameter Block address
+ 1038   2157               		.MACEND
+ 1039   2157               		.MACEND
+ 1040                      	
+ 1041   2157   A9 96       		lda	#>ZBEGIN	; begining of game code
+ 1042   2159   8D 32 2A    		sta	READ_BLOCK+RD_BUFFER+HI ; and where to begin next read
+ 1043   215C   A9 28       		lda	#(Z1SIZE&$FE)	; get size
+ 1044   215E   8D 34 2A    		sta	READ_BLOCK+RD_BUFFLEN+HI ; to show how much to read
+ 1045   2161   A9 00       		lda	#0		; get size in words
+ 1046   2163   8D 33 2A    		sta	READ_BLOCK+RD_BUFFLEN+LO ; to show how much to read
+ 1047   2166               		READ	READ_BLOCK	; and read in part 1 of preload
+ 1048   2166               		PRODOS	$CA, READ_BLOCK
+ 1049   2166   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1050   2169   CA          		DB	$CA	; ProDOS function code
+ 1051   216A   2F2A        		DW	READ_BLOCK	; Function Parameter Block address
+ 1052   216C               		.MACEND
+ 1053   216C               		.MACEND
+ 1054   216C   90 0B       	        bcc     BTSK00          ; just fine
+ 1055   216E   C6 16       	        dec     RETRIES         ; try again
+ 1056   2170   10 DF       	        bpl     BTSK0           ; fine
+ 1057   2172               	        ERRCHK                  ; then just die
+  Wed Jun  7 1989 12:04                                                                                                  Page   24
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+ 1058          0005        	ERRVAL	.VAR	ERRVAL+1
+ 1059   2172   90 05       		bcc	BOOT5
+ 1060   2174   A0 05       		ldy	#ERRVAL	
+ 1061   2176   4C AB 26    		jmp	BOOT_ERROR
+ 1062   2179               	BOOT5:
+ 1063   2179               		.MACEND
+ 1064   2179               	BTSK00:
+ 1065   2179   A9 04       		lda	#4			; 4 pages per read
+ 1066   217B   8D 34 2A    		sta	READ_BLOCK+RD_BUFFLEN+HI ; and lots
+ 1067   217E   A9 08       		lda	#>IOBUFF		; read into my io buffer
+ 1068   2180   8D 32 2A    		sta	READ_BLOCK+RD_BUFFER+HI ; hi part of address
+ 1069                      	
+ 1070          [01]        	        IF      Z1SIZE & 1      ; if odd, do something special
+ 1071   2183               	        READ    READ_BLOCK
+ 1072   2183               		PRODOS	$CA, READ_BLOCK
+ 1073   2183   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1074   2186   CA          		DB	$CA	; ProDOS function code
+ 1075   2187   2F2A        		DW	READ_BLOCK	; Function Parameter Block address
+ 1076   2189               		.MACEND
+ 1077   2189               		.MACEND
+ 1078   2189   A0 00       	        ldy     #0              ; copy second page
+ 1079   218B               	C2LOOP:
+ 1080   218B   B9 00 08    	        lda     IOBUFF,Y
+ 1081   218E   99 00 BE    	        sta     ZBEGIN+(Z1SIZE*$100)-$100,Y
+ 1082   2191   C8          	        iny
+ 1083   2192   D0 F7       	        bne     C2LOOP
+ 1084   2194   A9 3F       	        lda     #(>Z2BEGIN-1)     ; don't need first block
+ 1085   2196   8D E2 21    	        sta     MODOP+2
+ 1086   2199   D0 1B       	        bne     RD10            ; skip that first read
+ 1087          [00]        	        ENDIF
+ 1088   219B               	AUXRDL:
+ 1089   219B   A9 03       	        lda     #RETRY_COUNT    ; set retry
+ 1090   219D   85 16       	        sta     RETRIES         ; just use this for now
+ 1091   219F               	AUXRDL0:
+ 1092   219F               		READ	READ_BLOCK	; and do the read
+ 1093   219F               		PRODOS	$CA, READ_BLOCK
+ 1094   219F   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1095   21A2   CA          		DB	$CA	; ProDOS function code
+ 1096   21A3   2F2A        		DW	READ_BLOCK	; Function Parameter Block address
+ 1097   21A5               		.MACEND
+ 1098   21A5               		.MACEND
+ 1099   21A5   90 0F       		bcc	RD10
+ 1100   21A7   C9 4C       		cmp	#$4C		; this just means EOF already
+ 1101   21A9   F0 54       		beq	BT12		; otherwise, blech
+ 1102   21AB   C6 16       	        dec     RETRIES         ; try again
+ 1103   21AD   10 F0       	        bpl     AUXRDL0         ; fine
+ 1104   21AF               	        ERRCHK                  ; then just die
+ 1105          0006        	ERRVAL	.VAR	ERRVAL+1
+ 1106   21AF   90 05       		bcc	BOOT6
+ 1107   21B1   A0 06       		ldy	#ERRVAL	
+ 1108   21B3   4C AB 26    		jmp	BOOT_ERROR
+ 1109   21B6               	BOOT6:
+ 1110   21B6               		.MACEND
+ 1111   21B6               	RD10:
+ 1112   21B6   A9 08       		lda	#>IOBUFF	; read into my io buffer
+ 1113   21B8   8D DF 21    		sta	CLOOP+2		; start at IOBUFF
+ 1114   21BB   A9 04       		lda	#4		; 4 copies
+  Wed Jun  7 1989 12:04                                                                                                  Page   25
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+ 1115   21BD   85 7E       		sta	L		; okay
+ 1116   21BF               	RD11:
+ 1117   21BF   A0 00       		ldy	#0		; start at zero, of course
+ 1118   21C1   AD E2 21    		lda	MODOP+2		; check where we are reading too
+ 1119   21C4   F0 39       		beq	BT12		; wrapped, so we had better be done
+ 1120   21C6   C9 BF       		cmp	#>PRGLBL	; done with aux mem, part 1?
+ 1121   21C8   90 10       		bcc	LOOPST		; nope
+ 1122   21CA   D0 05       		bne	RD12		; no need to change
+ 1123   21CC   A9 D0       		lda	#Z3PAGE		; restart at top of memory
+ 1124   21CE   8D E2 21    		sta	MODOP+2		; and do some self modifying code
+ 1125   21D1               	RD12:
+ 1126   21D1   8D 09 C0    		sta	ALTZP+AUX	; turn on alt ZP
+ 1127   21D4   AD 83 C0    		lda	BNK2SET		; write to upper mem
+ 1128   21D7   AD 83 C0    		lda	BNK2SET		; write to upper mem
+ 1129   21DA               	LOOPST:
+ 1130   21DA   8D 05 C0    		sta	WRTBNK+AUX	; always aux mem
+ 1131   21DD               	CLOOP:
+ 1132   21DD   B9 00 08    		lda	IOBUFF,Y	; get char
+ 1133   21E0   99 00 40    	MODOP:	sta	Z2BEGIN,Y	; save
+ 1134   21E3   C8          		iny			; point to next one
+ 1135   21E4   D0 F7       		bne	CLOOP		; get next one
+ 1136                      	
+ 1137   21E6   AD 82 C0    		lda	RDROM		; swap back rom, just in case
+ 1138   21E9   AD 82 C0    		lda	RDROM		; swap back rom, just in case
+ 1139   21EC   8D 08 C0    		sta	ALTZP+MAIN	; and back to main page
+ 1140   21EF   8D 04 C0    		sta	WRTBNK+MAIN	; read into main bank
+ 1141                      	
+ 1142   21F2   EE E2 21    		inc	MODOP+2		; point to next page
+ 1143   21F5   EE DF 21    		inc	CLOOP+2		; point to next page
+ 1144   21F8   C6 7E       		dec	L		; next page
+ 1145   21FA   D0 C3       		bne	RD11		; and get it
+ 1146                      	
+ 1147   21FC   4C 9B 21    		jmp	AUXRDL		; get next 1k
+ 1148   21FF               	BT12:
+ 1149   21FF   AD 30 2A    		lda	READ_BLOCK+RD_REFNUM	; get refnum for
+ 1150   2202   8D 22 2A    		sta	CLOSE_BLOCK+CL_REFNUM	; closing the file
+ 1151   2205               		CLOSE	CLOSE_BLOCK		; okay, closed
+ 1152   2205               		PRODOS	$CC, CLOSE_BLOCK
+ 1153   2205   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1154   2208   CC          		DB	$CC	; ProDOS function code
+ 1155   2209   212A        		DW	CLOSE_BLOCK	; Function Parameter Block address
+ 1156   220B               		.MACEND
+ 1157   220B               		.MACEND
+ 1158                      	;
+ 1159                      	; relocate the Zero Page routines 
+ 1160                      	;
+ 1161   220B   A2 2D       		ldx	#RLCLEN			; length of routine
+ 1162   220D               	RLOC:
+ 1163   220D   BD E2 23    		lda	FETCHBx,X		; get byte
+ 1164   2210   95 D1       		sta	ZERO_FB,X		; save byte
+ 1165   2212   CA          		dex				; get next one
+ 1166   2213   10 F8       		bpl	RLOC			; thank you
+ 1167                      	;
+ 1168                      	; and now for the copying screen line sub
+ 1169                      	;
+ 1170   2215   A2 7C       		ldx	#CPYLEN
+ 1171   2217               	CPYCPLP:
+  Wed Jun  7 1989 12:04                                                                                                  Page   26
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+ 1172   2217   BD 10 24    		lda	CPYx,X
+ 1173   221A   9D 50 1D    		sta	COPY_LINE,X
+ 1174   221D   CA          		dex
+ 1175   221E   10 F7       		bpl	CPYCPLP
+ 1176                      	;
+ 1177                      	; now relocate page 3 stuff
+ 1178                      	;
+ 1179   2220   A2 DF       		ldx	#PAGE3RELL+1	; get length of page 3 stuff
+ 1180   2222               	MSRCL:
+ 1181   2222   BD 8C 24    		lda	PAGE3REL-1,X	; get byte
+ 1182   2225   9D FF 02    		sta	PAGE3STUFF-1,X	; save byte
+ 1183   2228   CA          		dex			; count byte
+ 1184   2229   D0 F7       		bne	MSRCL		; get next?
+ 1185                      	
+ 1186   222B   20 31 22    		jsr	ZBOOT			; set up ZIP stuff
+ 1187                      	
+ 1188   222E   4C 00 40    		JMP	INTR_BEGIN		; jump to the interpreter
+ 1189                      	
+ 1190   2231               		INCLUDE	ZBOOT.ASM		; ZBOOT subroutine
+ 1191                      		PAGE	
+  Wed Jun  7 1989 12:04                                                                                                  Page   27
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- APPLE ProDOS BOOT CODE ---"
+
+ 1192   2231               		STTL "--- ZIP CODE BOOT PART ---"
+ 1193   2231               	ZBOOT:
+ 1194                      	;
+ 1195                      	; clear out ZERO page stuff
+ 1196                      	;
+ 1197   2231   A5 65       		lda	ARG2+LO		; get machine id!
+ 1198   2233   8D 1E 96    		sta	ZBEGIN+ZINTWD	; save before it gets zeroed
+ 1199                      	
+ 1200   2236   A2 1F       		ldx	#LASTWV-1	; start at end of first part
+ 1201   2238   A9 00       		lda	#0		; and clear to  zero
+ 1202   223A               	ZEROL:
+ 1203   223A   95 00       		sta	0,X		; clear out zero page loc
+ 1204   223C   CA          		dex			; next loc
+ 1205   223D   10 FB       		bpl	ZEROL		; and do next one
+ 1206                      	
+ 1207   223F   A2 50       		ldx	#ZEROPG		; now do other part
+ 1208   2241               	ZEROL1:
+ 1209   2241   95 00       		sta	0,X		; zero this one
+ 1210   2243   E8          		inx			; point to next one
+ 1211   2244   E0 D1       		cpx	#LASTZP		; find the last
+ 1212   2246   D0 F9       		bne	ZEROL1		; okay, so do it
+ 1213                      	;
+ 1214                      	; get game code from data and set up absolute pointers
+ 1215                      	;
+ 1216   2248   AD 00 96    		lda	ZBEGIN+ZVERS	; IS GAME A YZIP?
+ 1217   224B   C9 06       		cmp	#6		; (X)
+ 1218   224D   F0 07       		beq	YESEZ		; YES, CONTINUE
+ 1219                      	
+ 1220                      	; *** ERROR #15 -- NOT AN EZIP GAME ***
+ 1221   224F   A9 0F       		lda	#15	
+ 1222   2251   A0 00       		ldy	#0
+ 1223   2253   4C 94 25    		jmp	ZERROR 	
+ 1224   2256               	YESEZ:
+ 1225   2256   A9 3B       		lda	#%00111011	; ENABLE SOUND, underline, MONOSPACING (X)
+ 1226   2258   8D 01 96    		sta	ZBEGIN+ZMODE
+ 1227                      	
+ 1228   225B   A9 00       		lda	#0		; CLEAR HIGH BYTE
+ 1229   225D   85 58       		sta	MOUSEF		; init mouse flag to no mouse
+ 1230   225F   8D 22 96    		sta	ZBEGIN+ZHWRD
+ 1231   2262   8D 24 96    		sta	ZBEGIN+ZVWRD
+ 1232   2265   A9 8C       		lda	#MAXWIDTH	; SET SCREEN PARAMETERS
+ 1233   2267   8D 23 96    		sta	ZBEGIN+ZHWRD+1
+ 1234   226A   A9 2E       		lda	#MAXWIDTH/3 	; number of mono spaces on a line
+ 1235   226C   8D 21 96    		sta	ZBEGIN+ZSCRWD+1	
+ 1236   226F   A9 C0       		lda	#MAXHEIGHT
+ 1237   2271   8D 25 96    		sta	ZBEGIN+ZVWRD+1
+ 1238   2274   A9 15       		lda	#MAXHEIGHT/FONT_H
+ 1239   2276   8D 20 96    		sta	ZBEGIN+ZSCRWD	 ; number of lines of chars
+ 1240   2279   A9 09       		lda	#FONT_H		; height of font
+ 1241   227B   8D 26 96    		sta	ZBEGIN+ZFWRD
+ 1242   227E   A9 03       		lda	#3		; width of font (2 spaces == 8 pixels)
+ 1243   2280   8D 27 96    		sta	ZBEGIN+ZFWRD+1
+ 1244   2283   A9 09       		lda	#9		; the color white is the foreground color
+ 1245   2285   8D 2D 96    		sta	ZBEGIN+ZCLRWD+1	; show Z game too
+ 1246   2288   A9 02       		lda	#2		; black is the background color
+ 1247   228A   8D 2C 96    		sta	ZBEGIN+ZCLRWD	; tell game about it
+ 1248                      	;
+  Wed Jun  7 1989 12:04                                                                                                  Page   28
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZIP CODE BOOT PART ---"
+
+ 1249                      	; just move global address to zero page for quick working
+ 1250                      	;
+ 1251   228D   AD 0C 96    		lda	ZBEGIN+ZGLOBAL	; get page
+ 1252   2290   85 51       		sta	GLOBAL+HI	; save which page
+ 1253   2292   AD 0D 96    		lda	ZBEGIN+ZGLOBAL+1 ; LSB NEEDN'T CHANGE
+ 1254   2295   85 50       		sta	GLOBAL+LO	; so just store it away
+ 1255                      	;
+ 1256                      	; figger absolute address for the fword table
+ 1257                      	;
+ 1258   2297   AD 18 96    		lda	ZBEGIN+ZFWORD	; get fword page number
+ 1259   229A   20 ED 26    		jsr	SETPC		; and get absolute address
+ 1260   229D   85 56       		sta	FWORDS+HI	; show high addr of table
+ 1261   229F   84 57       		sty	FWORDS+ABANK	; show which bank
+ 1262   22A1   AD 19 96    		lda	ZBEGIN+ZFWORD+1	; LSB NEEDN'T CHANGE
+ 1263   22A4   85 55       		sta	FWORDS+LO	; so just save it
+ 1264                      	;
+ 1265                      	; figger absolute address for the vocab table
+ 1266                      	;
+ 1267   22A6   AD 08 96    		lda	ZBEGIN+ZVOCAB	; get fword page number
+ 1268   22A9   20 ED 26    		jsr	SETPC		; and get absolute address
+ 1269   22AC   85 53       		sta	VOCAB+HI	; show high addr of table
+ 1270   22AE   84 54       		sty	VOCAB+ABANK	; show which bank
+ 1271   22B0   A9 00       		lda	#0		; this is always zero (get lo part from MPCL)
+ 1272   22B2   85 52       		sta	VOCAB+LO	; so just save it
+ 1273                      	;
+ 1274                      	; now do somethin' with the TCHAR table (maybe, if <> 0)
+ 1275                      	;
+ 1276   22B4   AD 2E 96    		lda	ZBEGIN+ZTCHAR	; DO SAME FOR TCHARS TABLE
+ 1277   22B7   0D 2F 96    		ora	ZBEGIN+ZTCHAR+1	; is it zero though?
+ 1278   22BA   D0 05       		bne	TCH1		; no, so copy it to somewhere useful
+ 1279   22BC   8D 00 1D    		sta	TCHARTBL	; not there, so zero first byte in table
+ 1280   22BF   F0 2F       		beq	TCHj		; jmp
+ 1281   22C1               	TCH1:
+ 1282   22C1   AD 2E 96    		lda	ZBEGIN+ZTCHAR	; DO SAME FOR TCHARS TABLE
+ 1283   22C4   20 ED 26    		jsr	SETPC		; and now make absolute
+ 1284   22C7   85 8D       		sta	FPCH		; Save in FPC
+ 1285   22C9   84 8E       		sty	FPCBNK
+ 1286   22CB   AD 2F 96    		lda	ZBEGIN+ZTCHAR+1	; NO CHANGE FOR LSB
+ 1287   22CE   85 8C       		sta	FPCL		; now move pointer to fetch spot
+ 1288                      	
+ 1289   22D0   A9 00       		lda	#0		; and set index
+ 1290   22D2   85 78       		sta	I		; thank you
+ 1291   22D4               	TCHLP:
+ 1292   22D4   20 14 27    		jsr	FETCHB		; get the byte in [a]
+ 1293   22D7   A6 78       		ldx	I		; get offset
+ 1294   22D9   E6 78       		inc	I		; and point to next one
+ 1295   22DB   9D 00 1D    		sta	TCHARTBL,X	; save in lower memory, thank you
+ 1296   22DE   C9 00       		cmp	#0		; are we done yet?
+ 1297   22E0   F0 0E       		beq	TCHj		; NULL TERMINATED STRING
+ 1298   22E2   C9 FF       		cmp	#$FF		; $ff means all >128 chars are terminators
+ 1299   22E4   D0 04       		bne	TCHLNEXT	; nope
+ 1300   22E6   A9 01       		lda	#1		; yes,
+ 1301   22E8   85 B9       		sta	ALLFLG		; so set flag to say so
+ 1302   22EA               	TCHLNEXT:
+ 1303   22EA   20 38 27    		jsr	NEXTFPC		; point to next one
+ 1304   22ED   4C D4 22    		jmp	TCHLP		; and go get it
+ 1305   22F0               	TCHj:
+  Wed Jun  7 1989 12:04                                                                                                  Page   29
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZIP CODE BOOT PART ---"
+
+ 1306   22F0   20 C6 28    		jsr	DO_DSEGS	; set up disk segment pointers
+ 1307                      	;
+ 1308                      	; use mouse/joystick, see if either is connected
+ 1309                      	;
+ 1310   22F3   AD 11 96    		lda	ZBEGIN+ZFLAGS+1	; get game flags
+ 1311   22F6   29 20       		and	#FMOUS		; uses a mouse?
+ 1312   22F8   F0 4C       		beq	ZBEND		; nope, so don't ask
+ 1313   22FA   20 58 FC    		jsr	MHOME		; clear & home
+ 1314   22FD               	MSLOOP:
+ 1315   22FD               		DLINE	MMSG		; ask about Mouse/Joystick/Keyboard
+ 1316   22FD   A2 74       		ldx	#<MMSG	; get part of MMSG
+ 1317   22FF   A9 2A       		lda	#>MMSG	; get other part of string
+ 1318          [01]        		IFMA	2		; check to see if length passed in
+ 1319                      		ldy			; then just fetch it
+ 1320          [01]        		ELSE
+ 1321   2301   A0 59       		ldy	#MMSGL	; get length of string
+ 1322          [00]        		ENDIF
+ 1323   2303   20 D5 26    		jsr	DLINE		; print the string
+ 1324   2306               		.MACEND
+ 1325   2306   A9 01       	        lda     #1              ; move to left
+ 1326   2308   85 24       	        sta     CHZ             ; move to column 1
+ 1327   230A   20 22 FC    		jsr	MBASCAL		; move cursor there!	
+ 1328   230D   A9 8D       	        lda     #EOL.OR.$80        ; send out eol
+ 1329   230F   20 ED FD    	        jsr     MCOUT           ; bye
+ 1330   2312   20 0C FD    		jsr	MRDKEY		; get a key please
+ 1331   2315   20 ED FD    		jsr	MCOUT		; put key out there
+ 1332   2318   29 7F       		and	#$7F		; turn off hi bit
+ 1333   231A   C9 4D       		cmp	#'M'		; mouse?
+ 1334   231C   F0 1A       		beq	DO_MOUSE	; yup
+ 1335   231E   C9 6D       		cmp	#'m'
+ 1336   2320   F0 16       		beq	DO_MOUSE
+ 1337   2322   C9 4A       		cmp	#'J'		; Joystick?
+ 1338   2324   F0 19       		beq	DO_STICK	; yup
+ 1339   2326   C9 6A       		cmp	#'j'
+ 1340   2328   F0 15       		beq	DO_STICK
+ 1341   232A   C9 4E       		cmp	#'N'		; neither
+ 1342   232C   F0 18       		beq	DO_NEITHER	; yup
+ 1343   232E   C9 6E       		cmp	#'n'
+ 1344   2330   F0 14       		beq	DO_NEITHER
+ 1345   2332               	MSLOOP1:
+ 1346   2332   20 3A FF    		jsr	MBELL		; complain
+ 1347   2335   4C FD 22    		jmp	MSLOOP		; and do again
+ 1348   2338               	DO_MOUSE:
+ 1349   2338   20 58 27    		jsr	INST_MOUSE	; install mouse handlers
+ 1350   233B   B0 F5       		bcs	MSLOOP1		; problems, try again
+ 1351   233D   90 07       		bcc	ZBEND		; continue
+ 1352   233F               	DO_STICK:
+ 1353   233F   20 E2 27    		jsr	INST_STICK	; install joystick handler
+ 1354   2342   B0 EE       		bcs	MSLOOP1		; try again
+ 1355   2344   90 00       		bcc	ZBEND		; continue, please
+ 1356   2346               	DO_NEITHER:
+ 1357   2346               	ZBEND:
+ 1358                      	;
+ 1359                      	; now, set flags like I want them
+ 1360   2346   A9 4A       	        lda     #FMONO^FDISP^FCOLO
+ 1361   2348   A6 58       	        ldx     MOUSEF                  ; doing mousey stuff?
+ 1362   234A   F0 02       	        beq     ZBEND0                  ; nope
+  Wed Jun  7 1989 12:04                                                                                                  Page   30
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZIP CODE BOOT PART ---"
+
+ 1363   234C   09 20       	        ora     #FMOUS                  ; then turn on that bit too
+ 1364   234E               	ZBEND0:
+ 1365   234E   8D 11 96    		sta	ZBEGIN+ZFLAGS+1	        ; set game flags
+ 1366                      	;
+ 1367                      	;
+ 1368                      	; Multiply ZFOFF & ZSOFF * 8 to get actual offset
+ 1369                      	;
+ 1370   2351   AD 28 96    		lda	ZBEGIN+ZFOFF	; hi part
+ 1371   2354   85 5C       		sta	FOFFM		; this'll be the middle part
+ 1372   2356   AD 29 96    		lda	ZBEGIN+ZFOFF+1	; lo part
+ 1373   2359   0A          		asl	A		; *2
+ 1374   235A   26 5C       		rol	FOFFM
+ 1375   235C   26 5B       		rol	FOFFH
+ 1376   235E   0A          		asl	A		; *4
+ 1377   235F   26 5C       		rol	FOFFM
+ 1378   2361   26 5B       		rol	FOFFH
+ 1379   2363   0A          		asl	A		; *8
+ 1380   2364   26 5C       		rol	FOFFM
+ 1381   2366   26 5B       		rol	FOFFH
+ 1382   2368   85 5D       		sta	FOFFL		; lo part here too
+ 1383                      	;
+ 1384                      	; now do string offset
+ 1385                      	;
+ 1386   236A   AD 2A 96    		lda	ZBEGIN+ZSOFF	; hi part
+ 1387   236D   85 5F       		sta	SOFFM		; this'll be the middle part
+ 1388   236F   AD 2B 96    		lda	ZBEGIN+ZSOFF+1	; lo part
+ 1389   2372   0A          		asl	A		; *2
+ 1390   2373   26 5F       		rol	SOFFM
+ 1391   2375   26 5E       		rol	SOFFH
+ 1392   2377   0A          		asl	A		; *4
+ 1393   2378   26 5F       		rol	SOFFM
+ 1394   237A   26 5E       		rol	SOFFH
+ 1395   237C   0A          		asl	A		; *8
+ 1396   237D   26 5F       		rol	SOFFM
+ 1397   237F   26 5E       		rol	SOFFH
+ 1398   2381   85 60       		sta	SOFFL		; lo part here too
+ 1399                      	
+ 1400   2383   AD 06 96    		lda	ZBEGIN+ZGO	; GET START ADDRESS OF Z-CODE
+ 1401   2386   85 81       		sta	ZPCM		; MSB
+ 1402   2388   AD 07 96    		lda	ZBEGIN+ZGO+1	; AND LSB
+ 1403   238B   0A          		asl	A		; *2
+ 1404   238C   26 81       		rol	ZPCM	
+ 1405   238E   26 82       		rol	ZPCH	
+ 1406   2390   0A          		asl	A		; *4
+ 1407   2391   26 81       		rol	ZPCM
+ 1408   2393   26 82       		rol	ZPCH	
+ 1409                      	;
+ 1410                      	; now add offset
+ 1411                      	;
+ 1412   2395   18          		clc			; doing adding
+ 1413   2396   65 5D       		adc	FOFFL		; add in lo part
+ 1414   2398   85 80       		sta	ZPCL
+ 1415   239A   A5 81       		lda	ZPCM
+ 1416   239C   65 5C       		adc	FOFFM
+ 1417   239E   85 81       		sta	ZPCM
+ 1418   23A0   A5 82       		lda	ZPCH
+ 1419   23A2   65 5B       		adc	FOFFH
+  Wed Jun  7 1989 12:04                                                                                                  Page   31
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- ZIP CODE BOOT PART ---"
+
+ 1420   23A4   85 82       		sta	ZPCH
+ 1421                      	;
+ 1422                      	; now, set up TBLPUR, FUNPRE, and FUNPUR
+ 1423                      	;
+ 1424   23A6   AD 1D 19    		lda	SEGTBL+SGTTBLE+1	; get last page of table preload
+ 1425   23A9   0A          		asl	A		; make 256K page
+ 1426   23AA   85 C2       		sta	TBLPUR		; show last pre table
+ 1427   23AC   E6 C2       		inc	TBLPUR		; but we want first pure table address
+ 1428   23AE   E6 C2       		inc	TBLPUR		; so point to it
+ 1429   23B0   A5 C2       	        lda     TBLPUR          ; does table preload take up all preload?
+ 1430   23B2   C9 D6       	        cmp     #PGBEGIN        ; reach 1st paged page?
+ 1431   23B4   B0 17       	        bcs     ZBEND1          ; ayyup, no function preload
+ 1432                      	
+ 1433   23B6   AD 21 19    		lda	SEGTBL+SGTFUNS+1	; get first page of function preload
+ 1434   23B9   0A          		asl	A		; make 256K page
+ 1435   23BA   85 C3       		sta	FUNPRE		; show me
+ 1436   23BC   AD 23 19    		lda	SEGTBL+SGTFUNE+1	; last page of function preload
+ 1437   23BF   0A          		asl	A		; make 256K page
+ 1438   23C0   85 C4       		sta	FUNPUR		; show last pre function
+ 1439   23C2   E6 C4       		inc	FUNPUR		; but we want first pure function
+ 1440   23C4   E6 C4       		inc	FUNPUR		; now we point to it
+ 1441   23C6               		
+ 1442   23C6   A5 C2       		lda	TBLPUR		; now figger out negative number to
+ 1443   23C8   38          		sec			; add to function preload addres to
+ 1444   23C9   E5 C3       		sbc	FUNPRE		; get page offset in memory
+ 1445   23CB   85 C5       		sta	FUNPGE		; set up offset
+ 1446                      	;
+ 1447                      	; and now to set up extension table pointer
+ 1448                      	;
+ 1449   23CD               	ZBEND1:
+ 1450   23CD   AD 37 96    		lda 	ZBEGIN+ZEXTAB+1	; LSB of table
+ 1451   23D0   85 CE       		sta	MSTBL+LO	; stays the same
+ 1452   23D2   AD 36 96    		lda	ZBEGIN+ZEXTAB	; MSB of table
+ 1453   23D5   20 ED 26    		jsr	SETPC		; get me the memory addres
+ 1454   23D8   84 D0       		sty	MSTBL+ABANK	; save bank
+ 1455   23DA   85 CF       		sta	MSTBL+HI	; and page
+ 1456   23DC               		
+ 1457   23DC   20 D7 29    	        jsr     INIT_CHARSET    ; initialize the charset
+ 1458   23DF   4C 34 29    		jmp	INITPAG		; set up paging system
+ 1459                      	
+ 1460   23E2               		END
+ 1461                      	
+ 1462   23E2               		INCLUDE	BREL.ASM		; relocated subroutines
+ 1463   23E2               		STTL	"--- RELOCATED SUBROUTINES ---"
+ 1464                      		PAGE
+  Wed Jun  7 1989 12:04                                                                                                  Page   32
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- RELOCATED SUBROUTINES ---"
+
+ 1465                      	
+ 1466                      	;
+ 1467                      	; FETCHB - use FPC to get a byte in either aux or main mem
+ 1468                      	;
+ 1469   23E2               	FETCHBx:
+ 1470   23E2   99 02 C0    		sta	RDBNK,Y		; set bank, lower
+ 1471   23E5   A0 00       		ldy	#0		; gotta use Y
+ 1472   23E7   B1 8C       		lda	(FPC),Y		; so go get it
+ 1473   23E9   8D 02 C0    		sta	RDBNK		; go back to main bank
+ 1474   23EC   60          		rts			; and return
+ 1475                      	;
+ 1476                      	; ZFETCH - fetch byte at (ZPCPNT),Y - offset from (ZPCPNT)
+ 1477                      	;
+ 1478   23ED               	ZFETCHx:
+ 1479   23ED   9D 02 C0    		sta	RDBNK,X		; set lower bank
+ 1480   23F0   B1 83       		lda	(ZPCPNT),Y	; so go get it
+ 1481   23F2   8D 02 C0    		sta	RDBNK		; go back to main bank
+ 1482   23F5   60          		rts			; bye
+ 1483                      	;
+ 1484                      	; MFETCH - fetch byte at (MPCPNT),Y - offset from (MPCPNT)
+ 1485                      	;
+ 1486   23F6               	MFETCHx:
+ 1487   23F6   9D 02 C0    		sta	RDBNK,X		; set bank
+ 1488   23F9   B1 89       		lda	(MPCPNT),Y	; so go get it
+ 1489   23FB   8D 02 C0    		sta	RDBNK		; go back to main bank
+ 1490   23FE   60          		rts			; bye
+ 1491                      	;
+ 1492                      	; SAVE_DATA - copy data from [DBUFF] to IOBUFF
+ 1493                      	;	[Y] must == 0;  [X] == DSKBNK; [A] == IOBUFF ($8 or $9)
+ 1494                      	;
+ 1495   23FF   9D 02 C0    		sta	RDBNK,X		; and select that bank for reading
+ 1496   2402   85 F7       	        sta     SAVE_DATA+9     ; show which part of iobuff
+ 1497   2404               	SDAT1:
+ 1498   2404   B1 B6       		lda	(DBUFF),Y	; get me that byte
+ 1499   2406               	SDAT2:
+ 1500   2406   99 00 08    		sta	IOBUFF,Y	; MODIFIED ABOVE
+ 1501   2409   C8          		iny		
+ 1502   240A   D0 F8       		bne	SDAT1
+ 1503   240C   8D 02 C0    		sta	RDBNK+MAIN	; and back to main
+ 1504   240F   60          		rts
+ 1505          002D        	RLCLEN	EQU	$-FETCHBx-1	; mark length
+ 1506                      	;
+ 1507                      	; COPY_LINE:
+ 1508                      	;	SPC - source pointer
+ 1509                      	;	FPC - destination pointer
+ 1510                      	;	SPCBNK - bank the above two are talking about
+ 1511                      	;       CPY_COUNT - end-start bytes to move
+ 1512                      	;	STMASK - mask to use on first byte (0 if none)
+ 1513                      	;	ENDMASK - mask to use for end byte (0 if none)
+ 1514                      	;
+ 1515                      	; MODIFIED CODE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ 1516                      	;  The definitions for CPY_MODs are HARD CODED in apple.equ - they MUST
+ 1517                      	;    match the definitions below for similar xCPY_MODs!!!!!!!!
+ 1518                      	;               DON'T CHANGE WITHOUT FIXING THOSE OFFSETS IN APPLE.EQU!!!!!
+ 1519                      	;
+ 1520          2410        	CPYx	EQU	*
+ 1521   2410   A6 91       		ldx	SPCBNK		; set up banks for first byte
+  Wed Jun  7 1989 12:04                                                                                                  Page   33
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- RELOCATED SUBROUTINES ---"
+
+ 1522   2412   BD 54 C0    		lda	PAGE2SW,X	; r/w which bank in display mem
+ 1523   2415   A0 00       		ldy	#0		; use Y reg
+ 1524   2417   A5 1A       		lda	STMASK		; get start mask
+ 1525   2419   F0 0E       		beq	CPLOOP		; no start mask, start in middle of loop
+ 1526   241B   31 8C       		and	(FPC),Y		; turn off changing bits, keep good bits
+ 1527   241D   91 8C       		sta	(FPC),Y		; save it
+ 1528   241F   A5 1A       		lda	STMASK		; get changing bits
+ 1529   2421   49 FF       		eor	#$FF		; turn on changing bits
+ 1530   2423   31 8F       		and	(SPC),Y		; get SPC byte
+ 1531   2425   11 8C       		ora	(FPC),Y		; turn them on in destination too
+ 1532   2427   91 8C       		sta	(FPC),Y		; and destiny
+ 1533   2429               	CPLOOP:
+ 1534   2429   A5 BD       		lda	CPY_COUNT	; get count
+ 1535   242B   4A          		lsr	A		; /2 for number in this bank
+ 1536   242C   AA          		tax			; put in X for indexing
+ 1537   242D   F0 15       		beq	CPLP2		; then done!
+ 1538   242F   CA          	        dex                     ; zero base the number
+ 1539   2430   A5 1A       		lda	STMASK		; special start?
+ 1540   2432   F0 07       		beq	CPL1		; nope
+ 1541   2434   EE 7C 1D    		inc     CPY_MOD1_SRC	; first one already done
+ 1542   2437   EE 7F 1D    	        inc     CPY_MOD1_DST    ; point to next one
+ 1543   243A   CA          	        dex                     ; and count first one as done
+ 1544   243B               	CPL1:
+ 1545   243B   BD 00 20    	        lda     SCREEN,X	; get byte
+ 1546   243E   9D 00 20    		sta	SCREEN,X	; store byte
+ 1547   2441   CA          		dex			; count down
+ 1548   2442   10 F7       		bpl	CPL1		; and do it all again
+ 1549   2444               	CPLP2:
+ 1550   2444   A0 00       		ldy	#0		; reset y
+ 1551   2446   A5 91       		lda	SPCBNK		; get current bank
+ 1552   2448   49 01       		eor	#1		; toggle to point to the other one
+ 1553   244A   AA          		tax
+ 1554   244B   BD 54 C0    		lda	PAGE2SW,X
+ 1555   244E   8A          		txa			; which bank?
+ 1556   244F   F0 07       		beq	CPLP21		; we are now in main, things are fine
+ 1557   2451   EE A0 1D    	        inc     CPY_MOD2_SRC    ; start one more if now in AUX
+ 1558   2454   EE A3 1D    	        inc     CPY_MOD2_DST
+ 1559   2457   CA          	        dex                     ; and count as done
+ 1560   2458               	CPLP21:
+ 1561   2458   A5 BD       		lda	CPY_COUNT	; get count again
+ 1562   245A   4A          		lsr	A		; /2 for bytes in this bank
+ 1563   245B   AA          		tax			; put in X for counter
+ 1564   245C   F0 0A       		beq	CPDONE		; nothing here
+ 1565   245E   CA          	        dex                     ; zero base the number
+ 1566   245F               	CPL2:
+ 1567   245F   BD 00 20    	        lda	SCREEN,X	; get byte
+ 1568   2462   9D 00 20    		sta	SCREEN,X	; store byte
+ 1569   2465   CA          		dex			; count byte
+ 1570   2466   10 F7       		bpl	CPL2		; and swing by again	
+ 1571   2468               	CPDONE:
+ 1572   2468   A5 1B       		lda	ENDMASK		; do same mucking as when starting
+ 1573   246A   F0 1D       		beq	CPEXIT		; no mucking
+ 1574   246C   48          		pha			; save endmask
+ 1575   246D   A5 BD       		lda	CPY_COUNT	; get how many bytes being copied
+ 1576   246F   4A          	        lsr     A               ; /2
+ 1577   2470   B0 07       		bcs	CPDONE1		; if odd, then we are pointing to correct
+ 1578   2472   48          		pha			; save a
+  Wed Jun  7 1989 12:04                                                                                                  Page   34
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- RELOCATED SUBROUTINES ---"
+
+ 1579   2473   A6 91       		ldx	SPCBNK		; get original bank
+ 1580   2475   BD 54 C0    		lda	PAGE2SW,X	; and point to it
+ 1581   2478   68          		pla			; get it back
+ 1582   2479               	CPDONE1:
+ 1583   2479   A8          	        tay                     ; get offset
+ 1584   247A   68          		pla			; get end mask back
+ 1585   247B   49 FF       		eor	#$FF		; turn on all off bits
+ 1586   247D   31 8C       		and	(FPC),Y		; turn off changing bits
+ 1587   247F   91 8C       		sta	(FPC),Y		; save it
+ 1588   2481   B1 8F       		lda	(SPC),Y		; get source byte
+ 1589   2483   25 1B       		and	ENDMASK		; turn on changing bits
+ 1590   2485   11 8C       		ora	(FPC),Y		; turn them on in destination too
+ 1591   2487   91 8C       		sta	(FPC),Y		; and destiny
+ 1592   2489               	CPEXIT:
+ 1593   2489   AD 54 C0    		lda	PAGE2SW		; set back to main mem
+ 1594   248C   60          		rts
+ 1595          007C        	CPYLEN	EQU 	$-CPYx-1
+ 1596          002C        	xCPY_MOD1 equ    (CPL1-CPYx+1)
+ 1597          002F        	xCPY_MOD1_DST equ xCPY_MOD1+3
+ 1598          0050        	xCPY_MOD2 equ    (CPL2-CPYx+1)
+ 1599          0053        	xCPY_MOD2_DST equ xCPY_MOD2+3
+ 1600   248D               	PAGE3REL:
+ 1601                      	;
+ 1602                      	; MOUSER - this vectors the call to the correct place
+ 1603                      	;
+ 1604   248D               	MOUSERx:
+ 1605   248D   48          		pha			; save A for a sec
+ 1606   248E   BD 12 C4    	MSX1:	lda	MTABLE,X	; get lo part of address
+ 1607   2491   8D 10 03    		sta	MSVECTOR+LO	; save lo part of address
+ 1608   2494   68          		pla			; get A back
+ 1609   2495   EA          		nop
+ 1610   2496   A2 C4       	MSX2:	ldx	#$C4		; might be changed, depending on slot
+ 1611   2498   A0 40       	MSX3:	ldy	#$40		; hopefully, this doesn't
+ 1612   249A   6C 10 03    		jmp	(MSVECTOR)	; and away we go
+ 1613          000F        	MSRxLEN	EQU	$-MOUSERx-1	; show how long this is
+ 1614   249D               	MSVECTORx:
+ 1615   249D               		ds	1		; where lo part of vector goes
+ 1616   249E   C4          	MSX4:	db	$C4		; slot where mouse is
+ 1617          0011        	MSRLEN	EQU	$-MOUSERx-1	; length or routine
+ 1618                      	;
+ 1619                      	; colors for screen lines
+ 1620                      	;
+ 1621                      		RADIX	H
+ 1622   249F               	COLORSx:
+ 1623   249F   00 00 00 00 		db	00,00,00,00	; black
+ 1624   24A3   08 11 22 44 		db	08,11,22,44	; magenta
+ 1625   24A7   44 08 11 22 		db	44,08,11,22	; brown
+ 1626   24AB   4C 19 33 66 		db	4C,19,33,66	; orange
+ 1627   24AF   22 44 08 11 		db	22,44,08,11	; dark green
+ 1628   24B3   2A 55 2A 55 		db	2A,55,2A,55	; gray 1
+ 1629   24B7   66 4C 19 33 		db	66,4C,19,33	; green
+ 1630   24BB   6E 5D 3B 77 		db	6E,5D,3B,77	; yellow
+ 1631   24BF   11 22 44 08 		db	11,22,44,08	; dark blue
+ 1632   24C3   19 33 66 4C 		db	19,33,66,4C	; purple
+ 1633   24C7   55 2A 55 2A 		db	55,2A,55,2A	; gray 2
+ 1634   24CB   5D 3B 77 6E 		db	5D,3B,77,6E	; pink
+ 1635   24CF   33 66 4C 19 		db	33,66,4C,19	; medium blue
+  Wed Jun  7 1989 12:04                                                                                                  Page   35
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- RELOCATED SUBROUTINES ---"
+
+ 1636   24D3   3B 77 6E 5D 		db	3B,77,6E,5D	; light blue
+ 1637   24D7   77 6E 5D 3B 		db	77,6E,5D,3B	; aqua 
+ 1638   24DB   7F 7F 7F 7F 		db	7F,7F,7F,7F	; white
+ 1639   24DF               	XPOSTBLx:
+ 1640   24DF   00          		DB	0
+ 1641   24E0   00 01 01 02 02 		DB	0,1,1,2,2,3,4
+        24E5   03 04 
+ 1642   24E7   04 05 05 06 06 		DB	4,5,5,6,6,7,8
+        24EC   07 08 
+ 1643   24EE   08 09 09 0A 0A 		DB	8,9,9,0a,0a,0b,0c
+        24F3   0B 0C 
+ 1644   24F5   0C 0D 0D 0E 0E 		DB	0c,0d,0d,0e,0e,0f,10
+        24FA   0F 10 
+ 1645   24FC   10 11 11 12 12 		DB	10,11,11,12,12,13,14
+        2501   13 14 
+ 1646   2503   14 15 15 16 16 		DB	14,15,15,16,16,17,18
+        2508   17 18 
+ 1647   250A   18 19 19 1A 1A 		DB	18,19,19,1a,1a,1b,1c
+        250F   1B 1C 
+ 1648   2511   1C 1D 1D 1E 1E 		DB	1c,1d,1d,1e,1e,1f,20
+        2516   1F 20 
+ 1649   2518   20 21 21 22 22 		DB	20,21,21,22,22,23,24
+        251D   23 24 
+ 1650   251F   24 25 25 26 26 		DB	24,25,25,26,26,27,28
+        2524   27 28 
+ 1651   2526   28 29 29 2A 2A 		DB	28,29,29,2a,2a,2b,2c
+        252B   2B 2C 
+ 1652   252D   2C 2D 2D 2E 2E 		DB	2c,2d,2d,2e,2e,2f,30
+        2532   2F 30 
+ 1653   2534   30 31 31 32 32 		DB	30,31,31,32,32,33,34
+        2539   33 34 
+ 1654   253B   34 35 35 36 36 		DB	34,35,35,36,36,37,38
+        2540   37 38 
+ 1655   2542   38 39 39 3A 3A 		DB	38,39,39,3a,3a,3b,3c
+        2547   3B 3C 
+ 1656   2549   3C 3D 3D 3E 3E 		DB	3c,3d,3d,3e,3e,3f,40
+        254E   3F 40 
+ 1657   2550   40 41 41 42 42 		DB	40,41,41,42,42,43,44
+        2555   43 44 
+ 1658   2557   44 45 45 46 46 		DB	44,45,45,46,46,47,48
+        255C   47 48 
+ 1659   255E   48 49 49 4A 4A 		DB	48,49,49,4a,4a,4b,4c
+        2563   4B 4C 
+ 1660   2565   4C 4D 4D 4E 4E 		DB	4c,4d,4d,4e,4e,4f,50
+        256A   4F 50 
+ 1661                      		RADIX	D
+ 1662          00DE        	PAGE3RELL EQU	$-PAGE3REL-1
+ 1663   256C               		END
+ 1664                      	
+ 1665   256C               		INCLUDE	BSUBS.ASM		; subs for e to use
+ 1666                      		PAGE
+  Wed Jun  7 1989 12:04                                                                                                  Page   36
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- RELOCATED SUBROUTINES ---"
+
+ 1667   256C               		STTL	"--- BOOT CODE SUBROUTINES ---"
+ 1668                      	
+ 1669   256C   0D 0D       	ERRM:	DB	EOL,EOL
+ 1670   256E   49 6E 74 65 72 		DB	"Internal error "
+        2573   6E 61 6C 20 65 
+        2578   72 72 6F 72 20 
+ 1671   257D   30 30       	ENUMB:	DB	"00"
+ 1672   257F   30 30 2E 20 20 		DB	"00.  "
+ 1673          0018        	ERRML	EQU	$-ERRM
+ 1674   2584   30 31 32 33 34 	HCHARS:	DB	"0123456789ABCDEF"
+        2589   35 36 37 38 39 
+        258E   41 42 43 44 45 
+        2593   46 
+ 1675                      	;
+ 1676                      	; ZERROR: print out error code in HexWord: [A][Y].
+ 1677                      	;
+ 1678   2594               	ZERROR:
+ 1679   2594   48          		pha			; save [A]
+ 1680   2595   98          		tya			; and put y to a for figgering
+ 1681   2596   A0 03       		ldy	#3		; CONVERT ERROR BYTE IN [A]
+ 1682   2598               	ZERR0:
+ 1683   2598   48          		pha
+ 1684   2599   29 0F       		and	#%00001111
+ 1685   259B   AA          		tax
+ 1686   259C   BD 84 25    		lda	HCHARS,X
+ 1687   259F   99 7D 25    		sta	ENUMB,Y	
+ 1688   25A2   68          		pla
+ 1689   25A3   4A          		LSR	A
+ 1690   25A4   4A          		LSR	A
+ 1691   25A5   4A          		lsr	A
+ 1692   25A6   4A          		lsr	A
+ 1693   25A7   AA          		tax
+ 1694   25A8   BD 84 25    		lda	HCHARS,X
+ 1695   25AB   88          		dey
+ 1696   25AC   99 7D 25    		sta	ENUMB,Y	
+ 1697   25AF   F0 05       		beq	ZR1		; done
+ 1698   25B1               		
+ 1699   25B1   68          		pla			; done with first number
+ 1700   25B2   88          		dey			; and point one more down
+ 1701   25B3   4C 98 25    		jmp	ZERR0		; so work on second number
+ 1702   25B6               	ZR1:
+ 1703   25B6   A2 6C       		ldx	#<ERRM
+ 1704   25B8   A9 25       		lda	#>ERRM
+ 1705   25BA   A0 18       		ldy	#ERRML
+ 1706   25BC   20 D5 26    		jsr	DLINE		; PRINT ERROR MESSAGE
+ 1707   25BF   20 01 26    		jsr	GETRET		; wait for <CR>
+ 1708   25C2   4C 19 26    		jmp	ZQUIT
+ 1709                      	
+ 1710   25C5   0D 50 6C 65 61 	RETQ:	db	EOL,"Please insert new disk to boot."
+        25CA   73 65 20 69 6E 
+        25CF   73 65 72 74 20 
+        25D4   6E 65 77 20 64 
+        25D9   69 73 6B 20 74 
+        25DE   6F 20 62 6F 6F 
+        25E3   74 2E 
+ 1711   25E5   0D 41 6E 64 20 		db	EOL, "And hit RETURN when ready.",EOL
+        25EA   68 69 74 20 52 
+  Wed Jun  7 1989 12:04                                                                                                  Page   37
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+        25EF   45 54 55 52 4E 
+        25F4   20 77 68 65 6E 
+        25F9   20 72 65 61 64 
+        25FE   79 2E 0D 
+ 1712          003C        	RETQL	EQU	$-RETQ
+ 1713   2601               	GETRET:
+ 1714   2601               		DLINE	RETQ		; ask for return
+ 1715   2601   A2 C5       		ldx	#<RETQ	; get part of RETQ
+ 1716   2603   A9 25       		lda	#>RETQ	; get other part of string
+ 1717          [01]        		IFMA	2		; check to see if length passed in
+ 1718                      		ldy			; then just fetch it
+ 1719          [01]        		ELSE
+ 1720   2605   A0 3C       		ldy	#RETQL	; get length of string
+ 1721          [00]        		ENDIF
+ 1722   2607   20 D5 26    		jsr	DLINE		; print the string
+ 1723   260A               		.MACEND
+ 1724   260A               	GETRETL:
+ 1725   260A   AD 00 C0    		lda	KBD		; get a key
+ 1726   260D   10 FB       		bpl	GETRETL 	; no key
+ 1727   260F   29 7F       		and	#$7f		; make a good key
+ 1728   2611   C9 0D       		cmp	#EOL		; return key?
+ 1729   2613   D0 F5       		bne	GETRETL		; nope
+ 1730   2615   20 ED FD    		jsr	MCOUT		; show the <CR>
+ 1731   2618   60          		rts
+ 1732   2619               			
+ 1733                      	
+ 1734                      		; ----
+ 1735                      		; QUIT
+ 1736                      		; ----
+ 1737                      	
+ 1738   2619               	ZQUIT:
+ 1739   2619   A5 59       	        lda     INFODOS         ; in dinky-dos?
+ 1740   261B   F0 17       	        beq     ZQUIT2          ; nope
+ 1741   261D   A9 00       	        lda     #0              ; clear power up byte
+ 1742   261F   8D F4 03    	        sta     $3F4            ; make it do cold boot        
+ 1743   2622   AD FD FF    	        lda     RESET_VECTOR+HI ; now, set up where to die to
+ 1744   2625   8D 33 26    	        sta     ZQUITR1+2
+ 1745   2628   AD FC FF    	        lda     RESET_VECTOR+LO
+ 1746   262B   8D 32 26    	        sta     ZQUITR1+1
+ 1747   262E   AD 82 C0    	        lda     RDROM           ; get ROM back
+ 1748   2631               	ZQUITR1:
+ 1749   2631   4C FC FF    	        jmp     RESET_VECTOR    ; just reset things
+ 1750                      	;
+ 1751                      	; re-enable /RAM
+ 1752                      	;
+ 1753   2634               	ZQUIT2:
+ 1754   2634   AE 31 BF    		ldx	DEVCNT		; put device in at end
+ 1755   2637   E8          		inx			; point to one past end
+ 1756   2638   8E 31 BF    		stx	DEVCNT		; show new count
+ 1757   263B   A9 BF       		lda	#$BF		; /RAM ID
+ 1758   263D   9D 32 BF    		sta	DEVNUM,X	; save it
+ 1759   2640   AD 7F 07    		lda	OLDVEC+HI	; restore old vector
+ 1760   2643   8D 27 BF    		sta	RAMVEC+HI
+ 1761   2646   AD 7E 07    		lda	OLDVEC+LO
+ 1762   2649   8D 26 BF    		sta	RAMVEC+LO
+ 1763                      	;
+ 1764                      	; now format /RAM
+  Wed Jun  7 1989 12:04                                                                                                  Page   38
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 1765                      	;
+ 1766   264C   A9 03       		lda	#3		; stash into FORMAT parm block
+ 1767   264E   85 42       		sta	$42		; it goes here, oddly enough
+ 1768   2650   A9 B0       		lda	#$B0		; device id for /RAM
+ 1769   2652   85 43       		sta	$43		; and here it goes
+ 1770   2654   A9 11       		lda	#>GAME1FIO	; IO buffer
+ 1771   2656   85 45       		sta	$45		; this is where it goes
+ 1772   2658   A9 00       		lda	#<GAME1FIO	; lsb
+ 1773   265A   85 44       		sta	$44
+ 1774   265C   8D 80 C0    		sta	RDBNK2		; set up card for driver
+ 1775   265F   20 78 26    		jsr	RAMDRV		; format /RAM
+ 1776   2662   8D 82 C0    		sta	RDROM		; get ROM back
+ 1777   2665   8D 82 C0    		sta	RDROM		; get ROM back
+ 1778   2668               		
+ 1779   2668   8D 51 C0    		sta	TEXTSW+ON	; turn on text
+ 1780   266B               		QUIT	QUIT_PB		
+ 1781   266B               		PRODOS 	$65, QUIT_PB
+ 1782   266B   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 1783   266E   65          		DB	$65	; ProDOS function code
+ 1784   266F   7126        		DW	QUIT_PB	; Function Parameter Block address
+ 1785   2671               		.MACEND
+ 1786   2671               		.MACEND
+ 1787   2671               	QUIT_PB:
+ 1788   2671   04          		db	4		; 4 parms
+ 1789   2672   00 00 00 00 00 		db	0,0,0,0,0,0	; just zeros
+        2677   00 
+ 1790   2678               	RAMDRV:
+ 1791   2678   6C 26 BF    		jmp	(RAMVEC)	; goto RAM driver
+ 1792                      	
+ 1793   267B   0D 45 6E 64 20 	ENDM:	DB	EOL,"End of session."
+        2680   6F 66 20 73 65 
+        2685   73 73 69 6F 6E 
+        268A   2E 
+ 1794   268B   0D 50 6C 65 61 		DB	EOL,"Please insert new disk to boot."
+        2690   73 65 20 69 6E 
+        2695   73 65 72 74 20 
+        269A   6E 65 77 20 64 
+        269F   69 73 6B 20 74 
+        26A4   6F 20 62 6F 6F 
+        26A9   74 2E 
+ 1795          0030        	ENDML	EQU	$-ENDM
+ 1796                      	
+ 1797                      	;
+ 1798                      	; Jump here when ProDOS has a problem
+ 1799                      	;
+ 1800                      	;  [A] - ProDOS error
+ 1801                      	;  [Y] - my error code
+ 1802                      	;
+ 1803   26AB               	BOOT_ERROR:
+ 1804   26AB   4C 94 25    		JMP	ZERROR		; just use error routine
+ 1805                      	;
+ 1806                      	; Make sure we are on a good machine, like a ][c or ][e+/][gs
+ 1807                      	;		
+ 1808   26AE               	MACHINE:
+ 1809   26AE   AD B3 FB    		lda	MACHID1		; Machine ID part 1
+ 1810   26B1   C9 06       		cmp	#6		; must be a 6 for me to be interested
+ 1811   26B3   D0 19       		bne	BADMACH		; nope
+  Wed Jun  7 1989 12:04                                                                                                  Page   39
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 1812   26B5   AD C0 FB    		lda	MACHID2		; Machine ID part 2
+ 1813   26B8   D0 05       		bne	MACH1		; must be a ][e or ][gs
+ 1814   26BA   A9 09       		lda	#IIcID		; Apple ][c thank you
+ 1815   26BC   4C CB 26    		jmp	MACH2		; and save it
+ 1816   26BF               	MACH1:
+ 1817   26BF   38          		sec			; get ready to check machine
+ 1818   26C0   20 1F FE    		jsr	MACHCHK		; check for 'new' machine
+ 1819   26C3   B0 04       		bcs	OLDMACH		; must just be a ][e
+ 1820   26C5   A9 0A       		lda	#IIgsID		; this is a ][gs
+ 1821   26C7   D0 02       		bne	MACH2		; done
+ 1822   26C9               	OLDMACH:
+ 1823   26C9   A9 02       		lda	#IIeID		; this is IIe
+ 1824   26CB               	MACH2:
+ 1825   26CB   85 65       		sta	ARG2+LO		; save machine id	
+ 1826   26CD   60          		rts
+ 1827   26CE               	BADMACH:
+ 1828   26CE   A9 1E       		lda	#30		; bad machine error
+ 1829   26D0   A0 FF       		ldy	#$FF		; nothing here
+ 1830   26D2   4C 94 25    		jmp	ZERROR		; and end it all
+ 1831                      	
+ 1832                      	; -----------------------
+ 1833                      	; DIRECT PRINT LINE [X/A]
+ 1834                      	; -----------------------
+ 1835                      	; ENTRY: STRING ADDRESS IN [X/A] (LSB/MSB)
+ 1836                      	; STRING LENGTH IN [Y]
+ 1837                      	
+ 1838   26D5   8E E0 26    	DLINE:	STX	STRING+LO	; DROP STRING ADDRESS
+ 1839   26D8   8D E1 26    		STA	STRING+HI	; INTO DUMMY BYTES
+ 1840   26DB   84 7A       		STY	J		; COUNTER
+ 1841   26DD   A2 00       		LDX	#0		; INIT CHAR-FETCH INDEX
+ 1842   26DF   BD          	DOUT:	DB	$BD		; 6502 "LDA nnnn,X" OPCODE
+ 1843   26E0   0000        	STRING:	DW	$0000		; DUMMY OPERAND BYTES
+ 1844   26E2   09 80       		ORA	#%10000000	; ELSE MAKE IT NORMAL
+ 1845   26E4   20 ED FD    	DOUT1:	JSR	MCOUT
+ 1846   26E7   E8          		INX
+ 1847   26E8   C6 7A       		DEC	J		; LOOP TILL
+ 1848   26EA   D0 F3       		BNE	DOUT		; OUT OF CHARS
+ 1849   26EC   60          		RTS		
+ 1850                      	;
+ 1851                      	; set [A](page), [Y](bank) to point to memory page where page in [A] is
+ 1852                      	;
+ 1853   26ED               	SETPC:			
+ 1854   26ED   85 BC       		sta	MEMPAGE		; save it for later addition
+ 1855   26EF   C9 29       		cmp	#P2PAGE 	; IS IT A PAGE IN MAIN
+ 1856   26F1   B0 06       		bcs	VF2		; No, it might be in aux mem
+ 1857                      	
+ 1858   26F3   A9 96       		lda	#>ZBEGIN 	; ADD OFFSET TO GET RAM PAGE
+ 1859   26F5   A0 00       		ldy	#MAIN		; in the main bank
+ 1860   26F7   F0 12       		beq	VFEXI		; BRA to fetch
+ 1861   26F9               	VF2:
+ 1862   26F9   C9 D6       		cmp	#PGBEGIN	; is it paged?
+ 1863   26FB   B0 12       		bcs	VFERR		; yes it be paged, so can't deal with it
+ 1864   26FD   C9 A8       		cmp	#P3PAGE		; is it in Aux Mem, Part 2?
+ 1865   26FF   B0 06       		bcs	VF3		; yes, so subtract different amount
+ 1866                      	;
+ 1867                      	; this is in lower aux 
+ 1868                      	;				
+  Wed Jun  7 1989 12:04                                                                                                  Page   40
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 1869   2701   A9 17       		lda	#(Z2PAGE-Z1SIZE) ; subtract size from offset
+ 1870   2703   A0 01       		ldy	#AUX		; show aux mem
+ 1871   2705   D0 04       		bne	VFEXI		; jump to end
+ 1872   2707               	VF3:
+ 1873   2707   A9 28       		lda	#(Z3PAGE-(Z1SIZE+Z2SIZE)) ; subtract out first 2 sides
+ 1874   2709   A0 FF       		ldy	#P3BANK		; show page 3 bank
+ 1875   270B               	VFEXI:
+ 1876   270B   18          		clc			; get ready for addition
+ 1877   270C   65 BC       		adc	MEMPAGE		; now get actual offset
+ 1878   270E   60          		rts	
+ 1879   270F               	VFERR:
+ 1880                      	;
+ 1881                      	; out of range
+ 1882                      	;
+ 1883   270F   A9 22       		lda	#$22
+ 1884   2711   4C 94 25    		jmp	ZERROR
+ 1885                      	
+ 1886                      	;
+ 1887                      	; FETCHB - fetch a byte from either main memory, aux memory, or upper
+ 1888                      	;	Aux memory
+ 1889                      	;
+ 1890   2714               	FETCHB:
+ 1891   2714   A4 8E       		ldy	FPCBNK		; get the bank
+ 1892   2716   30 03       		bmi	FB1		; must be in upper RAM
+ 1893   2718   4C D1 00    		jmp	ZERO_FB		; go to low end fetch
+ 1894                      	;
+ 1895                      	; this is in aux mem, >$E000
+ 1896                      	;
+ 1897   271B               	FB1:
+ 1898   271B   A5 8D       		lda	FPCH		; get which page
+ 1899   271D   8D 2D 27    		sta	FBMOD+2		; and show in operand
+ 1900   2720   A4 8C       		ldy	FPCL		; get which byte
+ 1901   2722   8D 09 C0    		sta	ALTZP+AUX	; talk about aux mem
+ 1902   2725   AD 8B C0    		lda	BNK1SET		; set up read/write ram in upper mem
+ 1903   2728   AD 8B C0    		lda	BNK1SET		; set up read/write ram in upper mem
+ 1904   272B   B9 00 D0    	FBMOD:	lda	Z3BEGIN,Y	; get the sucker
+ 1905   272E   8D 08 C0    		sta	ALTZP+MAIN	; go back to main mem
+ 1906   2731   AE 82 C0    		ldx	RDROM		; now use ROM please
+ 1907   2734   AE 82 C0    		ldx	RDROM		; now use ROM please
+ 1908   2737   60          		rts
+ 1909                      	;
+ 1910                      	; NEXTFPC - inc DPCL and check for wrapping round to next bank
+ 1911                      	;
+ 1912   2738               	NEXTFPC:
+ 1913   2738   E6 8C       		inc	FPCL		; next lo byte
+ 1914   273A   D0 1B       		bne	NXFP_EXIT	; no change then
+ 1915   273C   E6 8D       		inc	FPCH		; next page
+ 1916   273E   A5 8D       		lda	FPCH		; and get it for checking
+ 1917   2740   C9 BF       		cmp	#>PRGLBL	; have we reached end of line?
+ 1918   2742   D0 13       		bne	NXFP_EXIT	; we be okay
+ 1919   2744   A5 8E       		lda	FPCBNK		; get bank
+ 1920   2746   D0 07       		bne	NXFP1		; must skip over stuff in middle
+ 1921   2748   E6 8E       		inc	FPCBNK		; so point to aux bank
+ 1922   274A   A9 40       		lda	#Z2PAGE		; first page in aux
+ 1923   274C   85 8D       		sta	FPCH		; and point to it
+ 1924   274E   60          		rts			; toots finis
+ 1925   274F               	NXFP1:
+  Wed Jun  7 1989 12:04                                                                                                  Page   41
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 1926   274F   A9 D0       		lda	#Z3PAGE		; start of part 3
+ 1927   2751   85 8D       		sta	FPCH		; so show me
+ 1928   2753   A9 FF       		lda	#P3BANK		; and point to this bank
+ 1929   2755   85 8E       		sta	FPCBNK		; okey
+ 1930   2757               	NXFP_EXIT:
+ 1931   2757   60          		rts
+ 1932                      	;
+ 1933                      	; INST_MOUSE - install mouse handler IRQ
+ 1934                      	;
+ 1935          0303        	MFIX1	EQU	(MSX1-MOUSERx)+PAGE3STUFF+2
+ 1936          030A        	MFIX2	EQU	(MSX2-MOUSERx)+PAGE3STUFF+1
+ 1937          0311        	MFIX3	EQU	(MSX4-MOUSERx)+PAGE3STUFF
+ 1938          030C        	MFIX4	EQU	(MSX3-MOUSERx)+PAGE3STUFF+1
+ 1939   2758               	INST_MOUSE:
+ 1940   2758   20 CA 27    		jsr	FINDMOUSE	; find which slot the mouse is in
+ 1941   275B   90 01       		bcc	INMS1		; everything is fine
+ 1942   275D   60          		rts			; can't find the mouse
+ 1943   275E               	INMS1:
+ 1944   275E   8D 03 03    		sta	MFIX1
+ 1945   2761   8D 0A 03    		sta	MFIX2
+ 1946   2764   8D 11 03    		sta	MFIX3		; okay, everyone knows now
+ 1947   2767   29 0F       		and	#$0f		; pick up low byte
+ 1948   2769   85 63       		sta	ARG1+LO		; save for program to pick up
+ 1949   276B   0A          		asl	A		; shift slot number to upper nybble
+ 1950   276C   0A          		asl	A
+ 1951   276D   0A          		asl	A
+ 1952   276E   0A          		asl	A
+ 1953   276F   8D 0C 03    		sta	MFIX4		; and save here
+ 1954                      	;
+ 1955                      	; now init mouse, please
+ 1956                      	;
+ 1957   2772   A2 07       		ldx	#INITM		; init first
+ 1958   2774   20 00 03    		jsr	MOUSER		; so do it
+ 1959   2777   A2 00       		ldx	#SETM		; setup mouse
+ 1960   2779   A9 01       		lda	#$01		; transparent mode
+ 1961   277B   20 00 03    		jsr	MOUSER		; we do that
+ 1962   277E   A2 03       		ldx	#CLEARM		; and clear mouse pos
+ 1963   2780   20 00 03    		jsr	MOUSER		; we did
+ 1964                      	;
+ 1965                      	; now set min and max for clamping.
+ 1966                      	; 0 <= xpos <= 139
+ 1967                      	; 0 <= ypos <= 191
+ 1968                      	;
+ 1969   2783   A9 00       		lda 	#0		; zero out a few of the things
+ 1970   2785   8D 78 05    		sta	CLMPMINH	; hi part of min clamp
+ 1971   2788   8D 78 04    		sta	CLMPMINL	; lo part of min clamp
+ 1972   278B   A9 89       		lda	#<137		; max X
+ 1973   278D   8D F8 04    		sta	CLMPMAXL	; stash in lo part
+ 1974   2790   A9 00       		lda	#>137		; max X
+ 1975   2792   8D F8 05    		sta	CLMPMAXH	; hi part of clamp
+ 1976   2795   A9 00       		lda	#0		; show setting X clamp
+ 1977   2797   A2 05       		ldx	#CLAMPM		; do clamping
+ 1978   2799   20 00 03    		jsr	MOUSER		; okay, we did
+ 1979   279C   A9 BD       		lda	#<189		; now for Y
+ 1980   279E   8D F8 04    		sta	CLMPMAXL	; saved in lo part
+ 1981   27A1   A9 00       		lda	#>189		; now for Y
+ 1982   27A3   8D F8 05    		sta	CLMPMAXH	; saved in lo part
+  Wed Jun  7 1989 12:04                                                                                                  Page   42
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 1983   27A6   A9 01       		lda	#1		; set y boundries
+ 1984   27A8   A2 05       		ldx	#CLAMPM		; okay, show which routine
+ 1985   27AA   20 00 03    		jsr	MOUSER		; and do it
+ 1986                      	
+ 1987                      	;
+ 1988                      	; initialize the mouse position
+ 1989                      	;
+ 1990   27AD   A9 00       		lda	#0		; clear MSB
+ 1991   27AF   8D 78 05    		sta	MOUSEXH
+ 1992   27B2   8D F8 05    		sta	MOUSEYH
+ 1993   27B5   A9 C0       		lda	#MAXHEIGHT
+ 1994   27B7   8D F8 04    		sta	MOUSEYL
+ 1995   27BA   A9 8C       		lda	#MAXWIDTH
+ 1996   27BC   8D 78 04    		sta	MOUSEXL
+ 1997                      	
+ 1998   27BF   A2 04       		ldx	#POSM	
+ 1999   27C1   20 00 03    		jsr	MOUSER		; and move it
+ 2000                      	
+ 2001                      	;	cli			; enable interrupts now
+ 2002   27C4   A9 FF       		lda	#$FF		; < 0 show mouse
+ 2003   27C6   85 58       		sta	MOUSEF		; so show it
+ 2004   27C8   18          		clc			; show everything is fine
+ 2005   27C9   60          		rts			; done
+ 2006                      	;
+ 2007                      	; FINDMOUSE - scan the slots for a mouse
+ 2008                      	;
+ 2009   27CA               	FINDMOUSE:
+ 2010   27CA   AD FB C1    		lda	$C1FB		; check for mouse ID == D6
+ 2011   27CD   C9 D6       		cmp	#$D6		; mouse ID
+ 2012   27CF   D0 05       		bne 	FNDM1		; not it
+ 2013   27D1   AD CC 27    		lda	FINDMOUSE+2	; get slot
+ 2014   27D4   18          		clc			; show okay-ness
+ 2015   27D5   60          		rts			; and return
+ 2016   27D6               	FNDM1:
+ 2017   27D6   EE CC 27    		inc	FINDMOUSE+2	; point to next slot
+ 2018   27D9   AD CC 27    		lda	FINDMOUSE+2	; reached last one yet?
+ 2019   27DC   C9 C8       		cmp	#$C8		; no slot eight
+ 2020   27DE   90 EA       		bcc	FINDMOUSE	; go look again
+ 2021   27E0   38          		sec			; show no mouse
+ 2022   27E1   60          		rts
+ 2023                      	;
+ 2024                      	; INST_STICK - install the joystick handler
+ 2025   27E2               	INST_STICK:
+ 2026   27E2   A9 01       		lda	#$1		; > 0 show joystick
+ 2027   27E4   85 58       		sta	MOUSEF		; okay, we do
+ 2028   27E6   18          		clc			; show it worked
+ 2029   27E7   60          		rts
+ 2030   27E8               	RAMINFO:
+ 2031   27E8   0A          		db	10		; 10 parms
+ 2032   27E9   FA27        		dw	RAMNAME	; name
+ 2033   27EB               		ds	15		; room for stuff
+ 2034   27FA               	RAMNAME:
+ 2035   27FA   05          		db	5		; length of name
+ 2036   27FB   2F 52 41 4D 2F 		db	"/RAM/" 	; name
+ 2037   2800   0D 54 68 69 73 	RAMQ:	db	EOL,"This program disables /RAM and it",EOL
+        2805   20 70 72 6F 67 
+        280A   72 61 6D 20 64 
+  Wed Jun  7 1989 12:04                                                                                                  Page   43
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+        280F   69 73 61 62 6C 
+        2814   65 73 20 2F 52 
+        2819   41 4D 20 61 6E 
+        281E   64 20 69 74 0D 
+ 2038   2823   69 73 20 6E 6F 		db	"is not empty.  Do you want to"
+        2828   74 20 65 6D 70 
+        282D   74 79 2E 20 20 
+        2832   44 6F 20 79 6F 
+        2837   75 20 77 61 6E 
+        283C   74 20 74 6F 
+ 2039   2840   0D 63 6F 6E 74 		db	EOL,"continue (Y destroys /RAM)?"
+        2845   69 6E 75 65 20 
+        284A   28 59 20 64 65 
+        284F   73 74 72 6F 79 
+        2854   73 20 2F 52 41 
+        2859   4D 29 3F 
+ 2040          005C        	RAMQL	EQU	$-RAMQ
+ 2041   285C               	FIXRAM:
+ 2042   285C               		GET_FILE_INFO RAMINFO	; get the volumn size
+ 2043   285C               		PRODOS	$C4, RAMINFO
+ 2044   285C   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 2045   285F   C4          		DB	$C4	; ProDOS function code
+ 2046   2860   E827        		DW	RAMINFO	; Function Parameter Block address
+ 2047   2862               		.MACEND
+ 2048   2862               		.MACEND
+ 2049   2862   B0 28       		bcs	FIXR1		; problem, so we'll just disable it
+ 2050                      	
+ 2051   2864   AD F1 27    		lda	RAMINFO+9	; get amount used
+ 2052   2867   D0 07       		bne	ASKUSER		; some files there complain
+ 2053   2869   AD F0 27    		lda	RAMINFO+8	; get LSB of used
+ 2054   286C   C9 09       		cmp	#9		; if >= 9, must be being used
+ 2055   286E   90 1C       		bcc	FIXR1		; no problem, disable /RAM
+ 2056   2870               	ASKUSER:
+ 2057   2870   20 58 FC    		jsr	MHOME		; clear and home
+ 2058   2873               		DLINE	RAMQ		; ask about continuing
+ 2059   2873   A2 00       		ldx	#<RAMQ	; get part of RAMQ
+ 2060   2875   A9 28       		lda	#>RAMQ	; get other part of string
+ 2061          [01]        		IFMA	2		; check to see if length passed in
+ 2062                      		ldy			; then just fetch it
+ 2063          [01]        		ELSE
+ 2064   2877   A0 5C       		ldy	#RAMQL	; get length of string
+ 2065          [00]        		ENDIF
+ 2066   2879   20 D5 26    		jsr	DLINE		; print the string
+ 2067   287C               		.MACEND
+ 2068   287C   20 0C FD    		jsr	MRDKEY		; get answer
+ 2069   287F   29 7F       		and	#$7F		; turn off hi bit
+ 2070   2881   C9 79       		cmp	#'y'		; check for yes
+ 2071   2883   F0 07       		beq	FIXR1		; then continue
+ 2072   2885   C9 59       		cmp	#'Y'		; also, captital Y
+ 2073   2887   F0 03       		beq	FIXR1		; okay again
+ 2074   2889   4C 19 26    		jmp	ZQUIT		; so die
+ 2075   288C               	FIXR1:
+ 2076   288C   AD 26 BF    		lda	RAMVEC+LO	; get current /RAM vector
+ 2077   288F   8D 7E 07    		sta	OLDVEC+LO	; save it for reinstalling
+ 2078   2892   AD 27 BF    		lda	RAMVEC+HI
+ 2079   2895   8D 7F 07    		sta	OLDVEC+HI
+ 2080   2898   AD 16 BF    		lda	UNSVEC+LO	; point /RAM vector to uninstalled device
+  Wed Jun  7 1989 12:04                                                                                                  Page   44
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 2081   289B   8D 26 BF    		sta	RAMVEC+LO
+ 2082   289E   AD 17 BF    		lda	UNSVEC+HI
+ 2083   28A1   8D 27 BF    		sta	RAMVEC+HI
+ 2084   28A4   AE 31 BF    		ldx	DEVCNT		; get how many devices
+ 2085   28A7               	DEVLP:
+ 2086   28A7   BD 32 BF    		lda	DEVNUM,X	; try to find /RAM device
+ 2087   28AA   29 70       		and	#$70		; isolate slot
+ 2088   28AC   C9 30       		cmp	#$30		; look for slot 3
+ 2089   28AE   F0 04       		beq	GOTSLT		; got it
+ 2090   28B0   CA          		dex			; missed it
+ 2091   28B1   10 F4       		bpl	DEVLP		; try again
+ 2092   28B3   60          		rts			; didn't find it (?)
+ 2093   28B4               	GOTSLT:
+ 2094   28B4   BD 33 BF    		lda	DEVNUM+1,X	; now move all down one
+ 2095   28B7   9D 32 BF    		sta	DEVNUM,X	; down one
+ 2096   28BA   EC 31 BF    		cpx	DEVCNT		; done yet
+ 2097   28BD   F0 03       		beq	FIXREX		; ayyup
+ 2098   28BF   E8          		inx			; point to next slot
+ 2099   28C0   D0 F2       		bne	GOTSLT		; continue on
+ 2100   28C2               	FIXREX:
+ 2101   28C2   CE 31 BF    		dec	DEVCNT		; one less device, thank you
+ 2102   28C5   60          		rts			; all done
+ 2103                      	;
+ 2104                      	; DO_DSEGS - scan through the disk segment table and point to the
+ 2105                      	;	beginning of the segment list for each of the disks in the
+ 2106                      	;	file.
+ 2107   28C6               	DO_DSEGS:
+ 2108   28C6   AD 01 19    		lda	SEGTBL+SGTDISKS+1	; get # number disks
+ 2109   28C9   85 7A       		sta	J		; save in counter
+ 2110   28CB   C6 7A       		dec	J		; we hand hold #1
+ 2111   28CD   A9 19       		lda	#>(SEGTBL+SGTCHKS1)	; start off at beginning
+ 2112   28CF   8D D1 1D    		sta	D1SEG+HI	; here is first one
+ 2113   28D2   A9 12       		lda	#<(SEGTBL+SGTCHKS1); and here is LSB
+ 2114   28D4   8D D0 1D    		sta	D1SEG+LO	; save it
+ 2115   28D7   AC 17 19    		ldy	SEGTBL+SGTSEG1+1	; get number of segs in first disk
+ 2116   28DA   A2 02       		ldx	#2		; start at second one
+ 2117   28DC               	DODSL:
+ 2118   28DC   BD CE 1D    		lda	DSKSEG-2+LO,X	; get LSB of previous start
+ 2119   28DF   18          		clc			; doing some adding
+ 2120   28E0   69 08       		adc	#SGTSEG 	; point to start of segment list
+ 2121   28E2   9D D0 1D    		sta	DSKSEG+LO,X	; save in working segment pointer
+ 2122   28E5   BD CF 1D    		lda	DSKSEG-2+HI,X	; now work on MSB
+ 2123   28E8   69 00       		adc	#0		; pick up possible carry
+ 2124   28EA   9D D1 1D    		sta	DSKSEG+HI,X	; and save in new pointer
+ 2125   28ED               	ADDLOOP:
+ 2126   28ED   18          		clc			; doing add
+ 2127   28EE   A9 06       		lda	#6		; size of segment entry
+ 2128   28F0   7D D0 1D    		adc	DSKSEG+LO,X	; counting
+ 2129   28F3   9D D0 1D    		sta	DSKSEG+LO,X	; counting
+ 2130   28F6   90 03       		bcc	ADDL1		; no wrap
+ 2131   28F8   FE D1 1D    		inc	DSKSEG+HI,X	; add one to hi
+ 2132   28FB               	ADDL1:
+ 2133   28FB   88          		dey			; count segment
+ 2134   28FC   D0 EF       		bne	ADDLOOP		; okay, not done yet
+ 2135   28FE   BD D0 1D    		lda	DSKSEG+LO,X	; get pointer to #segs in this one
+ 2136   2901   85 1E       		sta	DSEGS+LO	; save ptr
+ 2137   2903   BD D1 1D    		lda	DSKSEG+HI,X	; get MSB
+  Wed Jun  7 1989 12:04                                                                                                  Page   45
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 2138   2906   85 1F       		sta	DSEGS+HI	; save ptr
+ 2139   2908   A0 05       		ldy	#SGTNSEG+1	; just need LSB
+ 2140   290A   B1 1E       		lda	(DSEGS),Y	; get #segs in this segment
+ 2141   290C   A8          		tay			; save in counter Y
+ 2142   290D   E8          		inx
+ 2143   290E   E8          		inx			; point to new pointer loc
+ 2144   290F   C6 7A       		dec	J		; count this disk
+ 2145   2911   D0 C9       		bne	DODSL		; and do it again
+ 2146                      	;
+ 2147                      	; now, init DSEGS to point to beginnning again
+ 2148                      	;
+ 2149   2913   AD D1 1D    		lda	D1SEG+HI	; here is first one
+ 2150   2916   85 1F       		sta	DSEGS+HI
+ 2151   2918   AD D0 1D    		lda	D1SEG+LO	; save it
+ 2152   291B   85 1E       		sta	DSEGS+LO
+ 2153                      	;
+ 2154                      	; check to see if we are using infoDOS, and set pointer to second
+ 2155                      	; disk segment table if we are.
+ 2156                      	;
+ 2157   291D   AD FF BF    	        lda     KVERSION        ; get "version" number
+ 2158   2920   C9 FF       	        cmp     #INFODOS_ID     ; is in our DOS?
+ 2159   2922   D0 0B       	        bne     DODX            ; nope, it ain't
+ 2160   2924   AD D3 1D    	        lda     D2SEG+HI        ; then have infoDOS flag to  point
+ 2161   2927   85 5A       	        sta     INFODOS+HI      ; to the D2SEG, cuz that's what
+ 2162   2929   AD D2 1D    	        lda     D2SEG+LO        ; we use to check all the ZPC's
+ 2163   292C   85 59       	        sta     INFODOS+LO
+ 2164   292E   60          	        rts
+ 2165   292F               	DODX:
+ 2166   292F   A9 00       	        lda     #0              ; regular ProDOS
+ 2167   2931   85 59       	        sta     INFODOS         ; show nothing there!
+ 2168   2933   60          		rts	
+ 2169                      	
+ 2170                      	;
+ 2171                      	; INITPAG - init the paging buffers, thank you
+ 2172                      	;
+ 2173   2934               	INITPAG:
+ 2174   2934   A2 17       		LDX	#NUMBUFS-1	;***
+ 2175   2936   86 CD       		STX	CURRENT	  	; make last one first one to be used
+ 2176   2938   C6 CD       		dec	CURRENT		; using only even pages
+ 2177   293A   A9 FF       		LDA	#$FF	
+ 2178   293C               	INILP:			
+ 2179   293C   9D 80 0C    		STA	VPAGEH,X	
+ 2180   293F   CA          		DEX		
+ 2181   2940   10 FA       		BPL	INILP	
+ 2182   2942   A2 00       		LDX	#0	
+ 2183   2944   A0 02       		LDY	#2		;***
+ 2184   2946               	INILP2:			
+ 2185   2946   98          		TYA		
+ 2186   2947   9D 40 0C    		STA	PREVPNT,X	
+ 2187   294A   E8          		INX	  
+ 2188   294B   E8          		inx			;***
+ 2189   294C   C8          		INY
+ 2190   294D   C8          		iny			;***
+ 2191   294E   E0 18       		CPX	#NUMBUFS	
+ 2192   2950   90 F4       		BCC	INILP2	
+ 2193   2952   A9 00       		LDA	#00	
+ 2194   2954   CA          		DEX		
+  Wed Jun  7 1989 12:04                                                                                                  Page   46
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 2195   2955   CA          		dex			;***
+ 2196   2956   9D 40 0C    		STA	PREVPNT,X	
+ 2197   2959   A2 00       		LDX	#0		;***
+ 2198   295B   A0 FE       		LDY	#$FE		;***
+ 2199   295D   A9 16       		LDA	#NUMBUFS-2	;***
+ 2200   295F               	INILP3:			
+ 2201   295F   9D 00 0C    		STA	NEXTPNT,X	
+ 2202   2962   E8          		INX		
+ 2203   2963   E8          		inx			;***
+ 2204   2964   C8          		iny			;***
+ 2205   2965   C8          		INY		
+ 2206   2966   98          		TYA		
+ 2207   2967   E0 18       		CPX	#NUMBUFS	
+ 2208   2969   90 F4       		BCC	INILP3	
+ 2209   296B   60          		rts
+ 2210                      	
+ 2211                      	;
+ 2212                      	; DO_PREFIX - check out the program name at $280.  If there is a prefix
+ 2213                      	;       in there, just set prefix to it, so my default prefix is just fine.
+ 2214                      	;
+ 2215   296C               	DO_PREFIX:
+ 2216   296C   AE 80 02    	        ldx     START_NAME              ; get length of name
+ 2217   296F               	DOPLOOP:
+ 2218   296F   BD 80 02    	        lda     START_NAME,x            ; get char
+ 2219   2972   29 7F       	        and     #$7F                    ; make it real ASCII
+ 2220   2974   C9 2F       	        cmp     #'/'                    ; directory seperator?
+ 2221   2976   F0 04       	        beq     DOPLX                   ; yup, found the prefix
+ 2222   2978   CA          	        dex                             ; previous char
+ 2223   2979   D0 F4       	        bne     DOPLOOP                 ; go do it
+ 2224   297B   60          	        rts                             ; prefix is just fine as it is
+ 2225   297C               	DOPLX:
+ 2226   297C   8E 80 02    	        stx     START_NAME              ; just reuse the name
+ 2227   297F               	        SET_PREFIX START_PREFIX         ; and go set it to this one
+ 2228   297F               		PRODOS	$C6, START_PREFIX
+ 2229   297F   20 00 BF    		jsr	$BF00	; ProDOS handler
+ 2230   2982   C6          		DB	$C6	; ProDOS function code
+ 2231   2983   8629        		DW	START_PREFIX	; Function Parameter Block address
+ 2232   2985               		.MACEND
+ 2233   2985               		.MACEND
+ 2234   2985   60          	        rts
+ 2235   2986               	START_PREFIX:
+ 2236   2986   01          	        DB      1                       ; just one parm        
+ 2237   2987   8002        	        DW      START_NAME              ; use my start up name
+ 2238                      	;
+ 2239                      	; INIT_CHARSET - move the default charset into lower memory
+ 2240                      	;
+ 2241   2989               	ICHARS:
+ 2242   2989   61 62 63 64 65 	        db      "abcdefghijklmnopqrstuvwxyz"    ; CHARSET 1
+        298E   66 67 68 69 6A 
+        2993   6B 6C 6D 6E 6F 
+        2998   70 71 72 73 74 
+        299D   75 76 77 78 79 
+        29A2   7A 
+ 2243   29A3   41 42 43 44 45 	        db      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"    ; CHARSET 2
+        29A8   46 47 48 49 4A 
+        29AD   4B 4C 4D 4E 4F 
+        29B2   50 51 52 53 54 
+  Wed Jun  7 1989 12:04                                                                                                  Page   47
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+        29B7   55 56 57 58 59 
+        29BC   5A 
+ 2244   29BD   00 0D 30 31 32 	        db      0,EOL,"0123456789.,!?_#'""/\-:()" ; CHARSET 3
+        29C2   33 34 35 36 37 
+        29C7   38 39 2E 2C 21 
+        29CC   3F 5F 23 27 22 
+        29D1   2F 5C 2D 3A 28 
+        29D6   29 
+ 2245          004D        	ICHARSL EQU     $-ICHARS-1
+ 2246                      	
+ 2247   29D7               	INIT_CHARSET:
+ 2248   29D7   AD 34 96    	        lda     ZBEGIN+ZCHRSET          ; see if game has passed one
+ 2249   29DA   0D 35 96    	        ora     ZBEGIN+ZCHRSET+1        ; well?
+ 2250   29DD   D0 0C       	        bne     INITCHG                 ; yes, so use that one
+ 2251   29DF   A2 4D       	        ldx     #ICHARSL
+ 2252   29E1               	INITCL:
+ 2253   29E1   BD 89 29    	        lda     ICHARS,X                ; get char
+ 2254   29E4   9D 8C 1F    	        sta     CHARSET,X               ; save char
+ 2255   29E7   CA          	        dex                             ; next char
+ 2256   29E8   10 F7       	        bpl     INITCL                  ; go get it
+ 2257   29EA   60          	        rts
+ 2258   29EB               	INITCHG:
+ 2259   29EB   AD 34 96    	        lda     ZBEGIN+ZCHRSET          ; get game page
+ 2260   29EE   20 ED 26    	        jsr     SETPC                   ; find out where in memory it be
+ 2261   29F1   85 8D       	        sta     FPCH                    ; save page
+ 2262   29F3   84 8E       	        sty     FPCBNK                  ; and save the bank
+ 2263   29F5   AD 35 96    	        lda     ZBEGIN+ZCHRSET+1        ; get the LSB
+ 2264   29F8   85 8C       	        sta     FPCL                    ; just save it
+ 2265   29FA   A9 4E       	        lda     #78                     ; 78 characters are in it
+ 2266   29FC   85 7A       	        sta     J                       ; use J as counter
+ 2267   29FE   A9 00       	        lda     #0                      ; set up index
+ 2268   2A00   85 7C       	        sta     K                       ; in K
+ 2269   2A02               	INCGL:
+ 2270   2A02   20 14 27    	        jsr     FETCHB                  ; go get the character
+ 2271   2A05   A6 7C       	        ldx     K                       ; this is index
+ 2272   2A07   9D 8C 1F    	        sta     CHARSET,X               ; save game character
+ 2273   2A0A   20 38 27    	        jsr     NEXTFPC                 ; point to next character
+ 2274   2A0D   E6 7C       	        inc     K                       ; point to next storage byte
+ 2275   2A0F   C6 7A       	        dec     J                       ; count character
+ 2276   2A11   D0 EF       	        bne     INCGL                   ; go get next char
+ 2277                      	
+ 2278   2A13   A9 0D       	        lda     #EOL                    ; make sure EOL is in list
+ 2279   2A15   A2 35       	        ldx     #53                     ; offset of 53
+ 2280   2A17   9D 8C 1F    	        sta     CHARSET,X               ; and away it goes
+ 2281                      	
+ 2282   2A1A   60          	        rts                             ; done
+ 2283   2A1B               	        
+ 2284   2A1B               		END
+ 2285                      	
+ 2286                      	
+ 2287                      		PAGE
+  Wed Jun  7 1989 12:04                                                                                                  Page   48
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT CODE SUBROUTINES ---"
+
+ 2288   2A1B               		STTL	"--- BOOT DATA STRUCTURES ---"
+ 2289   2A1B               	INTR_OPEN:
+ 2290   2A1B   03          		DB	3		; 3 parameters
+ 2291   2A1C   372A        		DW	INTR_NAME	; name of file
+ 2292   2A1E   0011        		DW	GAME1FIO	; file data buffer
+ 2293   2A20               		DS	1		; refnum goes here
+ 2294   2A21               	CLOSE_BLOCK:
+ 2295   2A21   01          		DB	1		; 1 parameter
+ 2296   2A22               		DS	2		; room for ref num
+ 2297   2A24               	PSEEK:	
+ 2298   2A24   02          		db	2	; 2 pararmeters
+ 2299   2A25   00          		db	0	; refnum
+ 2300   2A26   00 00 00    		db 	0,0,0	; 3 byte new file pos
+ 2301   2A29               	PRELOAD_OPEN:
+ 2302   2A29   03          		DB	3
+ 2303   2A2A   3F2A        		DW	PRELOAD_NAME
+ 2304   2A2C   0011        		DW	GAME1FIO	; close interpreter first!
+ 2305   2A2E               		DS	1		; refnum here
+ 2306                      	;
+ 2307                      	; start with interpreter data
+ 2308                      	;
+ 2309   2A2F               	READ_BLOCK:
+ 2310   2A2F   04          		DB	4		; 4 parms
+ 2311   2A30   00          		DB	0		; refnum
+ 2312   2A31   0040        		DW	INTR_BEGIN	; where to start the interpreter
+ 2313   2A33   0056        		DW	INTR_SIZE	; and how big could it be
+ 2314   2A35   0000        		DW	0		; actual length of interpreter
+ 2315   2A37               	INTR_NAME:	
+ 2316   2A37   07          		DB	INAME_LEN	; length of name
+ 2317   2A38               	I_NAME:
+ 2318   2A38   49 4E 46 4F 43 		DB	"INFOCOM"	; interpreter name
+        2A3D   4F 4D 
+ 2319          0007        	INAME_LEN EQU	$-I_NAME
+ 2320                      	
+ 2321   2A3F               	PRELOAD_NAME:
+ 2322   2A3F   00          		DB	0		; length of name
+ 2323   2A40               	PRE_NAME:
+ 2324   2A40               		DS	20		; spot for preload name
+ 2325          0014        	PRELEN	EQU	$-PRE_NAME
+ 2326   2A54               		
+ 2327                      	DH_SAVE:			; to actual 'write' the data
+ 2328   2A54   04          		DB	4		; 4 parms for write
+ 2329   2A55   00          		DB	0		; refnum goes here
+ 2330   2A56   0000        		DW	0		; just 'copy' junk
+ 2331   2A58   00B5        		DW	RAMSAVE		; to preserve this much mem in AUX
+ 2332   2A5A   0000        		DW	0		; how much is done
+ 2333   2A5C               			
+ 2334   2A5C   54 68 65 20 73 	STRYM:	DB	"The story is loading ..."
+        2A61   74 6F 72 79 20 
+        2A66   69 73 20 6C 6F 
+        2A6B   61 64 69 6E 67 
+        2A70   20 2E 2E 2E 
+ 2335          0018        	STRYML	EQU	$-STRYM
+ 2336   2A74   0D 45 6E 74 65 	MMSG:	DB	EOL,"Enter the letter of the pointing",EOL
+        2A79   72 20 74 68 65 
+        2A7E   20 6C 65 74 74 
+        2A83   65 72 20 6F 66 
+  Wed Jun  7 1989 12:04                                                                                                  Page   49
+
+        "APPLE YZIP (c)Infocom, Inc.. --- BOOT.SYSTEM"
+        "--- BOOT DATA STRUCTURES ---"
+
+        2A88   20 74 68 65 20 
+        2A8D   70 6F 69 6E 74 
+        2A92   69 6E 67 0D 
+ 2337   2A96   64 65 76 69 63 		DB	"device you will be using:",EOL
+        2A9B   65 20 79 6F 75 
+        2AA0   20 77 69 6C 6C 
+        2AA5   20 62 65 20 75 
+        2AAA   73 69 6E 67 3A 
+        2AAF   0D 
+ 2338   2AB0   4A 29 6F 79 73 		DB	"J)oystick  M)ouse  N)either",EOL,EOL
+        2AB5   74 69 63 6B 20 
+        2ABA   20 4D 29 6F 75 
+        2ABF   73 65 20 20 4E 
+        2AC4   29 65 69 74 68 
+        2AC9   65 72 0D 0D 
+ 2339          0059        	MMSGL	EQU	$-MMSG
+ 2340   2ACD   0D 45 6E 74 65 	MSLT:	DB	EOL,"Enter the slot number in which the",EOL
+        2AD2   72 20 74 68 65 
+        2AD7   20 73 6C 6F 74 
+        2ADC   20 6E 75 6D 62 
+        2AE1   65 72 20 69 6E 
+        2AE6   20 77 68 69 63 
+        2AEB   68 20 74 68 65 
+        2AF0   0D 
+ 2341   2AF1   6D 6F 75 73 65 		db	"mouse card is installed >"
+        2AF6   20 63 61 72 64 
+        2AFB   20 69 73 20 69 
+        2B00   6E 73 74 61 6C 
+        2B05   6C 65 64 20 3E 
+ 2342          003D        	MSLTL	EQU	$-MSLT
+ 2343   2B0A   0D 53 6C 6F 74 	MSLTBAD: DB	EOL,"Slot number must be between",EOL
+        2B0F   20 6E 75 6D 62 
+        2B14   65 72 20 6D 75 
+        2B19   73 74 20 62 65 
+        2B1E   20 62 65 74 77 
+        2B23   65 65 6E 0D 
+ 2344   2B27   4F 4E 45 20 61 		db	"ONE and SEVEN!  Try again!",EOL
+        2B2C   6E 64 20 53 45 
+        2B31   56 45 4E 21 20 
+        2B36   20 54 72 79 20 
+        2B3B   61 67 61 69 6E 
+        2B40   21 0D 
+ 2345          0038        	MSLTBADL EQU	$-MSLTBAD
+ 2346   2B42   0D 56 65 72 73 	VERMSG: db      EOL,"Version: "
+        2B47   69 6F 6E 3A 20 
+ 2347          000A        	VERMSGL equ     $-VERMSG
+ 2348   2B4C               		END
+
+
+
+           Lines Assembled :  2348             Assembly Errors :  0
+
+
+

@@ -1,0 +1,110 @@
+To Build a Classic Game Disk for Commodore 64
+
+Using the TFTP disk on the Commmodore, FORMAT a new disk.
+Load "C64" from the TFTP disk.
+Take out the TFTP disk and insert the formatted disk, SAVE "STORY" to the
+new disk.
+LOAD TFTP and RUN it. Place the new disk in drive 8.  TN20 from the 20
+both the interpreter and the game file (image is for FOOBLITZKY).
+
+The first use of TFTP requires that the Commodore be kick started - that
+means that you must start the transfer, but after about 10 seconds if using
+2 lines, 40 seconds if using 1 line, CTRL-Z out of the TN20, RESET and start
+it again. There is no need to restart anything on the Commodore, it is still
+waiting for you.  Just start the transfer from the 20 again and everything will
+go ok this time.  The reason to wait is that sometimes it actually works on the
+first try (not often, but sometimes) so you have to make sure it failed.
+Also, the first transfer is the only time you need do this, every other file
+will transfer immediately as long as you continue to do transfers and do not
+reboot the machine or use it for other purposes.
+
+Note: The Commodore screen will go blank during the transfer, the only way to 
+make sure the transfer is progressing is to look at the 20 terminal (if you 
+have 2 lines), or to look at the drives, if the light comes on periodically 
+the transfer is working. After the transfer is through the screen will come
+back telling you all is ok and the next available sector on the disk.
+
+If the drive light starts blinking rapidly something is wrong - check that the
+disk is not write protected & the drive is closed, otherwise the disk was
+not formatted correctly, try again.  Note that the transfer may otherwise
+appear to go fine (A's appearing on 20 terminal). The transfer doesn't
+recognize disk write problems.
+
+If the transfer fails on the Commodore end or if after starting it you realize
+you hit the wrong key, you must reboot the machine and reload in TFTP.
+
+
+
+TO TRANSFER WITH ONE LINE you start the TFTP on the Commodore up to the point
+where it says hit return and the screen will go blank. Then reset the terminal 
+on the 20 to 1200 baud. (type TE SP 1200 and you will get gibberish on the 
+screen then reset the terminal speed to 1200 itself). This is easier for the 
+first transfer where you must cancel and restart the 20.  Then type TN20, Send,
+the filename, and the line is TTY- <esc> (TTY dash) ; the full is 
+TTY-SET-SPEED. You will then be asked the speed. Type 1200 <ret> and the 
+computer will respond that it will begin sending in 30 seconds. Remove the 
+line from the terminal and attach it to the Commodore, hit <ret> on the 
+Commodore , wait 40 seconds.  If the drive light is not coming on
+detach the line and reattach it to the 20 terminal.  Type CTRL-Z and RESET 
+then restart the TN20 and follow through with the same responses. This time
+the Commodore drive light should start coming on periodically. If not something
+is wrong, check all connections on the Commodore, make sure that the black box
+and connecting cable are securely attached.  IF MORE THAN 1 FILE IS BEING 
+TRANSFERRED YOU WILL NOT NEED TO START THE TRANSFER TWICE FOR FILES AFTER THE
+FIRST HAS BEEN SENT.
+
+
+COMMODORE EZIP
+
+Building a Commodore 128 disk.  
+
+Use SPLIT on the 20 to split the game at 88064 giving you .PRE and .PUR
+files. The game name must have a .ZIP extension, but don't type it in.
+(SPLIT filename/88064)
+
+Format the disk using the FORMAT program on the C-128 TFTP disk. The name
+on side 1 must be the game name and on side 2 "SIDE 2".
+
+Load "TFTP-EZIP" from the TFTP disk, press E to transfer the interpreter, 
+1 to transfer the .PRE file to side 1, then flip the disk and press 2 to
+transfer the .PUR file.
+
+Remember: The C-64 has to be kick-started for transfers, just start the 
+transfer, wait 10 secs (if using 2 lines, 35 seconds if using 1 line) then
+CTRL-Z to abort on the 20 and without restarting on the Commodore, reset the 20
+and send the file again. This needs to be done for the 1st transfer only, and 
+sometimes that actually works too.
+The baud rate is 1200.
+Use the C64 in micro room with the RS232 box to make the transfer.
+
+
+
+LOWER CASE EZIP (LZIP)
+
+Building a Commodore 64 disk.  
+
+Use NSPLIT on the 20 to split the game at 44800 giving you .PRE and .PUR
+files.  (NSPLIT filename/44800)
+Format the disk using the FORMAT program on the C-128 TFTP disk. The name
+on side 1 must be "Infocom-s1" and on side 2 "Infocom-s2".
+Load "LZIP-LOAD" from the TFTP disk, save it to the game disk on side 1 as
+"STORY". (LOAD "LZIP-LOAD",8     SAVE "STORY",8)
+Load "TFTP" from the TFTP disk, then:
+on side 1:
+	(L) transfer the Lzip interpreter
+	(E) transfer the CBD Ezip interpreter
+	(1) transfer the .PRE file
+flip the disk to side 2 and:
+	(F) transfer the FASTCODE.BIN file 
+	(3) transfer the .PUR file (special for this disk so 3 not 2)
+
+Remember: The C-64 has to be kick-started for transfers, just start the 
+transfer, wait 10 secs (if using 2 lines, 35 seconds if using 1 line) then
+CTRL-Z to abort on the 20 and without restarting on the Commodore, reset the 20
+and send the file again. This needs to be done for the 1st transfer only, and 
+sometimes that actually works too.
+The baud rate is 1200.
+
+
+
+

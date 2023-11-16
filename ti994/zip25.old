@@ -1,0 +1,395 @@
+* FILE ZIP25.ASM
+
+* I/O OPERATIONS *****************************************************
+
+        RORG
+        DEF  OPUSL,OPREAD
+        DEF  OPPRNC,OPPRNN,OPPRIN,OPPRNB
+        DEF  OPPRND,OPPRNI,OPPRNR,OPCRLF
+
+        REF  RDWSTR,RDBOS,RDEOS,RDRET,RDNWDS
+        REF  RBRKS,ESIBKS,VWORDS,VWLEN,VOCBEG,ZPC1,ZPC2
+        REF  JSR,BUFFER
+
+        REF  TSTSCR,BUFOUT,GETCHR,PRIN1,OUTCHR,OUTSTR
+        REF  ZWORD,GTAWRD,PTAWRD,PUTCHR,BSPLIT,BSPLTB
+        REF  OBJLOC,PUTSTR,NEWZPC,OPRTRU,NEWLIN
+        REF  CHRPTR,OUTBUF
+
+EOLCHR  EQU  >000D           ASCII "CR" ON TI
+
+* USL (UPDATE STATUS LINE)
+
+MOVVAR  EQU  18              NUMBER OF MOVES GLOBAL
+SCRVAR  EQU  17              SCORE VARIABLE
+RMVAR   EQU  16              CURRENT ROOM VARIABLE
+
+OPUSL   MOV  *R6+,R11
+        B    *R11            FOR NOW, JUST RETURN
+
+* READ (A LINE OF INPUT AND PARSE IT)
+*    LINE BUF IN R0, RETURN BUF IN R1
+
+OPREAD  DECT R6
+        MOV  R0,*R6
+        DECT R6
+        MOV  R1,*R6          SAVE ARGS
+
+        BL   @JSR
+        DATA  OPUSL          UPDATE STATUS LINE
+
+        MOV  *R6+,R1         RESTORE RETURN BUF
+        BL   @JSR
+        DATA  TSTSCR         TEST FOR SCRIPTING, UPDATE FLAGS
+
+        LI   R8,>8000        "END-OF-STRING"
+        MOV  @CHRPTR,R9
+        MOVB R8,*R9          DON'T END OUTPUT, IF ANY, WITH NEW LINE
+
+X321    BL   @JSR
+        DATA  BUFOUT         FORCE OUT ANY QUEUED TEXT
+
+        CLR  R8
+        MOV  @CHRPTR,R9
+        MOVB R8,*R9          RESTORE CRLF CHARACTER
+
+        MOV  @OUTBUF,@CHRPTR   RESET CHARACTER POINTER
+
+        MOV  *R6+,R2         RESTORE INPUT BUF POINTER
+        AI   R2,BUFFER       ABSOLUTIZE IT
+        MOV  R2,R4
+
+        CLR  R3
+        MOVB *R2+,R3
+        SWPB R3              MAX NUMBER OF CHARS TO GET
+
+X322    BL   @JSR
+        DATA  GETCHR         INPUT A CHARACTER
+
+        CI   R0,EOLCHR       END OF THE LINE?
+        JEQ  X325            YES
+
+        CI   R0,'A'          NO, UPPERCASE?
+        JLT  X323            NO
+        CI   R0,'Z'
+        JGT  X323            NO
+        AI   R0,32           YES, LOWERCASIFY IT
+
+X323    SWPB R0
+        MOVB R0,*R2+         SAVE IN LINE BUFFER
+        DEC  R3              
+        JGT  X322            LOOP UNTIL BUFFER FULL (OR EOL)
+
+        BL   @JSR
+        DATA  GETCHR         BUF FULL, LAST CHANCE FOR EOL
+        CI   R0,EOLCHR       IS IT?
+        JEQ  X325            YES, WIN
+
+        DECT R6              NO, INFORM LOSER
+        MOV  R0,*R6
+
+        BL   @JSR
+        DATA  PRIN1
+        TEXT 'INPUT LINE TOO LONG, FLUSHING: '
+        TEXT '$'
+        EVEN
+
+        MOV  *R6+,R0         RESTORE
+
+X324    BL   @JSR
+        DATA  OUTCHR         AND FLUSH REST OF LINE
+
+        BL   @JSR
+        DATA  GETCHR
+
+        CI   R0,EOLCHR
+        JNE  X324
+        BL   @JSR
+        DATA  OUTCHR
+
+X325
+
+* ///////////////////////////
+
+* ///////////////////////////
+
+X327    DECT R6
+        MOV  R5,*R6          SAVE R5
+
+        MOV  R4,@RDBOS       INITIALIZE RDBOS
+        MOV  R2,@RDEOS          AND RDEOS
+
+        AI   R1,BUFFER       ABSOLUTIZE RET POINTER
+        MOV  R1,@RDRET       AND STORE IT
+
+        CLR  @RDNWDS         NO WORDS SO FAR
+        INC  R4              SKIP LENGTH BYTE
+
+        MOV  R1,R5           THIS WILL BE WORD ENTRY PTR
+        INCT R5              SKIP "MAX WORDS" AND "NWORDS" BYTES
+
+X328    LI   R3,RDWSTR       HERE FOR NEXT WORD, POINT TO WORD STRING
+        MOV  R4,R1           AND SAVE BEG OF WORD POINTER
+
+X329    C    R4,@RDEOS       END OF STRING?
+        JNE  X330            NO
+        CI   R3,RDWSTR       YES, WAS A WORD FOUND?
+        JEQ  X343            NO, WE'RE DONE
+        JMP  X335            YES, WE STILL HAVE TO LOOKUP WORDS
+*--------------------------------------------------------------------------
+X330    MOVB *R4+,R0         GET NEXT CHAR FROM BUFFER
+        MOV  @RBRKS,R2       LIST OF "READ BREAK" CHARS
+
+X331    CB   R0,*R2+         SEARCH LIST FOR THIS ONE
+        JEQ  X332            FOUND IT
+        MOVB *R2,*R2         END OF LIST?
+        JNE  X331            NO, CONTINUE SEARCH
+
+        LI   R8,RDWSTR       YES, NOT A BREAK,
+        AI   R8,6
+        C    R3,R8           WORD STRING FULL?
+        JEQ  X329            YES, LOOP UNTIL END OF WORD
+
+        MOVB R0,*R3+         NO, TACK THIS CHAR ONTO STRING
+        JMP  X329            AND LOOP
+*-----------------------------------------------------------------------
+X332    CI   R3,RDWSTR       WORD READ BEFORE THIS BREAK?
+        JNE  X334            YES
+        C    R2,@ESIBKS      NO, BUT IS IT A SELF-INS BREAK?
+        JLE  X333            YES
+        INC  R1              NO, UPDATE BEG OF WORD TO SKIP BREAK
+        JMP  X329            AND RETURN TO WORD-FINDING LOOP
+
+X333    MOVB R0,*R3+         STORE THE BREAK IN WORD STRING
+        JMP  X335            AND GO FOR THE WORD
+
+X334    DEC  R4              UNREAD TERMINATING BREAK IN CASE IT WAS SI
+X335    INC  @RDNWDS         INCREMENT FOUND-WORD COUNT
+
+        MOV  @RDNWDS,R8
+        SWPB R8
+        MOV  @RDRET,R9
+        CB   R8,*R9          GREATER THAN MAX ALLOWED?
+        JLT  X336            NO
+        JEQ  X336            NO
+
+        BL   @JSR            YES, INFORM LOSER
+        DATA  PRIN1
+        TEXT 'TOO MANY WORDS TYPED, FLUSHING: '
+        TEXT '$'
+        EVEN
+
+        MOV  R1,R0           BEGINNING OF THIS WORD
+        MOV  @RDEOS,R8
+        MOVB *R8,R1          SAVE BYTE AFTER EOS
+
+        CLR  R9
+        MOVB R9,*R8          ZERO IT TO MAKE STRING ASCIZ
+        BL   @JSR
+        DATA  OUTSTR         PRINT IT
+
+        MOV  @RDEOS,R8
+        MOVB R1,*R8          AND RESTORE OLD BYTE
+
+        DEC  @RDNWDS         REMEMBER THAT WE FLUSHED THIS WORD
+        JMP  X343            AND WE'RE DONE
+
+X336    MOV  R1,R0           CALCULATE NO. OF CHARS IN WORD
+        NEG  R0
+        A    R4,R0
+        SWPB R0
+        MOVB R0,@2(R5)       SAVE THE NUMBER IN RET TABLE
+
+        S    @RDBOS,R1       BYTE OFFSET FOR BEG OF WORD
+        SWPB R1
+        MOVB R1,@3(R5)       STORE IT, TOO
+
+        CLR  R9
+        MOVB R9,*R3          MAKE WORD STRING ASCIZ
+        LI   R0,RDWSTR       POINT TO IT
+        BL   @JSR
+        DATA  ZWORD          AND CONVERT TO (2 WORD) ZWORD
+
+        DECT R6
+        MOV  R4,*R6          SAVE CHAR POINTER
+        DECT R6
+        MOV  R5,*R6          AND WORD ENTRY POINTER
+
+        MOV  R0,R4           FIRST ZWORD WORD
+        MOV  R1,R5           SECOND ZWORD WORD
+
+        MOV  @VWORDS,R2      NUMBER OF VOCABULARY WORDS
+        MOV  R2,R8
+        DEC  R8              WE WANT TO POINT TO LAST WORD
+        MPY  @VWLEN,R8       MULT BY WORD LENGTH IN BYTES
+
+        A    @VOCBEG,R9      FIND THE LAST WORD (R8 = 0 NOW)
+        MOV  R9,R3           SAVE
+
+        MOV  @VWLEN,R1       CALC INITIAL OFFSET FOR BINARY SEARCH
+        SRA  R2,1
+
+X337    SLA  R1,1
+        SRA  R2,1
+        JNE  X337
+
+        MOV  @VOCBEG,R2      BEGINNING OF WORD TABLE
+        A    R1,R2           ADD CURRENT OFFSET (HALF OF POWER-OF-2 TABLE)
+        S    @VWLEN,R2       AVOID FENCE-POST BUG FOR EXACT POWER-OF-2 TABLE
+
+X338    SRA  R1,1            NEXT OFFSET WILL BE HALF OF PREVIOUS ONE
+        MOV  R2,R0
+        BL   @JSR
+        DATA  GTAWRD         GET FIRST HALF OF CURRENT ZWORD
+
+        C    R4,R0           COMPARE DESIRED ONE TO IT
+        JH   X339            GREATER, WE'LL HAVE TO MOVE UP
+        JL   X340            LESS, WE'LL HAVE TO MOVE DOWN
+
+        MOV  R2,R0           SAME, WE'VE FOUND IT
+        INCT R0
+        BL   @JSR
+        DATA  GTAWRD         GET SECOND HALF
+
+        C    R5,R0           COMPARE DESIRED WORD WITH IT
+        JH   X339            GREATER, WE'LL HAVE TO MOVE UP
+        JL   X340            LESS, WE'LL HAVE TO MOVE DOWN
+
+        LI   R8,BUFFER       SAME, WE'VE FOUND IT
+        S    R8,R2           RELATIVIZE POINTER
+        JMP  X342            AND RETURN IT
+
+X339    A    R1,R2           TO MOVE UP, ADD CURRENT OFFSET
+        C    R2,R3           HAVE WE MOVED PAST END OF TABLE?
+        JLE  X341            NO
+        MOV  R3,R2           YES, POINT TO END OF TABLE INSTEAD
+        JMP  X341
+
+X340    S    R1,R2           TO MOVE DOWN, SIMPLY SUBTRACT OFFSET
+X341    C    R1,@VWLEN       IS OFFSET RESOLUTION BELOW 1 WORD?
+        JGT  X338            NO, CONTINUE LOOP
+        JEQ  X338            NO
+        CLR  R2              YES, WORD NOT FOUND, RETURN ZERO
+
+X342    MOV  *R6+,R5         RESTORE WORD ENTRY PTR
+        MOV  *R6+,R5         RESTORE CHAR PTR
+
+        MOV  R5,R0           PTR TO WORD FOUND GOES HERE
+        MOV  R2,R1           THE POINTER
+        BL   @JSR
+        DATA  PTAWRD         STORE IT
+
+        AI   R5,4            UPDATE POINTER FOR NEXT WORD ENTRY
+        B    @X328           GO FOR IT
+
+X343    INC  @RDRET          DONE
+        LI   R8,@RDRET
+        MOVB @RDNWDS,*R8     STORE NO. OF WORDS FOUND
+
+        MOV  *R6+,R5         RESTORE USER STACK POINTER
+        MOV  *R6+,R11
+        B    *R11            AND RETURN
+
+*--------------------------------------------------------------------------
+
+* PRINTC (PRINT CHAR WHOSE ASCII VALUE IS GIVEN)
+
+OPPRNC  B    @PUTCHR         QUEUE THE CHAR FOR PRINTING
+
+* PRINTN (PRINT A NUMBER)
+
+OPPRNN  MOV  R0,R1           NUMBER TO PRINT
+        JNE  X344            NON-ZERO
+        LI   R0,'0'          SPECIAL CASE ZERO
+        B    @PUTCHR
+
+X344    JGT  X345            POSITIVE?
+        LI   R0,'-'          NO, PRINT MINUS SIGN
+        BL   @JSR
+        DATA  PUTCHR         
+        NEG  R1              AND MAKE IT POSITIVE
+
+X345    CLR  R2              COUNT OF DIGITS ON STACK
+        LI   R8,10
+        JMP  X337            START WITH GREATER-THAN-10 TEST
+
+X346    CLR  R0
+        DIV  R8,R0           EXTRACT A DIGIT
+        DECT R6
+        MOV  R1,*R6          PUSH THE DIGIT (THE REMAINDER)
+
+        INC  R2              BUMP UP COUNT
+        MOV  R0,R1           GET (THE QUOTIENT)
+
+X347    C    R1,R8           MORE DIGITS TO EXTRACT?
+        JGT  X346            YES, GO LOOP
+        JEQ  X346            YES, GO LOOP
+        MOV  R1,R0           NO, GET LAST (FIRST) DIGIT
+        JMP  X349            (DIGIT ALREADY IN PLACE)
+
+X348    MOV  *R6+,R0         POP NEXT DIGIT
+X349    AI   R0,'0'          ASCIIZE IT
+        BL   @JSR
+        DATA  PUTCHR         QUEUE IT
+
+        DEC  R2              REDUCE DIGIT COUNT
+        JGT  X348            LOOP IF SOME LEFT
+        JEQ  X348            LOOP IF SOME LEFT
+
+        MOV  *R6+,R11
+        B    *R11            ELSE, RETURN
+
+* PRINT (THE STRING POINTED TO)
+
+OPPRIN  BL   @JSR
+        DATA  BSPLIT         SPLIT THE BLOCK AND WORD NOS
+        B    @PUTSTR         PRINT STRING
+
+* PRINTB (PRINT THE STRING POINTED TO BY THE BYTE-POINTER)
+
+OPPRNB  BL   @JSR
+        DATA  BSPLTB         SPLIT THE BLOCK AND BYTE NOS
+        B    @PUTSTR         PRINT THE STRING
+
+* PRINTD (PRINT OBJ'S SHORT DESCRIPTION)
+
+OPPRND  BL   @JSR
+        DATA  OBJLOC         FIND OBJ'S LOCATION
+
+        AI   R0,7            PROP TABLE POINTER
+        BL   @JSR
+        DATA  GTAWRD         GET IT
+
+        INC  R0              POINT TO THE STRING
+        BL   @JSR
+        DATA  BSPLTB         SPLIT POINTER
+        B    @PUTSTR         AND PRINT THE STRING
+
+* PRINTI (PRINT THE STRING FOLLOWING THIS INSTRUCTION)
+
+OPPRNI  MOV  @ZPC1,R0        GET POINTER TO STRING
+        MOV  @ZPC2,R1
+
+        BL   @JSR
+        DATA  PUTSTR         AND PRINT IT
+
+        MOV  R0,@ZPC1        UPDATE ZPC
+        MOV  R1,@ZPC2
+        B    @NEWZPC
+
+* PRINTR (PRINTI FOLLOWED BY RTRUE)
+
+OPPRNR  BL   @JSR
+        DATA  OPPRNI         DO A PRINTI
+
+        BL   @JSR
+        DATA  OPCRLF         A CR/LF
+        B    @OPRTRU         AND AN RTRUE
+
+* CRLF (DO A NEWLINE)
+
+OPCRLF  B    @NEWLIN         DO A NEWLINE
+
+
+        END
+

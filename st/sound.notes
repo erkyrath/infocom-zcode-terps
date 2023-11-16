@@ -1,0 +1,22 @@
+
+Comments re the design of digitized sounds for Infocom games
+Duncan Blanchard  3/11/88
+
+    1. File size.  Each time a sound is loaded from disk, a dead
+space occurs in the game.  The shorter the better, particularly for 
+sounds that are encountered many times (e.g. Horse).  A 10K file 
+is noticeably quicker to load than 50K.
+
+    2. Sample rate.  Should be under 14K samples/sec in all cases.
+On the Amiga higher frequencies are suppressed by the hardware anyway,
+and on the ST higher rates bog down the cpu.  The rate should be
+the minimum that produces acceptable quality, since lower rates also
+reduce the file size.  A 10K rate is sufficient for many sounds.  
+
+    3. Amplitude.  Should be adjusted for each sound to avoid 
+extremes of quietness and loudness.  Extremes (e.g. Snore, Crowd) 
+cause the user to reach for the volume control (not convenient
+on a Mac).  There's no internal control over volume on the ST.  
+Also, small amplitudes on the ST make the background hiss stand out 
+more.  In general want to use most of the dynamic range.  Avoid 
+clipping (e.g. Heart).

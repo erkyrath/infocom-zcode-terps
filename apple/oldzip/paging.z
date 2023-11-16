@@ -1,0 +1,205 @@
+O^u g% .TITLE  "ZORK - PAGING ROUTINES"
+ .PAGE
+ 
+ NEXTPC: LDA     ZPCFLG          ;HAS PAGE MOVED?
+	 BEQ     NXTPC1          ;PAGE HAS MOVED
+         LDY     ZPCL
+	 LDA     @ZPCPNT,Y       ;GET VALUE
+         INY                     ;UPDATE POINTER
+	 STY     ZPCL
+	 BEQ     $1              ;OK IF Y NOT ZERO
+	 RTS
+ 
+ $1      LDY     #FALSE          ;CROSSED 256 BYTE BOUNDARY
+         STY     ZPCFLG          ;BAD DATA IN PCPNT,
+@; WILL HAVE TO FETCH NEW BLOCK
+	 INCW    ZPCH            ;INCREMENT ZPC HIGH
+	 RTS                     ;RETURN, TROUBLE NEXT TIME
+ 
+ NXTPC1: LDA     ZPCH+HI         ;GET ZPAGE NUMBER
+	 BNE     NXTPCH
+	 LDA     ZPCH+LO
+	 CMP     ZMEMT           ;TOP OF LOW MEM
+	 BCC     NXTPCL
+ NXTPCH  MOVEW   ZPCH,TEMP
+         JSR     FNDPGE
+	 STA     ZPCPG           ;STORE PAGE
+	 BCS     NXTPC2          ;COULD NOT FIND PAGE, SWAP IT IN
+ 
+ NXTPC3: JSR     SPLICE          ;PUT AT TOP OF LIST
+	 CLC
+	 LDA     ZPCPG           ;SET UP POINTER TO PAGE
+	 ADC     ZMEMT           ;POINTER TO BEGINNING OF PAGE BUFFERS
+ 
+ NXTPCL: CLC
+	 ADC     ZCODEP+HI       ;ADD IN OFFSET
+	 STA     ZPCPNT+HI
+	 LDA     #0
+	 STA     ZPCPNT+LO       ;ZPCPNT NOW HAS POINTER TO BEG OF BUFFER
+	 LDA     #TRUE
+	 STA     ZPCFLG
+	 JMP     NEXTPC          ;TRY AGAIN, THIS TIME IT WILL NOT FAIL
+ 
+ NXTPC2: CMP     MPCPG           ;CHECK IF DESTROYING MPC
+	 BNE     NXTPC4          ;NOT DESTROYING PAGE
+	 LDA     #FALSE
+	 STA     MPCFLG
+ 
+ NXTPC4: MOVEW   PGBUFP,TEMP
+	 LDA     ZPCPG
+	 CLC
+	 ADC     TEMP+HI
+	 STA     TEMP+HI           ;POINTER TO BEGINNING OF BUFFER
+	 MOVEW   ZPCH,VAL
+	 JSR     GETDSK
+	 LDY     ZPCPG
+	 LDA     ZPCH+LO
+	 STA     @PGTBL,Y         ;SET PAGE TABLE ENTRY
+	 LDA     ZPCH+HI
+	 STA     @PGTBH,Y
+	 TYA
+	 JMP     NXTPC3          ;PAGE NOW IN MEMORY
+ 
+ SETWRD: LDA     TEMP+LO
+	 STA     MPCL
+         LDA     TEMP+HI
+	 STA     MPCH+LO
+	 LDA     #0
+	 STA     MPCH+HI
+ SETWR1: LDA     #FALSE
+	 STA     MPCFLG
+	 RTS
+ 
+ SETSTR: LDA     TEMP+LO
+	 ASL     A
+	 STA     MPCL
+	 LDA     TEMP+HI
+	 ROL     A
+	 STA     MPCH+LO
+	 LDA     #0
+	 ROL     A
+	 STA     MPCH+HI
+	 JMP     SETWR1
+ 
+ GETWRD  JSR     GETBYT
+	 PHA
+	 JSR     GETBYT          ;GET A FULL WORD
+	 STA     TEMP+<HI^INVERT>
+	 PLA
+	 STA     TEMP+<LO^INVERT>
+	 RTS
+ 
+ GETBYT  LDA     MPCFLG          ;HAS PAGE MOVED?
+	 BEQ     GETBT1          ;PAGE HAS MOVED
+	 LDY     MPCL
+	 LDA     @MPCPNT,Y       ;GET VALUE
+	 INY
+	 STY     MPCL            ;STORE BACK POINTER
+	 BEQ     $1              ;OK IF Y NOT ZERO
+	 RTS
+ 
+ $1      LDY     #FALSE          ;CROSSED 256 BYTE BOUNDARY
+         STY     MPCFLG          ;BAD DATA IN PCPNT,
+@; WILL HAVE TO FETCH NEW BLOCK
+	 INCW    MPCH            ;INCREMENT MPC HIGH
+	 RTS                     ;RETURN, TROUBLE NEXT TIME
+ 
+ GETBT1  LDA     MPCH+HI         ;GET MPAGE NUMBER
+	 BNE     GETBTH
+	 LDA     MPCH+LO
+ GTBCMP  .EQU    *+1             ;PATCH LOCATION FOR VERIFY
+	 CMP     ZMEMT           ;TOP OF LOW MEM
+	 BCC     GETBTL
+ GETBTH  MOVEW   MPCH,TEMP
+	 JSR     FNDPGE
+	 STA     MPCPG           ;STORE PAGE
+	 BCS     GETBT2          ;COULD NOT FIND PAGE, SWAP IT IN
+ 
+ GETBT3: JSR     SPLICE          ;PUT AT TOP OF LIST
+	 CLC
+	 LDA     MPCPG           ;SET UP POINTER TO PAGE
+	 ADC     ZMEMT           ;POINTER TO BEGINNING OF PAGE BUFFERS
+ 
+ GETBTL: CLC
+	 ADC     ZCODEP+HI       ;ADD IN OFFSET
+	 STA     MPCPNT+HI
+	 LDA     #0
+	 STA     MPCPNT+LO       ;ZPCPNT NOW HAS POINTER TO BEG OF BUFFER
+	 LDA     #TRUE
+	 STA     MPCFLG
+	 JMP     GETBYT          ;TRY AGAIN, THIS TIME IT WILL NOT FAIL
+ 
+ GETBT2  CMP     ZPCPG           ;CHECK IF DESTROYING ZPC
+	 BNE     $1
+         LDA     #FALSE
+	 STA     ZPCFLG
+ $1      MOVEW   PGBUFP,TEMP
+	 LDA     MPCPG
+	 CLC
+	 ADC     TEMP+HI
+	 STA     TEMP+HI           ;POINTER TO BEGINNING OF BUFFER
+	 MOVEW   MPCH,VAL
+	 JSR     GETDSK
+	 LDY     MPCPG
+	 LDA     MPCH+LO
+	 STA     @PGTBL,Y         ;SET PAGE TABLE ENTRY
+	 LDA     MPCH+HI
+	 STA     @PGTBH,Y
+	 TYA
+	 JMP     GETBT3          ;PAGE NOW IN MEMORY
+ 
+ SPLICE  CMP     PGTOP           ;SPLICE PAGE IN A TO TOP OF LIST
+	 BEQ     $1
+	 LDX     PGTOP           ;OLD TOP IN X
+	 STA     PGTOP           ;NEW TOP
+         TAY
+	 LDA     @PGTBLF,Y       ;OLD FORWARD POINTER
+	 STA     TEMP
+	 TXA                     ;NEW FORWARD TO OLD TOP
+	 STA     @PGTBLF,Y
+	 LDA     @PGTBLB,Y       ;GETS OLD BACK POINTER
+	 STA     TEMP+1
+	 LDA     #0FF            ;TOP HAS NO BACK
+	 STA     @PGTBLB,Y
+	 LDY     TEMP+1
+	 LDA     TEMP
+	 STA     @PGTBLF,Y       ;PATCH FORWARD POINTER
+	 TXA
+	 TAY
+	 LDA     PGTOP
+	 STA     @PGTBLB,Y
+	 LDA     TEMP
+	 CMP     #0FF
+	 BEQ     SPLIC1          ;WAS LAST BLOCK WITHOUT FORWARD POINTER
+	 TAY
+	 LDA     TEMP+1
+	 STA     @PGTBLB,Y       ;SPLICE BACK POINTER
+ $1      RTS
+ 
+ SPLIC1  LDA     TEMP+1
+	 STA     PGBOT           ;NEW BOTTOM OF LIST
+	 RTS
+ 
+ FNDPGE  LDX     NPGS            ;FIND PAGE IN TEMP,
+@;RETURN WITH CARRY SET IF NOT FOUND.
+@;A WILL HAVE FOUND PAGE
+@;OR BOTTOM OF PAGE LIST
+	 LDY     #0
+	 LDA     TEMP+LO
+ FNDPGL  CMP     @PGTBL,Y
+	 BNE     FNDPG2          ;NO MATCH
+	 LDA     TEMP+HI
+	 CMP     @PGTBH,Y
+	 BEQ     FNDPG1          ;SUCCESS
+	 LDA     TEMP+LO
+ FNDPG2  INY
+	 DEX
+	 BNE     FNDPGL
+	 LDA     PGBOT           ;NOT FOUND
+	 SEC                     ;SET CARRY AND RETURN BOTTOM
+	 RTS
+ 
+ FNDPG1  TYA
+	 CLC
+	 RTS                     ;CLEAR CARRY AND RETURN
+ 

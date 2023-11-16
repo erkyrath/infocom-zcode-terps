@@ -1,0 +1,112 @@
+* FILE ZIP30-ASM
+
+* CONTROL OPERATIONS *************************************** ************
+
+        RORG
+        DEF  OPCALL,OPRETU,OPRTRU,OPRFAL,OPJUMP
+        DEF  OPRSTA,OPFSTA,OPNOOP
+
+        REF  PUTVAL,BSPLIT,NEWZPC,NXTBYT,NXTWRD
+        REF  ZPC1,ZPC2,ZLOCS
+        REF  STKBOT
+
+* CALL (A FUNCTION WITH OPTIONAL ARGUMENTS)
+
+OPCALL  NOP                  TELL CALLER TO USE ARG BLOCK
+        MOV  R0,R2           SAVE ARGUMENT BLOCK POINTER
+        MOV  @2(R2),R0       FUNCTION TO CALL
+        JNE  X351            ZERO?
+        CLR  R0              YES, SIMPLY RETURN A ZERO
+        B    @PUTVAL
+
+X351    DECT R5
+        MOV  @ZPC1,*R5       OTHERWISE, SAVE OLD ZPC
+        DECT R5
+        MOV  @ZPC2,*R5
+
+        DECT R5
+        MOV  @ZLOCS,*R5      AND OLD LOCAL POINTER 
+        S    @STKBOT,*R5     BUT RELATIVIZE IT IN CASE OF SAVE
+
+        BL   @JSR
+        DATA  BSPLIT         SPLIT FUNCTION POINTER
+
+        MOV  R0,@ZPC1
+        MOV  R1,@ZPC2        MAKE IT THE NEW ZPC
+        BL   @JSR
+        DATA  NEWZPC         UPDATE ZPC STUFF
+
+        MOV  R5,@ZLOCS       
+        DECT @ZLOCS          LOCS WILL START AT NXT STK SLOT
+
+        BL   @JSR
+        DATA  NXTBYT         NUMBER OF LOCALS
+        MOV  R0,R1           SAVE IT
+
+        MOV  *R2,R3          NUMBER OF ARGS TO CALL
+        AI   R2,4            POINT TO FIRST OPTIONAL ARG
+
+X352    DEC  R1              ANY MORE LOCALS?
+        JLT  X354            NO, WE'RE DONE
+
+        BL   @JSR
+        DATA  NXTWRD         YES, GET NEXT LOCAL DEFAULT VAL
+
+        DECT R5              (PREPARE ZSTACK FOR PUSH)
+        DEC  R3              ARE MORE OPTIONALS GIVEN?
+        JGT  X353            YES
+        MOV  R0,*R5          NO, USE DEFAULT
+        JMP  X352            AND LOOP
+
+X353    MOV  *R2+,*R5        USE ITS VALUE
+        JMP  X352            AND LOOP
+
+X354    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* RETURN (FROM CURRENT FUNCTION CALL)
+
+OPRETU  MOV  @ZLOCS,R5       RESTORE OLD TOP OF STACK
+        INCT R5
+
+        MOV  *R5+,@ZLOCS     RESTORE OTHER VALUES
+        A    @STKBOT,@ZLOCS  RE-ABSOLUTIZE THIS ONE
+
+        MOV  *R5+,@ZPC2   
+        MOV  *R5+,@ZPC1
+
+        DECT R6
+        MOV  R0,*R6          SAVE R0
+
+        BL   @JSR
+        DATA  NEWZPC         UPDATE ZPC STUFF
+
+        MOV  *R6+,R0         RESTORE R0
+        B    @PUTVAL         RETURN THE VALUE
+
+* RTRUE
+OPRTRU  LI   R0,1            RETURN A "1"
+        JMP  OPRETU
+
+* RFALSE
+OPRFAL  CLR  R0              RETURN A "0"
+        JMP  OPRETU
+
+* JUMP (TO A NEW LOCATION)
+OPJUMP  A    R0,@ZPC2        ADD OFFSET TO CURRENT ZPC
+        DECT @ZPC2           ADJUST IT
+        B    @NEWZPC         NORMALIZE IT, UPDATE ZPC STUFF
+
+* RSTACK (RETURN STACK)
+OPRSTA  MOV  *R5+,R0         POP A VALUE
+        JMP  OPRETU          AND RETURN IT
+
+* FSTACK (FLUSH A VALUE OFF THE STACK)
+OPFSTA  INCT R5              FLUSH ONE
+        MOV  *R6+,R11
+        B    *R11            AND RETURN
+
+* NOOP (NO OPERATION)
+OPNOOP  MOV  *R6+,R11
+        B    *R11            DO NOTHING AND RETURN
+

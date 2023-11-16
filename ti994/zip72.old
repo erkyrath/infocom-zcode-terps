@@ -1,0 +1,124 @@
+* FILE ZIP72-ASM
+
+**********************************************************
+* OPERATION TABLES                                       *
+**********************************************************
+
+*       ;ZERO ARGUMENT OPERATIONS
+
+ZEROOP
+ONEOP
+EXTOP
+
+        END
+
+//////////////////////////////////////////////////////////
+
+ZEROOP  DATA OPRTRU                        ;176
+        DATA OPRFAL                        ;177
+        DATA OPPRNI                        ;178
+        DATA OPPRNR                        ;179
+        DATA OPNOOP                        ;180
+        DATA OPSAVE                        ;181
+        DATA OPREST                        ;182
+        DATA OPRSTT                        ;183
+        DATA OPRSTA                        ;184
+        DATA OPFSTA                        ;185
+        DATA OPQUIT                        ;186
+        DATA OPCRLF                        ;187
+        DATA OPUSL                         ;188
+        DATA OPVERI                        ;189
+        DATA 0                             ;190
+        DATA 0                             ;191
+
+*       ;ONE ARGUMENT OPERATIONS
+
+ONEOP   DATA OPQZER                        ;128
+        DATA OPQNEX                        ;129
+        DATA OPQFIR                        ;130
+        DATA OPLOC                         ;131
+        DATA OPPTSI                        ;132
+        DATA OPINC                         ;133
+        DATA OPDEC                         ;134
+        DATA OPPRNB                        ;135
+        DATA 0                             ;136
+        DATA OPREMO                        ;137
+        DATA OPPRND                        ;138
+        DATA OPRETU                        ;139
+        DATA OPJUMP                        ;140
+        DATA OPPRIN                        ;141
+        DATA OPVALU                        ;142
+        DATA OPBCOM                        ;143
+
+*       ;TWO ARGUMENT AND EXTENDED ARGUMENT DATA OPERATIONS
+
+EXTOP   DATA 0                             ;0
+        DATA OPQEQU                        ;1
+        DATA OPQLES                        ;2
+        DATA OPQGRT                        ;3
+        DATA OPQDLE                        ;4
+        DATA OPQIGR                        ;5
+        DATA OPQIN                         ;6
+        DATA OPBTST                        ;7
+        DATA OPBOR                         ;8
+        DATA OPBAND                        ;9
+        DATA OPQFSE                        ;10
+        DATA OPFSET                        ;11
+        DATA OPFCLE                        ;12
+        DATA OPSET                         ;13
+        DATA OPMOVE                        ;14
+        DATA OPGET                         ;15
+        DATA OPGETB                        ;16
+        DATA OPGETP                        ;17
+        DATA OPGTPT                        ;18
+        DATA OPNEXT                        ;19
+        DATA OPADD                        ;20
+        DATA OPSUB                        ;21
+        DATA OPMUL                        ;22
+        DATA OPDIV                        ;23
+        DATA OPMOD                        ;24
+
+        DATA 0                            ;25-31
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+
+        DATA OPCALL                        ;224
+        DATA OPPUT                         ;225
+        DATA OPPUTB                        ;226
+        DATA OPPUTP                        ;227
+        DATA OPREAD                        ;228
+        DATA OPPRNC                        ;229
+        DATA OPPRNN                        ;230
+        DATA OPRAND                        ;231
+        DATA OPPUSH                        ;232
+        DATA OPPOP                         ;233
+
+        DATA 0                             ;234-255
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+        DATA 0
+
+
+        END

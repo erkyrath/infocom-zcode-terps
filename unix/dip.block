@@ -1,0 +1,92 @@
+
+unsigned short *altscreen;	/* alternate screen for AT&T PC */
+
+/*------------------------------*/
+/*	md_screen_update	*/
+/*------------------------------*/
+
+/* A DIP icon is drawn by repeated calls to ms_drawblock.  To improve
+   speed on machines with complex and slow screen access, ms_drawblock
+   draws to a full-size alternate screen bitmap, instead of directly
+   to the real screen.
+
+   When the icon is complete, this routine is called to display the 
+   changed portion of the alternate screen all at once.
+*/
+
+md_screen_update(locx, locy, width, height)
+unsigned short locx, locy, width, height;
+{
+    struct urdata ur;
+
+/* It seems that ur_srcwidth and ur_dstwidth, if used, must always be
+   in multiples of two bytes.  A value of one causes an "address fault"
+   hardware crash.
+*/
+    ur.ur_srcbase = altscreen;
+    ur.ur_srcwidth = SCRNX2 * 2;	/* in bytes */
+    ur.ur_dstbase = 0;
+/*  ur.ur_dstwidth = 0;	*/		/* [not needed for real screen] */
+
+    ur.ur_srcx = locx * GBLEN * 2;	/* in pixels */
+    ur.ur_srcy = locy * GBLEN;
+    ur.ur_dstx = ur.ur_srcx;		/* [same as for alternate screen] */
+    ur.ur_dsty = ur.ur_srcy;
+
+    ur.ur_width = width * GBLEN * 2;	/* in pixels */
+    ur.ur_height = height * GBLEN;
+
+    ur.ur_srcop = SRCSRC;
+    ur.ur_dstop = DSTSRC;
+    ur.ur_pattern = 0;
+
+    ioctl(ttyfd, WIOCRASTOP, &ur);	/* use our window */
+}
+
+/*------------------------------*/
+/*	md_drawblock		*/
+/*------------------------------*/
+
+/* Draw the block in dblock[].  
+
+[  If masking is active, use the mask in mblock[].  Wherever a mask bit is
+   1, the screen shows through unchanged.  Elsewhere the block is displayed.
+   The second function below is used in several other DIPs, and here. ]
+
+   Straight-forward masking function:  S' = (S AND M) OR (B AND ~M)
+   Equivalent, non-obvious masking function:  S' = ((S XOR B) AND M) XOR B
+*/
+
+md_drawblock(locx, locy)
+unsigned short locx, locy;	/* display coordinates */
+{
+    int i;
+    unsigned short *altptr;	/* pointer into alternate screen */
+
+/* AT&T PC graphics require two transformations on each byte displayed, 
+   (1) reverse the bits, and (2) expand the byte to a short.  The latter
+   is needed because of an even byte restriction in the screen raster 
+   call, and incidentally helps to fill out the 80+ column display.  For 
+   speed, a transformation lookup table is used.  
+*/
+
+#if ETRAP
+    if ((locx >= SCRNX2) || (locy >= SCRNY2)) THEN
+      fatal("md_drawblock position out of range");
+#endif
+
+    altptr = altscreen + (locy * SCRNX2 * 2) + (locx * 2);
+
+    for (i=0; i<GBLEN; i++) {
+      if (maskflag) THEN {
+	*altptr ^= rev_table[dblock[i]];
+	*altptr &= rev_table[mblock[i]];
+	*altptr ^= rev_table[dblock[i]];
+	}
+      else
+	*altptr = rev_table[dblock[i]];
+
+      altptr += (SCRNX2 * 2);
+      }
+}
+

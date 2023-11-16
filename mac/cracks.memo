@@ -1,0 +1,44 @@
+
+   This unhappy item appeared recently on a pirate BBS:
+
+---------------------------------------------------------------------
+MSG LEFT BY: RESET VECTOR
+DATE POSTED: MON OCT 29 1984  7:53:45 PM
+
+INFOCOM HAS GOTTEN A LITTLE SMARTER ON THEIR PROTECTION, AND 
+CUTTHROATS WAS PROTECTED WITH BAD SECTORS, BUT A LITTLE SNOOPING 
+WITH MIDIBUG PRODUCED THE FOLLOWING CRACK:
+COPY DISK WITH BLOCKSMITH
+USE BLOCK EDIT ON BLOCK 44 AND CHANGE BYTE 15D FROM 67 TO 60
+IT'S CRACKED!
+
+COURTESY OF RESET VECTOR, THE POSTMEN, MACDIVISION
+WE DELIVER!
+---------------------------------------------------------------------
+
+   This bulletin board lists similar patches to protected software from
+several dozen other companies.  Though all this software is for the Macintosh,
+the method being used to break it could apply to any micro with protected 
+software.  Thus, any of us who do copy-protection should be aware of it.
+
+DESCRIPTION OF THE "CODE-PATCHING" METHOD
+
+   Code patching will generally alter the ZIP to ignore or bypass any
+copy-protection it may be using.  It works if the protected section of the 
+disk contains nothing critical to the rest of the program.  (This suggests 
+how to defeat it, see below.)
+
+   In Mac disks, for example, the protected section contains data which
+is checked for certain values, then discarded.  The ZIP reads the protected 
+section and checks for those values, returning a simple TRUE or FALSE.  
+The patch listed above mungs the ZIP to ignore the check result and return 
+an unconditional TRUE.
+
+DEFEATING THE "CODE-PATCHING" METHOD
+
+   Code patching will fail if the contents of the protected section can't 
+be ignored.  Thus, protect part of the game code or the ZIP itself.  
+
+   Because the game code is subject to normal paging and $VERIFY operations, 
+it's probably easier to extract and protect some chunk of the ZIP.  The
+copy-protection check will then repair the ZIP's core image at boot time.

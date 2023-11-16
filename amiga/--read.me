@@ -1,0 +1,46 @@
+
+PS:<MICROS.AMIGA> -- DIRECTORY CONTENTS AND COMMENTS
+----------------------------------------------------------------------
+
+ 68KZIP.ASM and AMIGAZIP.C are the ZIP/EZIP sources.
+
+ INTUITION.BUGS -- as reported to tech support.
+
+ PATCHES.BUGS details several changes to the supplied "include" files
+ needed for successful compilation.
+
+ SUPPORT.INFO -- for customer support, lists some potential user 
+ problems and answers.
+
+ AHEAD.C -- support for buffered type-ahead.  Not yet integrated
+ into the I/O sources or tested.
+
+Development for the Amiga involves three machines, the DEC20, a Compaq,
+and an Amiga.  The Compaq is the primary machine.  All development tools,
+various header and include files, and the sources reside there.
+
+The DEC20 is used mainly for convenience in editing the large source
+files, and for backups.  Files are moved to and from the Compaq with
+Kermit.
+
+The Amiga itself is presently used only for executing and testing
+the program.  A native version of the developement system does exist,
+but without a (working) hard disk, forget it.
+
+An executable program file is transferred by running Crosstalk on the 
+Compaq and Read on the Amiga.  It must have been converted to hex format,
+since Read only accepts 7-bit data.
+
+------------ 
+
+See also <DUNCAN.AMIGA> for backups of all Compaq batch files, 
+and notes on use.
+
+------------
+
+When Kermiting to the Compaq, first split the 68K source file on the 20
+into four parts, ZIP1.ASM through ZIP4.ASM, to facilitate editing.
+Transfer these along with ZIP0.ASM, the master include file.
+
+Old ZIPx.ASM files should first be deleted from the Compaq directory,
+or the new ones will be renamed ("&" chars added) during transfer.

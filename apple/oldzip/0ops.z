@@ -1,0 +1,118 @@
+O^u L' .TITLE  "ZORK - 0 OPS"
+ .PAGE
+ 
+ RTRUE   LDA     #1              ;SIMULATE RETURN 1
+ RTRUE1  STA     ARG1
+	 LDA     #0
+	 STA     ARG1+1
+	 JMP     RETURN
+ 
+ RFALSE  LDA     #0              ;SIMULATE RETURN OF 0
+	 JMP     RTRUE1
+ 
+ PRINTI  MOVE    ZPCL,MPCL       ;SETUP MPC TO EQUAL ZPC
+	 MOVEW   ZPCH,MPCH
+         MOVE    #0,MPCFLG
+	 JSR     PZSTR           ;PRINT THE STRING
+	 MOVE    MPCL,ZPCL       ;NOW CHANGE BACK ZPC TO END OF STRING
+	 MOVEW   MPCH,ZPCH
+	 MOVE    MPCFLG,ZPCFLG
+	 MOVEW   MPCPNT,ZPCPNT
+ ZNOP:   RTS
+ 
+ PRINTR  JSR     PRINTI
+         LDA     #0D
+	 JSR     COUT
+	 LDA     #0A
+	 JSR     COUT
+	 JMP     RTRUE
+ 
+ RSTACK  JSR     POPSTK
+	 MOVEW   TEMP,ARG1
+	 JMP     RETURN
+ 
+ CRLF    LDA     #0D
+	 JSR     COUT
+	 LDA     #0A
+	 JMP     COUT
+ 
+	 ;VERIFY INTEGRITY OF Z-PROGRAM
+	 
+ INTMS   .ASCII  "INTERPRETER VERSION : "
+	 .ASCII  "B"
+	 .BYTE   0D              ;RETURN
+	 .BYTE   255.
+	 
+ VERIFY: MOVEI   #INTMS,TEMP
+	 LDY     #0
+ QP      LDA     (TEMP),Y
+	 CMP     #255.
+	 BEQ     QPO
+	 EOR     #80
+	 JSR     0FDED
+	 INY
+	 JMP     QP
+ 
+ QPO     LDY     #ZLENTH+<LO^INVERT> ;GET PROGRAM LENGTH (IN WORDS)
+	 LDA     @ZCODEP,Y
+	 STA     ARG2+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 STA     ARG2+HI
+	 LDA     #0
+	 STA     ARG3            ;INITIALIZE OTHER VARIABLES
+	 STA     ARG1+LO
+	 STA     ARG1+HI
+	 STA     TEMP+HI
+	 STA     ARG4
+	 LDA     #ARG4           ;CHANGE GETBYT ZMEMT COMPAR. TO FORCE PAGE LOADS
+	 STA     GTBCMP
+	 ASL     ARG2+LO         ;CONVERT LENGTH TO BYTES
+	 ROL     ARG2+HI
+	 ROL     ARG3            ;17TH BIT OF LENGTH
+	 LDA     #40             ;FIRST 64 BYTES AREN'T CHECKSUMMED
+	 STA     TEMP+LO
+	 JSR     SETWRD          ;POINT TO FIRST BYTE TO USE
+	 .IF     SMALLD          ;SMALL DISK?
+	 LDA     TWODFL          ;IF SO, CHECK TWO-DISK FLAG
+	 BEQ     $3              ;NOT USING TWO DISKS
+	 JSR     DISK1           ;YES, SWITCH TO DISK #1
+ $1      JSR     GETBYT          ;ADD BYTES TO CHECKSUM
+	 CLC
+	 ADC     ARG1+LO
+	 STA     ARG1+LO
+	 BCC     $2
+	 INC     ARG1+HI
+ $2      LDA     MPCH+LO         ;CHECK FOR END OF PRELOAD
+	 CMP     ZMEMT
+	 BNE     $1              ;NO
+	 JSR     DISK2           ;NOW SWITCH TO DISK #2 FOR THE REST
+	 .ENDC
+ $3      JSR     GETBYT          ;ADD BYTES TO CHECKSUM
+	 CLC
+	 ADC     ARG1+LO
+	 STA     ARG1+LO
+	 BCC     $4
+	 INC     ARG1+HI
+ $4      LDA     MPCL            ;CHECK FOR END OF PROGRAM
+	 CMP     ARG2+LO
+	 BNE     $3              ;NO
+	 LDA     MPCH+LO
+	 CMP     ARG2+HI
+	 BNE     $3              ;NO
+	 LDA     MPCH+HI
+	 CMP     ARG3
+	 BNE     $3              ;NO
+	 LDA     #ZMEMT          ;YES, UNPATCH GETBYT ZMEMT COMPARISON
+	 STA     GTBCMP
+	 LDY     #ZCHKSM+<LO^INVERT> ;COMPARE CHECKSUMS
+	 LDA     @ZCODEP,Y
+	 CMP     ARG1+LO
+	 BNE     $5              ;DIFFERENT
+	 NEXT    <HI^INVERT>
+	 LDA     @ZCODEP,Y
+	 CMP     ARG1+HI
+	 BNE     $5              ;DIFFERENT
+	 JMP     PREDS           ;THE SAME, SUCCESS
+ $5      JMP     PREDF           ;FAILURE
+ 

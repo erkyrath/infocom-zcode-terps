@@ -1,0 +1,536 @@
+O^( L'.TITLE  "ZORK - EXT OPS"
+ .PAGE
+ 
+ SCREN   JMP     SCRENN          ; SELECTION OF WHICH SPLIT SCREEN TO USE
+ 
+ SPLIT   JMP     SPLITT          ; SPLIT THE SCREEN IN TWO
+ 
+ EQUALP  LDX     ARGCNT
+	 DEX
+	 BNE     $2
+	 JSR     ZER
+ $2      LDA     ARG1+LO         ;COMPARE AGAINST ARG2
+	 CMP     ARG2+LO
+	 BNE     $3
+	 LDA     ARG1+HI
+	 CMP     ARG2+HI
+	 BEQ     PREDSQ          ;WIN
+ $3      DEX
+	 BEQ     PREDFQ
+	 LDA     ARG1+LO         ;COMPARE AGAINST ARG3
+	 CMP     ARG3+LO
+	 BNE     $4
+	 LDA     ARG1+HI
+	 CMP     ARG3+HI
+	 BEQ     PREDSQ          ;WIN
+ $4      DEX
+	 BEQ     PREDFQ
+	 LDA     ARG1+LO         ;COMPARE AGAINST ARG4
+	 CMP     ARG4+LO
+	 BNE     $2
+	 LDA     ARG1+HI
+	 CMP     ARG4+HI
+	 BEQ     PREDSQ          ;WIN
+ PREDFQ  JMP     PREDF
+ PREDSQ  JMP     PREDS
+ 
+ ZCALL   LDA     ARG1+LO
+	 ORA     ARG1+HI
+	 BNE     $1
+	 MOVEI   0,TEMP
+	 JMP     PUTVAL
+ $1      LDA     OZSTKC
+	 STA     TEMP+LO
+	 LDA     ZPCL
+	 STA     TEMP+HI
+	 JSR     PSHSTK
+	 MOVEW   OZSTKP,TEMP
+	 JSR     PSHSTK
+	 MOVEW   ZPCH,TEMP
+	 JSR     PSHSTK
+	 LDA     #0
+	 STA     ZPCFLG          ;PC HAS CHANGED
+	 LDA     ARG1+LO
+	 ASL     A
+	 STA     ZPCL            ;NEW ZPCL
+	 LDA     ARG1+HI
+	 ROL     A
+	 STA     ZPCH+LO         ;NEW ZPCH
+	 LDA     #0
+	 ROL     A
+	 STA     ZPCH+HI         ;SAVE CARRY BIT
+         JSR     NEXTPC          ;GET NUMBER OF LOCALS
+	 PHA                     ;SAVE # OF LOCALS
+	 ORA     #0
+	 BEQ     ZCALL2          ;NO LOCALS
+	 LDX     #0              ;STORE OLD LOCALS
+ ZCALL1  PHA
+	 LDA     LOCALS,X
+	 STA     TEMP+<LO^INVERT>
+	 INX
+	 LDA     LOCALS,X
+	 STA     TEMP+<HI^INVERT>
+         DEX
+	 TXA
+	 PHA
+	 JSR     PSHSTK
+	 JSR     NEXTPC          ;GET NEW DEFAULT VALUE FOR LOCAL
+	 PHA
+	 JSR     NEXTPC          ;WORD VALUE
+	 STA     TEMP+<HI^INVERT>
+	 PLA
+	 STA     TEMP+<LO^INVERT>
+	 PLA
+	 TAX
+	 LDA     TEMP+<LO^INVERT>
+	 STA     LOCALS,X
+	 INX
+	 LDA     TEMP+<HI^INVERT>
+	 STA     LOCALS,X
+	 INX
+	 PLA
+	 SEC
+	 SBC     #1
+	 BNE     ZCALL1          ;LOOP THROUGH ALL LOCALS
+ ZCALL2  LDA     ARGCNT
+	 STA     MASK
+	 DEC     MASK
+	 BEQ     ZCALL4          ;NO ARGS TO PASS
+	 LDA     #0              ;POINTER TO FIRST ARG
+	 STA     VAL
+	 LDA     #0              ;POINTER TO FIRST LOCAL
+	 STA     TEMP
+ ZCALL3  LDX     VAL
+         LDA     ARG2+<LO^INVERT>,X
+	 LDX     TEMP
+	 STA     LOCALS,X
+	 INC     TEMP
+	 LDX     VAL
+	 LDA     ARG2+<HI^INVERT>,X
+	 LDX     TEMP
+	 STA     LOCALS,X
+	 INC     TEMP
+	 INC     VAL
+	 INC     VAL
+	 DEC     MASK
+	 BNE     ZCALL3
+ ZCALL4  PLA                     ;GET BACK NUMBER OF LOCALS
+	 STA     TEMP
+	 JSR     PSHSTK
+	 LDA     ZSTAKC
+	 STA     OZSTKC
+	 MOVEW   ZSTAKP,OZSTKP   ;FOR KNOWING WHERE TO RETURN
+	 RTS
+ 
+ PUT     LDA     ARG2+LO
+	 ASL     A
+	 ROL     ARG2+HI
+	 CLC
+	 ADC     ARG1+LO
+	 STA     TEMP+LO
+	 LDA     ARG2+HI
+	 ADC     ARG1+HI
+	 STA     TEMP+HI
+	 CLC
+	 LDA     TEMP+LO
+	 ADC     ZCODEP+LO
+	 STA     TEMP+LO
+	 LDA     TEMP+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 LDY     #0
+	 LDA     ARG3+<LO^INVERT>
+	 STA     @TEMP,Y
+	 INY
+	 LDA     ARG3+<HI^INVERT>
+	 STA     @TEMP,Y
+	 RTS
+ 
+ 
+ PUTB    LDA     ARG2+LO
+	 CLC
+	 ADC     ARG1+LO
+	 STA     TEMP+LO
+	 LDA     ARG2+HI
+	 ADC     ARG1+HI
+	 STA     TEMP+HI
+	 CLC
+	 LDA     TEMP+LO
+	 ADC     ZCODEP+LO
+	 STA     TEMP+LO
+	 LDA     TEMP+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 LDY     #0
+	 LDA     ARG3+LO
+	 STA     @TEMP,Y         ;STORE ONE BYTE IN RANDOM TABLE
+	 RTS
+ 
+ PUTP    JSR     PROPB           ;SET PROP
+ PUTP1   JSR     PROPN           ;GET PROP NUMBER
+	 CMP     ARG2+LO
+	 BEQ     PUTP2           ;FOUND PROPERTY
+	 BCS     $1
+	 JSR     ZER             ;BAD PROP NUMBER$1      JSR     PROPNX          ;TRY NEXT
+	 JMP     PUTP1
+ 
+ PUTP2   JSR     PROPL           ;GET LENGTH
+	 INY
+	 CMP     #0
+	 BEQ     PUTP2A          ;STORE 1 BYTE
+	 CMP     #1
+	 BEQ     $1
+	 JSR     ZER             ;TOO LONG
+ $1      LDA     ARG3+<LO^INVERT>
+	 STA     @TEMP,Y
+	 INY
+	 LDA     ARG3+<HI^INVERT>
+	 STA     @TEMP,Y
+	 RTS
+ 
+ PUTP2A  LDA     ARG3+LO
+	 STA     @TEMP,Y
+	 RTS                     ;SET AND RETURN
+ 
+ ZREAD   JSR     WHOLIN
+         CLC                     ;GET REAL POINTERS TO TABLES
+	 LDA     ARG1+LO         ;BUFFER TABLE
+	 ADC     ZCODEP+LO
+	 STA     ARG1+LO
+	 LDA     ARG1+HI
+	 ADC     ZCODEP+HI
+	 STA     ARG1+HI
+         CLC
+	 LDA     ARG2+LO         ;RESULT TABLE
+	 ADC     ZCODEP+LO
+	 STA     ARG2+LO
+	 LDA     ARG2+HI
+	 ADC     ZCODEP+HI
+	 STA     ARG2+HI
+	 JSR     READBF          ;READ THE BUFFER
+	 STA     MASK+HI         ;CHARACTER COUNT
+	 LDA     #0
+	 STA     MASK+LO         ;HAS CHARACTERS IN WORD
+	 LDY     #1
+	 LDA     #0
+	 STA     @ARG2,Y         ;SET WORDS READ TO 0
+	 LDA     #2
+	 STA     RTABP           ;INITIALIZE RESULT TABLE POINTER
+	 LDA     #1
+	 STA     STABP           ;HAS POINTER TO INPUT CHARACTERS
+ READL   LDY     #0
+	 LDA     @ARG2,Y
+	 INY
+	 CMP     @ARG2,Y
+	 BNE     $1
+	 RTS                     ;TOO MANY WORDS
+ ;ERROR HERE IF DESIRED INSTEAD OF BNE
+ $1      LDA     MASK+HI
+	 ORA     MASK+LO
+	 BNE     $2
+	 RTS                     ;OUT OF CHARACTERS AND WORDS
+ $2      LDA     MASK+LO
+	 CMP     #6
+	 BNE     $3
+	 JSR     FLUSHW          ;FLUSH CHARS IN A WORD OVER 6 CHARACTERS
+ $3      LDA     MASK+LO
+	 BNE     READL2          ;NOT FIRST CHARACTER IN WORD
+	 LDY     #6
+	 LDX     #0              ;INITIALIZE WORD BUFFER
+ RDOPL   LDA     #0
+	 STA     ZSTBUI,X
+	 INX
+	 DEY
+	 BNE     RDOPL
+	 LDA     STABP           ;POSITION OF START OF WORD
+	 LDY     RTABP
+	 INY
+	 INY
+	 INY
+	 STA     @ARG2,Y         ;STORE IN RESULT TABLE
+         LDY     STABP
+	 LDA     @ARG1,Y
+	 JSR     SIBRKP          ;SELF INSERTING BREAK?
+	 BCS     RSIBRK
+	 LDY     STABP
+	 LDA     @ARG1,Y
+	 JSR     NBRKP           ;NORMAL BREAK?
+	 BCC     READL2          ;NO
+	 INC     STABP           ;YES, FLUSH STRANDED BREAKS
+	 DEC     MASK+HI
+	 JMP     READL           ;LOOP BACK
+ 
+ READL2  LDA     MASK+HI
+	 BEQ     READL3          ;OUT OF CHARACTERS, SIMULATE WORD ENDING
+	 LDY     STABP
+	 LDA     @ARG1,Y
+	 JSR     RBRKP           ;WORD BREAK?
+	 BCS     READL3          ;FOUND A BREAK
+	 LDY     STABP
+	 LDA     @ARG1,Y
+	 LDX     MASK+LO
+	 STA     ZSTBUI,X        ;STORE CHARACTER IN BUFFER
+	 DEC     MASK+HI         ;ONE LESS CHARACTER
+	 INC     MASK+LO         ;ONE MORE CHARACTER IN WORD
+	 INC     STABP           ;POINT TO NEXT CHARACTER
+	 JMP     READL
+ 
+ RSIBRK  STA     ZSTBUI          ;STORE SELF INSERTING BREAK
+	 INC     MASK+LO         ;1 CHAR
+	 DEC     MASK+HI         ;1 LESS CHAR
+	 INC     STABP
+ READL3  LDA     MASK+LO         ;INSERT WORD IF ANY CHARACTERS IN WORD
+	 BEQ     READL           ;NO CHARACTERS IN WORD
+	 LDA     MASK+HI
+	 PHA
+	 LDY     RTABP           ;STORE PARAMS IN TABLE
+	 INY
+	 INY
+	 LDA     MASK+LO         ;REAL LENGTH OF WORD
+	 STA     @ARG2,Y
+	 JSR     CONZST          ;CONVERT TO ZSTRING
+	 JSR     FINDW           ;LOOKUP WORD IN VOCAB TABLE
+	 LDY     RTABP           ;STORE RESULT
+	 LDA     VAL+<LO^INVERT>
+	 STA     @ARG2,Y
+	 INY
+	 LDA     VAL+<HI^INVERT>
+	 STA     @ARG2,Y
+	 INY
+	 INY
+	 INY
+	 STY     RTABP           ;POINTER TO NEXT WORD
+	 LDY     #1
+	 LDA     @ARG2,Y
+	 CLC
+	 ADC     #1              ;ONE MORE WORD
+	 STA     @ARG2,Y
+	 PLA
+	 STA     MASK+HI
+	 LDA     #0
+	 STA     MASK+LO         ;ZERO CHARACTERS IN NEXT WORD
+	 JMP     READL
+ 
+ FLUSHW  LDA     MASK+HI         ;FLUSH CHARACTERS TILL BREAK OR END OF BUFFER
+	 BNE     $1
+	 RTS
+ $1      LDY     STABP
+	 LDA     @ARG1,Y
+	 JSR     RBRKP
+	 BCC     $2
+	 RTS                     ;FOUND A BREAK
+ $2      INC     STABP
+	 DEC     MASK+HI
+	 INC     MASK+LO
+	 JMP     FLUSHW
+ 
+ BRKTBL  .ASCII  " .,?"
+	 .BYTE   0D, 0A, 9, 0C
+ NBRKS   .EQU    *-BRKTBL
+ 
+ RBRKP   JSR     SIBRKP          ;FIRST CHECK SELF INSERTING BREAKS
+	 BCC     NBRKP
+	 RTS
+ NBRKP   LDY     #0              ;CHECK FOR NORMAL BREAKS
+	 LDX     #NBRKS
+ RBRK1   CMP     BRKTBL,Y
+	 BEQ     FBRK            ;MATCH
+	 INY
+	 DEX
+	 BNE     RBRK1
+ RBRK2   CLC                     ;NOT FOUND, CLEAR CARRY
+	 RTS
+ 
+ FBRK    SEC
+	 RTS                     ;FOUND A BREAK, SET CARRY AND RETURN
+ 
+ SIBRKP  PHA
+         JSR     GETVOC
+	 LDY     #0
+	 LDA     @TEMP,Y         ;NUMBER OF SELF INSERTING BREAKS
+	 TAX
+	 PLA
+ SIBRKL  BEQ     RBRK2           ;FAIL
+         INY
+	 CMP     @TEMP,Y
+	 BEQ     FBRK            ;MATCH
+	 DEX
+	 JMP     SIBRKL
+ 
+ GETVOC  LDY     #ZVOCAB
+	 LDA     @ZCODEP,Y
+	 STA     TEMP+<LO^INVERT>
+	 INY
+	 LDA     @ZCODEP,Y
+	 STA     TEMP+<HI^INVERT>
+	 CLC
+	 LDA     TEMP+LO
+	 ADC     ZCODEP+LO
+	 STA     TEMP+LO
+	 LDA     TEMP+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 RTS
+ 
+ FINDW   JSR     GETVOC          ;FIND WORD IN VOCAB TABLE
+	 LDY     #0
+	 LDA     @TEMP,Y
+	 TAY                     ;SKIP OVER SELF INSERTING BREAKS
+         INY
+	 LDA     @TEMP,Y
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 STA     MASK+LO         ;HAS 16 TIMES VOCAB ENTRY SIZE
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<LO^INVERT>
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<HI^INVERT> ;VAL HAS VOCAB SIZE
+	 INY                     ;POINTS TO VOCAB SIZE
+         TYA
+	 CLC
+	 ADC     TEMP+LO
+	 STA     TEMP+LO
+	 BCC     $1
+	 INC     TEMP+HI
+ $1      LDY     #<HI^INVERT>    ;MAKE IT POINT TO HIGH ORDER BYTE
+	 JMP     FWL2            ;WE CAN'T START AT THE BEGINNING
+ 
+ FWL1    LDA     @TEMP,Y
+	 CMP     ZSTBUO+HI       ;CHECK ONLY FIRST BYTE
+	 BCS     FWL3            ;FOUND PROPER AREA FOR FINE SEARCH
+ FWL2    CLC                     ;INCREMENT TEMP BY MASK+LO
+         LDA     TEMP+LO
+         ADC     MASK+LO
+	 STA     TEMP+LO
+	 BCC     $1
+	 INC     TEMP+HI         ;POINTER TO NEXT BLOCK
+ $1      SEC                     ;DECREMENT COUNT IN VAL BY 16
+	 LDA     VAL+LO
+	 SBC     #16.
+	 STA     VAL+LO
+	 BCS     $2
+	 DEC     VAL+HI
+ $2      LDA     VAL+HI          ;OUT OF WORDS?
+	 BMI     FWL3            ;YES
+	 BNE     FWL1            ;NO
+	 LDA     VAL+LO          ;MAYBE, CHECK FOR ZERO
+	 BNE     FWL1            ;NO, KEEP GOING
+ FWL3    SEC                     ;NOW DO FINE CHECK
+	 LDA     TEMP+LO         ;BACKUP 16 WORDS
+	 SBC     MASK+LO
+	 STA     TEMP+LO
+	 BCS     $1
+	 DEC     TEMP+HI
+ $1      CLC                     ;BACKUP COUNT
+	 LDA     VAL+LO
+	 ADC     #16.
+	 STA     VAL+LO
+	 BCC     $2
+	 INC     VAL+HI
+ $2      LDA     MASK+LO
+	 LSR     A
+	 LSR     A
+	 LSR     A
+	 LSR     A
+	 STA     MASK+LO         ;REAL ENTRY SIZE
+ FWL4    LDY     #<HI^INVERT>
+	 LDA     ZSTBUO+HI
+	 CMP     @TEMP,Y
+         BCC     FWFAIL
+	 BNE     FWLNXT          ;CHECK ALL 4 BYTES
+	 NEXT    <LO^INVERT>
+	 LDA     ZSTBUO+LO
+	 CMP     @TEMP,Y
+	 BCC     FWFAIL
+	 BNE     FWLNXT
+	 LDY     #2+<HI^INVERT>
+	 LDA     ZSTBUO+2+HI
+	 CMP     @TEMP,Y
+         BCC     FWFAIL
+	 BNE     FWLNXT
+	 NEXT    <LO^INVERT>
+	 LDA     ZSTBUO+2+LO
+	 CMP     @TEMP,Y
+	 BCC     FWFAIL
+	 BEQ     FWSUCC          ;FOUND A MATCH
+ FWLNXT  CLC
+	 LDA     TEMP+LO
+	 ADC     MASK+LO
+	 STA     TEMP+LO
+	 BCC     $1
+	 INC     TEMP+HI
+ $1      SUBB    VAL,#1
+	 LDA     VAL+LO
+	 ORA     VAL+HI
+	 BNE     FWL4            ;NOT OUT OF WORDS YET
+ FWFAIL  LDA     #0
+	 STA     VAL+HI
+	 STA     VAL+LO
+	 RTS
+ 
+ FWSUCC  SEC
+	 LDA     TEMP+LO
+	 SBC     ZCODEP+LO
+	 STA     VAL+LO
+	 LDA     TEMP+HI
+	 SBC     ZCODEP+HI
+	 STA     VAL+HI
+	 RTS
+ 
+ 
+ PRINTC  LDA     ARG1+LO
+	 JMP     COUT
+ 
+ PRINTN  MOVEW   ARG1,TEMP
+	 JMP     PRNTNC
+ 
+ PRNTNC  LDA     TEMP+HI
+	 BPL     $1
+	 JSR     PRNTNG          ;NEGATIVE NUMBER
+ $1      LDA     #0              ;DIGIT COUNT
+	 STA     MASK
+ PRNTN1  LDA     TEMP+HI
+	 ORA     TEMP+LO
+	 BEQ     PRNTN3
+	 MOVEI   10.,VAL
+	 JSR     DIVIDE
+         LDA     VAL+LO
+	 PHA
+	 INC     MASK
+	 JMP     PRNTN1
+ 
+ PRNTN3  LDA     MASK
+	 BEQ     PRNTN6          ;PRINT AT LEAST 0
+ PRNTN4  PLA
+	 CLC
+	 ADC     #30             ;ASCII "0"
+	 JSR     COUT
+	 DEC     MASK
+	 BNE     PRNTN4
+	 RTS
+ 
+ PRNTN6  LDA     #30             ;ASCII "0"
+	 JMP     COUT
+ 
+ PRNTNG  LDA     #2D             ;ASCII "-"
+	 JSR     COUT
+	 JMP     SIGNCN          ;CHANGE SIGN
+ 
+ RANDOM  MOVEW   ARG1,VAL        ;RANDOM GENERATOR
+	 JSR     RND             ;GET THE BASE NUMBER
+	 JSR     DIVIDE
+	 MOVEW   VAL,TEMP        ;GET REMAINDER
+	 INCW    TEMP            ;MAKE NOT EQUAL TO 0
+	 JMP     PUTVAL
+ 
+ ZPUSH   MOVEW   ARG1,TEMP
+	 JMP     PSHSTK
+ 
+ ZPOP    JSR     POPSTK
+	 LDA     ARG1+LO
+	 JMP     VARPTR
+ 

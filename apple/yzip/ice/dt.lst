@@ -1,0 +1,132 @@
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.85L  Page 1
+                                                              Module:  dt
+
+0000            DLINE:	MACRO	STRING,SLEN
+0000            	ldx	\#LOW #STRING#	; get part of STRING
+0000            	lda	\#HIGH #STRING#	; get other part of string
+0000            	IF      (#SLEN#+"L") == "L"      ; is there a length defined?
+0000            	ldy	\##STRING#L	; get length of string
+0000                    printx  "IF"
+0000            	ELSE
+0000            	ldy	#SLEN#		; then just fetch it
+0000                    printx  "ELSE"
+0000            	ENDIF
+0000            	jsr	DISPLAY_LINE		; print the string
+0000            	ENDM
+
+0000                    DLINE TEST,TEX
+0000+A20B       	ldx	#LOW TEST	; get part of STRING
+0002+A900       	lda	#HIGH TEST	; get other part of string
+0004+           	IF      (TEX+"L") == "L"      ; is there a length defined?
+0004+           	ldy	#TESTL	; get length of string
+0004+                   printx  "IF"
+0004+           	ELSE
+0004+AC0E00     	ldy	TEX		; then just fetch it
+0007+                   printx  "ELSE"
+0007+           	ENDIF
+0007+200A00     	jsr	DISPLAY_LINE		; print the string
+000A 60                 rts
+000B            DISPLAY_LINE:
+                ^
+dt.asm: Line 16: Error 14:  Label value differs on Pass 2
+
+000B 60                 rts
+000C 5468697320 TEST:   db      "This is a test"
+     6973206120
+     74657374
+                ^
+dt.asm: Line 18: Error 14:  Label value differs on Pass 2
+
+000F            TEX   EQU     $-TEST
+                ^
+dt.asm: Line 19: Error 14:  Label value differs on Pass 2
+
+
+
+001A                    END
+
+     3 errors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Huntsville Macro Assembler  65C02 cross assembler for PC-DOS 2.0  v1.85L  Page 2
+                                                              Module:  dt
+
+     Macros:
+
+       DLINE
+
+
+
+     Symbols:
+
+  000A DISPLAY_LINE      000B TEST            U 0000 TESTL
+  000E TEX
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

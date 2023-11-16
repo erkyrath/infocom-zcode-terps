@@ -1,0 +1,113 @@
+.c;HOW TO USE TN20
+.s
+NOTE: Make sure that the cable in the micro-room labelled "TN20" is
+attached to the appropriate port of the micro-computer you are
+transferring to. Follow the instructions for that particular machine to
+prepare it for transfer. When you are instructed to do so, return here
+to run TN20.
+.s
+1. Log onto the DEC-20.
+.s
+2. When the @-prompt appears, type "TN20".
+.s
+3. You will be asked what file to send. If you are not connected to the
+directory that file lives in, you must prefix the file name with the
+directory name, followed by a colon. For example, the Atari and
+Commodore interpreters live in the Z directory; to transfer them you
+would type Z:ZIP.ATR or Z:ZIP.C64, respectively.
+.s
+Most game directories are located on the alternate disk drive, called
+SS. (The primary disk drive is called PS.) In order to copy Starcross,
+for example, you would have to type "SS:<STARCROSS>STARCROSS". TN20
+assumes the ".ZIP" suffix, so you don't need to include it.
+.s
+If you are making a two-disk game, such as Deadline on the Atari, the
+game file must be sent in two parts, called [game].PRE (the first part)
+and [game].PUR (the second part). To split the game file into these two
+sub-files, first connect to the directory it lives in. For example, to
+connect to the Zork I directory, type "CONN SS:<ZORK1>" at the @-prompt.
+When the @-prompt reappears, type "SPLIT [game]". After several seconds,
+you will be informed that the game file has been split. Then, when TN20
+asks which file you want to send, type "[game].PRE", and later
+"[game].PUR".
+.s
+4. TN20 will now ask what machine you are transferring to. Simply type
+the name of the machine: Apple, Atari, Osborne, etc. If you are not sure
+what a valid response here is, type a question mark to get a listing of
+all valid responses.
+.s
+5. TN20 will then inform you of the baud rate it will transfer at (4800
+for the Rainbow, 2400 for the Apple, and so on). Type any key to
+commence with the transfer.
+.s
+6. If everything is okay, a whole lot of A's should begin appearing on
+the screen of the DEC-20 terminal you are using. A's will appear on the
+screens of certain receiving micro-computers, but not all. If the A's do
+not appear on the DEC-20 terminal, go to the troubleshooting section.
+.s
+7. When the transfer is complete, TN20 will tell you the actual baud
+rate and compare it to the theoretical baud rate. (The higher the
+percentage, the better the speed of the receiving micro.) Because of a
+bug, you may get a double @-prompt.
+.s
+8. If you want to transfer another game file, type "RESET TN20". If you
+are done, then log out of the DEC-20.
+.s
+TROUBLESHOOTING: If the transfer didn't work, check to make sure that
+the TN20 cable is properly plugged into the receiving micro. Look at the
+screen of the receiving micro -- there might be an error message of some
+kind there that will tell you what's wrong. Finally, some twit may have
+unplugged the TN20 cable from the other end, in the main computer room.
+
+.pg
+.c;HOW TO TRANSFER GAMES FROM THE DEC-20 TO THE PDP-11
+.S 2
+1. Log onto the 20.  When the @-prompt appears, type "11". 
+.s
+2. You will get a prompt that looks like "20>".  Type "C" to connect to the
+11.
+.s
+3. Log onto the 11.  When the period-prompt appears, type "20".
+.s
+4. You will see a prompt that looks like "11>". Type "R".
+.s
+5. You will be asked for the name of the file to be received. Type in
+"INT:[game]", where [game] is the six-letter abbreviation for the game name.
+For example, to transfer Starcross, you would type "INT:STRCRS". You
+will see a message like "[N blocks]", where N is the number of free
+blocks available in the INT directory.
+.s
+6. The "11>" will reappear.  Type "B".
+.s
+7. Hit the BREAK key. The "20>" prompt will reappear.
+.s
+8. Type "X". The @-prompt will reappear.
+.s
+9. Follow the separate instructions for running TN20. When TN20 asks for
+the machine name, type "PDP-11".
+.s
+10. A bunch of A's will appear on the screen. The transfer will take
+around five minutes.
+.s
+11. When the transfer is complete, the @-prompt will reappear. Type "11"
+and hit return.
+.s
+12. The "20>" prompt should reappear. Type "C" to return to the PDP-11.
+.s
+13. When the period-prompt appears, type the name of the game file (DEADLN for
+Deadline, etc.).  When the game prompt appears, test the game by typing
+"$verify".
+.s
+12. Leave the game (type "quit").  When the period-prompt appears, log out of
+the 11.
+.s
+13. Hit the break key.  The "20>" prompt will appear.  Type "Q" to disconnect
+from the 11.  You are now back at your original 20 login.
+.s
+NOTE: There are a limited number of remote lines between the 11 and the
+20. If, at some point, you are informed that a given remote line is
+already in use, you will have to try again later when it is free.
+.s
+ANOTHER NOTE:  If the INT directory on the 11 is too full, you won't be
+able to transfer the game file successfully.  If this happens, ask
+someone to delete some unimportant files from the INT directory.

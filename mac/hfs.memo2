@@ -1,0 +1,20 @@
+To: Customer Support
+From: Duncan Blanchard
+Re: Mac Compatibility Update
+Date: 3/20/86
+------------------------------------------------------------------------
+
+    A correction to the 12/16 memo.  It said that to make Save and Restore
+work with new Macs (Mac Plus or any Mac with HD20, Apple Hard Disk 20),
+the user should boot the machine, run the game, and make saves using old-
+style disks (400K, without HFS, Hierarchical File System format).
+
+    Actually only the last point is necessary, having the save file itself
+on old-style disks.  The game can be copied to (*) and run from 800K Mac Plus
+disks, or installed on the HD20 hard disk, with no problem.
+
+    The above information applies to interpreter versions up to 'F'.
+Versions 'G' and higher are compatible with new-style disks.
+
+    (*) except for versions A-B, which didn't allow backup copies.
+(Game runs correctly from the original.)

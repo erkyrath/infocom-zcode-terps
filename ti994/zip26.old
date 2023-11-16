@@ -1,0 +1,125 @@
+* FILE ZIP26-ASM
+
+***********************************************************
+* STATUS LINE I/O                                         *
+***********************************************************
+
+        RORG
+        DATA >EE26
+
+        DEF  OPUSL
+
+        REF  TIW,TIB,TISCOL,VSBW,JSR
+        REF  TTYOUT,CHRFUN,GETVAR,OPPRND
+        REF  BUFFER,OUTSTR,OPPRNN,PUTCHR
+
+*====================================================
+OLDRM   DATA 0       PREVIOUS ROOM (OBJECT NUMBER)
+
+MOVVAR  EQU  18      NUMBER-OF-MOVES GLOBAL
+SCOVAR  EQU  17      SCORE VARIABLE
+RMVAR   EQU  16      CURRENT ROOM VARIABLE
+
+* STATUS LINE ABSOLUTE POSITIONS: 
+RMPOS   EQU  TIB+1           ROOM DESCRIPTION
+SCOPOS  EQU  TIB+TIW-16      SCORE OR TIME STRING
+ENDPOS  EQU  TIB+TIW         END OF SL
+
+SCOSTR  TEXT ' Score: '
+        BYTE >80
+TIMSTR  TEXT ' Time: '
+        BYTE >80
+        EVEN
+
+*==========================================================
+* PRINT BLANKS IN STATUS LINE
+*   GIVEN: TISCOL INDICATES FIRST TARGET, R8 LAST (+1)
+
+PRNBL   MOV  @TISCOL,R0
+        LI   R1,>2000        ASCII "BLANK"
+
+X601    C    R0,R8           AT END OF BLANKED AREA?
+        JHE  X602            YES
+
+        BLWP @VSBW           NO, WRITE ONE BLANK
+        INC  R0
+        JMP  X601
+
+X602    MOV  *R6+,R11
+        B    *R11            RETURN
+
+*----------------------------------------------------------
+* UPDATE STATUS LINE
+
+OPUSL   MOV  @TISCOL,R4      SAVE OLD CURSOR LOCATION
+
+        LI   R8,TTYOUT       OUTPUT DIRECTLY TO SCREEN ...
+        MOV  R8,@CHRFUN        IN 'PUTSTR' AND 'OPPRNN'
+
+        LI   R0,RMVAR
+        BL   @JSR
+        DATA  GETVAR         GET CURRENT ROOM
+
+        C    R0,@OLDRM       HAS IT CHANGED?
+        JEQ  X605            NO
+        MOV  R0,@OLDRM       YES, SAVE ITS NUMBER
+
+        LI   R8,RMPOS
+        MOV  R8,@TISCOL      ADJUST SCREEN POINTER
+
+        BL   @JSR
+        DATA  OPPRND         PRINT THE ROOM DESCRIPTION
+
+        LI   R8,SCOPOS
+        BL   @JSR
+        DATA  PRNBL          PRINT BLANKS AFTER DESCRIPTION
+
+*----------------------------
+
+X605    LI   R8,SCOPOS
+        MOV  R8,@TISCOL      ADJUST SCREEN POINTER
+
+        MOV  @BUFFER,R8      GET STATUS-LINE-MODE BIT
+        ANDI R8,>0002        DISPLAY HOURS, MINUTES?
+        JNE  X606            YES
+
+        BL   @JSR            NO, DISPLAY SCORE, MOVES
+        DATA  OUTSTR
+        DATA  SCOSTR         "SCORE" STRING
+
+        LI   R0,SCOVAR
+        BL   @JSR
+        DATA  GETVAR         GET THE SCORE
+
+        BL   @JSR
+        DATA  OPPRNN         PRINT SCORE
+
+        LI   R0,"/ "         SEPARATOR
+        BL   @JSR
+        DATA  TTYOUT         PRINT IT
+
+        LI   R0,MOVVAR
+        BL   @JSR
+        DATA  GETVAR         GET NUMBER-OF-MOVES
+
+        BL   @JSR
+        DATA  OPPRNN         PRINT NUMBER OF MOVES
+
+        LI   R8,ENDPOS
+        BL   @JSR
+        DATA  PRNBL          BLANK REST OF STATUS LINE
+
+        JMP  X610
+
+
+X610    MOV  R4,@TISCOL      RESTORE OLD CURSOR
+
+        LI   R8,PUTCHR
+        MOV  R8,@CHRFUN      RESTORE BUFFERED OUTPUT
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+
+        END
+

@@ -1,0 +1,40 @@
+
+    The most recent Macintosh ZIP/EZIP sources are on the Lisa
+Workshop hard disk, in the pseudo-directory (that is, prefixed by)
+"cp/" (meaning consumer products; compare with "bp/").  There is also
+a backup copy on Lisa-format floppies.
+
+    The Mac directory on the DEC20 may not be up to date, as there's
+no direct means of transferring files from the Lisa.  (It can be done 
+from a Mac with Kermit.)
+
+BACKING UP MAC SOURCES FROM THE LISA WORKSHOP
+---------------------------------------------
+
+    F(ile)
+    I(nitialize)  -lower		[insert a new floppy]
+    C(opy)  cp/=.text
+	-lower-=.text
+    U(nmount)  -lower
+
+BUILDING (& TRANSFERRING) A MAC INTERPRETER UNDER THE LISA WORKSHOP
+-------------------------------------------------------------------
+
+    []	make sure the ZIP/EZIP flag is set correctly in the 
+	68K source (Masterzip)
+
+    []  put the target disk (Mac format) in the Lisa drive
+
+    []  R(un)  <cp/maczipx		[batch file]
+	or     <cp/ezipx
+
+TRANSFERRING AN INTERPRETER
+---------------------------
+
+    R(un) maccom
+    F(inder info) Y(es) L(isa to mac)
+	cp/maczip.rsrc      (or cp/ezip.rsrc)
+	Story
+	APPL
+	INFO
+    Y(es) E(ject)

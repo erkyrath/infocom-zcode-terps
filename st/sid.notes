@@ -1,0 +1,33 @@
+
+an undocumented SID function
+----------------------------
+
+    "Pass points" are like "break points" in SID except that they
+/don't/ all get removed after each break.  What a concept.  Also, the
+break occurs /after/ the pass address.
+
+    P		display all pass points and counts
+    Paddr	set a pass point
+    Paddr n	set a pass point, don't break until count passes
+
+   -P		remove all pass points
+   -Paddr	remove a pass point
+
+    This info was found in a message on Compuserve, 6/87.
+
+
+a SID nasty
+-----------------------------
+
+    The command to display/change a memory location (byte, word or
+longword) is
+
+    Saddr, or SWaddr, or SLaddr
+
+But beware of typing
+
+    SBaddr
+
+The 'B' is taken as the leading digit (hex) of the address.  Usually
+this makes the address exceed physical memory.  A bus error message
+appears and SID crashes, losing your position.

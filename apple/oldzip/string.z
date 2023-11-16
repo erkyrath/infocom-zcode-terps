@@ -1,0 +1,324 @@
+O^ q$.TITLE  "ZORK - STRING ROUTINES"
+ .PAGE
+ 
+ PZSTR   LDA     #0              ;PRINT STRING POINTED TO BY MPC
+         STA     CSPERM          ;PERMANENT MODE
+	 STA     STBYTF          ;STRING BYTE FLAG
+	 LDA     #0FF
+	 STA     CSTEMP          ;NO TEMP IN EFFECT
+ PZSTRL  JSR     GETZCH
+	 BCC     $1
+	 RTS                     ;END OF STRING
+ $1      STA     MASK
+	 BEQ     PZSTRS          ;SPACE
+	 CMP     #4
+	 BCC     PZSTRF          ;FWORD
+	 CMP     #6
+	 BCC     PZSTRT          ;SET NEW MODE
+	 JSR     GETMOD
+	 ORA     #0
+	 BNE     PZSTR1          ;NOT SET 0
+	 LDA     #61-6           ;LOWER CASE "a" - 6
+ PZSTP0  CLC
+	 ADC     MASK
+ PZSTP1  JSR     COUT
+         JMP     PZSTRL
+ 
+ PZSTR1  CMP     #1              ;CHECK FOR SET 1 OR 2
+	 BNE     PZSTR2          ;SET 2
+	 LDA     #41-6           ;UPPER CASE "A" - 6
+	 JMP     PZSTP0
+ 
+ PZSTR2  LDA     MASK            ;MODE 2
+	 SEC
+	 SBC     #7              ;CHECK FOR ASCII CHARACTER
+	 BCC     PZSTRA
+	 BEQ     PZSTRC          ;OR CR-LF
+	 TAY
+	 DEY
+	 LDA     CHRTBL,Y        ;GET CHARACTER FROM TABLE
+	 JMP     PZSTP1
+ 
+ PZSTRA  JSR     GETZCH          ;FORM CHARACTER FROM TWO BYTES
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 PHA
+	 JSR     GETZCH
+	 STA     MASK
+	 PLA
+	 ORA     MASK
+	 JMP     PZSTP1          ;PRINT IT
+ 
+ PZSTRS  LDA     #20
+	 JMP     PZSTP1          ;PRINT SPACE
+ 
+ PZSTRC  LDA     #0D             ;CR-LF
+	 JSR     COUT
+	 LDA     #0A
+	 JMP     PZSTP1
+ 
+ PZSTRT  SEC
+	 SBC     #3              ;CALCULATE NEW MODE
+	 TAY
+	 JSR     GETMOD          ;CURRENT MODE IS 0?
+	 BNE     PZSTRP          ;NO, DO PERM SHIFT
+	 STY     CSTEMP          ;YES, JUST DO TEMP SHIFT
+	 JMP     PZSTRL
+ 
+ PZSTRP  STY     CSPERM          ;DO A PERMANENT SHIFT
+	 CMP     CSPERM          ;NEW MODE SAME AS CURRENT ONE?
+	 BEQ     $1              ;YES
+	 LDY     #0              ;NO, SHIFT TO MODE 0
+         STY     CSPERM
+ $1      JMP     PZSTRL
+ 
+ PZSTFO  .BYTE   0               ;FWORD TABLE BLOCK OFFSET
+ 
+ PZSTRF  SEC                     ;CALCULATE BLOCK OFFSET
+	 SBC     #1
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 STA     PZSTFO          ;SAVE FOR LATER
+	 JSR     GETZCH          ;PRINT FREQUENCY WORD
+	 ASL     A
+	 ADC     #<LO^INVERT>
+	 ADC     PZSTFO          ;USE PROPER WORD BLOCK
+	 TAY
+	 LDA     @FWORDS,Y
+	 STA     TEMP+LO
+	 NEXT    <HI^INVERT>
+	 LDA     @FWORDS,Y
+	 STA     TEMP+HI
+	 LDA     CSPERM
+	 PHA
+	 LDA     STBYTF
+	 PHA
+	 PUSHW   ZSTWRD
+	 LDA     MPCL
+	 PHA
+	 PUSHW   MPCH
+	 JSR     SETSTR
+	 JSR     PZSTR
+	 PULLW   MPCH
+	 PLA
+	 STA     MPCL
+	 MOVE    #0,MPCFLG
+	 PULLW   ZSTWRD
+	 PLA
+	 STA     STBYTF
+	 PLA
+	 STA     CSPERM
+	 LDA     #0FF
+	 STA     CSTEMP
+	 JMP     PZSTRL
+ 
+ CHRTBL  .ASCII  "0123456789.,!?_#'"
+	 .BYTE   22              ;ASCII "
+	 .ASCII  "/\-:()"
+ 
+ GETMOD  LDA     CSTEMP
+	 BPL     $1
+	 LDA     CSPERM
+	 RTS                     ;RETURN WITH PERM MODE IF NO TEMP MODE
+ $1      LDY     #0FF
+	 STY     CSTEMP          ;CLEAR MODE AFTER GETTING IT
+	 RTS
+ 
+ GETZCH  LDA     STBYTF          ;FIND OUT WHICH BYTE
+	 BPL     $1
+	 SEC
+	 RTS                     ;OUT OF CHARACTERS
+ $1      BNE     GETZH1          ;NOT FIRST BYTE
+	 INC     STBYTF
+	 JSR     GETWRD
+	 MOVEW   TEMP,ZSTWRD     ;SAVE WORD
+	 LDA     ZSTWRD+HI
+	 LSR     A
+	 LSR     A
+	 AND     #1F
+	 CLC
+	 RTS
+ 
+ GETZH1  SEC
+         SBC     #1
+	 BNE     GETZH2          ;LAST CHAR IN WORD
+	 LDA     #2
+	 STA     STBYTF
+	 LDA     ZSTWRD+HI       ;SHIFT OVER RIGHTMOST BIT
+	 LSR     A
+	 LDA     ZSTWRD+LO
+	 ROR     A
+	 TAY
+	 LDA     ZSTWRD+HI       ;SHIFT OVER NEXT TO RIGHTMOST
+	 LSR     A
+	 LSR     A
+	 TYA
+	 ROR     A
+	 LSR     A               ;SHIFT FIVE BIT FIELD OVER 3 PLACES
+	 LSR     A
+	 LSR     A
+	 AND     #1F
+	 CLC
+	 RTS
+ 
+ GETZH2  LDA     #0
+	 STA     STBYTF
+	 LDA     ZSTWRD+HI
+	 BPL     GETZH3          ;NOT LAST CHAR IN STRING
+	 LDA     #0FF
+	 STA     STBYTF          ;INDICATE END OF STRING
+ GETZH3  LDA     ZSTWRD+LO
+	 AND     #1F
+	 CLC
+	 RTS
+ 
+         ;CONVERT TO ZSTRING
+ CONZST  LDX     #0              ;POINTER TO OUTPUT BUFFER (ZSTBUO)
+	 LDY     #6              ;OUTPUT 6 CHARACTERS TO CONVERT
+ CONZSL  LDA     #5
+	 STA     ZSTBUO,X
+	 INX
+	 DEY
+	 BNE     CONZSL          ;FILL BUFFER WITH PAD CHARACTERS
+	 LDA     #6
+	 STA     MASK+HI
+	 LDA     #0
+	 STA     VAL             ;OUTPUT
+	 STA     TEMP            ;INPUT
+ CNZSL1  LDX     TEMP
+	 INC     TEMP
+         LDA     ZSTBUI,X
+	 STA     MASK+LO
+	 BNE     CNZSL2
+	 LDA     #5
+	 JMP     CNZSLO          ;BLANKS
+ 
+ CNZSL2  LDA     MASK+LO
+	 JSR     ZCHRCS          ;WHICH CHARACTER SET
+	 ORA     #0              ;HAS CHARACTER SET OF CURRENT CHAR
+	 BEQ     CNZSLC          ;IF CS 0, JUST CONVERT THEN OUTPUT
+	 CLC                     ;ELSE, DO A TEMP SHIFT
+	 ADC     #3
+	 LDX     VAL
+	 STA     ZSTBUO,X        ;OUTPUT TEMP SHIFT
+	 INC     VAL
+	 DEC     MASK+HI
+	 BNE     CNZSLC
+	 JMP     CNZSLE
+ 
+ CNZSLC  LDA     MASK+LO
+	 JSR     ZCHRCS
+	 SEC
+	 SBC     #1
+	 BPL     CNZSC1          ;NOT LOWER CASE
+	 LDA     MASK+LO
+	 SEC
+	 SBC     #5B             ;(ASCII A) - 6
+ CNZSLO  LDX     VAL
+	 STA     ZSTBUO,X
+	 INC     VAL
+	 DEC     MASK+HI
+	 BEQ     $1
+	 JMP     CNZSL1          ;NEXT
+ $1      JMP     CNZSLE          ;END
+	 
+ CNZSC1  BNE     CNZSC3          ;NOT UPPER CASE
+	 LDA     MASK+LO
+	 SEC
+	 SBC     #3B             ;(ASCII A) - 6
+	 JMP     CNZSLO
+ 
+ CNZSC3  LDA     MASK+LO
+	 JSR     CNZS2M
+	 BNE     CNZSLO          ;FOUND IN TABLE
+	 LDA     #6
+	 LDX     VAL
+	 STA     ZSTBUO,X
+	 INC     VAL
+	 DEC     MASK+HI
+	 BEQ     CNZSLE          ;STORE ASCII VERSION
+	 LDA     MASK+LO
+	 LSR     A
+	 LSR     A
+	 LSR     A
+	 LSR     A
+	 LSR     A
+	 AND     #3
+	 LDX     VAL
+	 STA     ZSTBUO,X
+	 INC     VAL
+	 DEC     MASK+HI
+	 BEQ     CNZSLE
+	 LDA     MASK+LO
+	 AND     #1F
+	 JMP     CNZSLO
+ 
+ CNZS2M  LDX     #24             ;SEARCH TABLECNZS2L  CMP     CHRTBL,X
+	 BEQ     CNZS2P          ;FOUND
+	 DEX
+	 BPL     CNZS2L
+	 LDY     #0              ;NOT FOUND
+	 RTS                     ;FAIL, ZERO SET
+ 
+ CNZS2P  TXA
+	 CLC
+	 ADC     #8
+	 RTS                     ;PASSED, ZERO CLEARED
+ 
+ ZCHRCS  CMP     #61             ;ASCII LOWER a
+	 BCC     ZCHRC1
+	 CMP     #7B             ;(ASCII LOWER z) + 1
+	 BCS     ZCHRC1
+	 LDA     #0
+	 RTS                     ;SET 0
+ 
+ ZCHRC1  CMP     #41             ;ASCII UPPER A
+	 BCC     ZCHRC2
+	 CMP     #5B             ;(ASCII UPPER Z) + 1
+	 BCS     ZCHRC2
+	 LDA     #1
+	 RTS
+ 
+ ZCHRC2  ORA     #0
+	 BEQ     $1
+	 BMI     $1              ;END
+	 LDA     #2              ;ELSE SET 2
+ $1      RTS
+ 
+ CNZSLE  LDA     ZSTBUO+1        ;CONVERT OUTPUT STRING
+	 ASL     A               ;LEFT JUSTIFY SECOND BYTE
+	 ASL     A
+	 ASL     A
+	 ASL     A               ;SHIFT TWO BITS ONTO RIGHT END OF FIRST BYTE
+	 ROL     ZSTBUO
+	 ASL     A
+	 ROL     ZSTBUO
+	 LDX     ZSTBUO          ;PLACE FIRST/SECOND BYTE INTO FINAL HOME
+	 STX     ZSTBUO+HI
+	 ORA     ZSTBUO+2        ;COMBINE REST OF SECOND BYTE WITH THIRD
+	 STA     ZSTBUO+LO
+         LDA     ZSTBUO+4        ;DO SECOND TRIPLET OF BYTES
+	 ASL     A               ;LEFT JUSTIFY SECOND BYTE
+	 ASL     A
+	 ASL     A
+	 ASL     A               ;SHIFT TWO BITS ONTO RIGHT END OF FIRST BYTE
+	 ROL     ZSTBUO+3
+	 ASL     A
+	 ROL     ZSTBUO+3
+	 LDX     ZSTBUO+3        ;PLACE FIRST/SECOND BYTE INTO FINAL HOME
+	 STX     ZSTBUO+2+HI
+	 ORA     ZSTBUO+5        ;COMBINE REST OF SECOND BYTE WITH THIRD
+	 STA     ZSTBUO+2+LO
+	 LDA     ZSTBUO+2+HI     ;SET SIGN BIT OF SECOND TRIPLET
+	 ORA     #80
+	 STA     ZSTBUO+2+HI
+	 RTS
+ 
+ 

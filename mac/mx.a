@@ -1,0 +1,128 @@
+
+    TITLE '         XZIP INTERPRETER FOR APPLE MACINTOSH '
+
+    PRINT NOGEN			; DON'T EXPAND MACROS
+    PRINT OFF			; DON'T LIST THE SYSTEM EQUATES
+	INCLUDE 'SysEqu.a'	; (TIME, TICKS)
+	INCLUDE 'SysErr.a'
+	INCLUDE 'Traps.a'	; _CharWidth
+;;	INCLUDE 'ToolEqu.a'	; (APPLSCRATCH)
+    PRINT ON
+
+    BLANKS OFF		; ALLOW COMMENTS USING '*' NOT ';'
+    STRING ASIS		; NOT PASCAL OR C FORMAT
+
+    PROC
+    DATA
+    
+    IMPORT	firstRow
+    IMPORT	lastRow
+    IMPORT	firstCol
+    IMPORT	lastCol
+
+    IMPORT	totRows		* [was totLines]
+    IMPORT	totCols		* [was totColumns]
+    IMPORT	curRow
+    IMPORT	curCol
+    
+    IMPORT	lineHeight	* height of font, in pixels
+    IMPORT	colWidth	* width of font (or of digit '0')
+
+    IMPORT	margLeft
+    IMPORT	margRight
+
+    IMPORT	currentHl	* inverse, etc
+    IMPORT	currentAttr	* wrap, etc
+**  IMPORT	currentFont	* DEAD, use ZFont
+
+**    IMPORT	scr1Lines
+**    IMPORT	whichScr
+    
+**    IMPORT	_w0font
+**    IMPORT	_w1font
+    IMPORT	mColor		* [was _mono]
+
+    IMPORT	xmouse		* mouse position (char units, zero origin)
+    IMPORT	ymouse
+    IMPORT	bmouse		* mouse button status
+    IMPORT	mmouse		* "mouse" menu/item
+
+    IMPORT	undoflag	* [boolean -- addr as byte from 68K]
+    IMPORT	menuflag
+
+    IMPORT	filename
+    IMPORT	filevol
+    IMPORT	actlen
+
+    IMPORT	trapAddr	* ORIGINAL TRAP ADDR, FOLLOWED BY CUSTOM ADDR	
+    IMPORT	BlitBitsAddr
+    IMPORT	blittrap	* [BOOLEAN] SET WHEN UPDATE PENDING
+    CODE
+
+    EXPORT	ZSTART
+**    EXPORT	_mov_mem	* (char *p1, *p2; LONG len)
+**    EXPORT	_clr_mem	* (char *p1; LONG len)
+    EXPORT	SqzRow		* (src, dst: Ptr; len: INTEGER);
+    EXPORT	FillCSpec	* (CSpec: Ptr; ix: INTEGER; bytePal: Ptr);
+    EXPORT	BuildStips	* (table1, table2: Ptr);
+    EXPORT	StipPic
+    EXPORT	MonoPic
+    EXPORT	Shrink75
+**    EXPORT	Scale2xPic 	* (src, dst, randTbl: Ptr; cols {rbSrc, rbDst}, rows: INTEGER);
+    EXPORT	UncompH
+
+*** IMPORT	ScrnSize
+    IMPORT	ClearWindow	* was ClearLines
+*** IMPORT	EraseEOL
+    IMPORT	EraseLine	* (start, len: INTEGER)
+    IMPORT	Scroll
+
+*** IMPORT	HiLight		* dead
+    IMPORT	ZFont		* zid: INTEGER
+    IMPORT	SetColor
+    IMPORT	opPicinf
+    IMPORT	opDisplay
+    IMPORT	getPicset
+    
+    IMPORT	SetUpInput	* was _do_input
+    IMPORT	EventIn		* was _char_in, MacttyIn
+    IMPORT	opMouseInfo
+    IMPORT	CharOut
+    IMPORT	LineOut
+
+    IMPORT	MacInit
+    IMPORT	QuitGame
+    IMPORT	ZAlloc
+
+*** IMPORT	_german_convert		* Mac: unimplemented
+*** IMPORT	MacSound
+    IMPORT	ZSound
+    IMPORT	EndZSound		* END-OF-SOUND CHECK
+
+    IMPORT	NewDefault
+    IMPORT	FileSelect
+
+    IMPORT	ExistFile
+    IMPORT	CreateFile
+    IMPORT	OpenFile
+    IMPORT	CloseFile
+    IMPORT	DeleteFile
+    IMPORT	ReadFile
+    IMPORT	WriteFile
+    
+    IMPORT	PrInit
+    IMPORT	PrLine
+
+    IMPORT	BlitBits	* PROCEDURE BlitBits (mode, row: INTEGER);
+
+* ----------------------------------------------------------------------------
+* PROGRAM
+* ----------------------------------------------------------------------------
+
+    INCLUDE	'MX1.a'
+    INCLUDE	'MX2.a'
+    INCLUDE	'MX3.a'
+    INCLUDE	'MX4.a'
+
+*** INCLUDE	'dissbits.a'
+    END

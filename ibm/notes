@@ -1,0 +1,15 @@
+dip.asm -- is the dip that displays in black and white on an rgb monitor,
+           and color on composite.
+
+lip.asm & dump.asm -- is the rgb dip that pseudo-colors.
+
+ezip.asm & *.ezp -- ezip (ezip.asm includes all the *.ezp files)
+
+msibmzip.asm -- zip for the ibm ib2 version (this is called newzip.asm
+                on paul's disk \paul\ws\newzip.asm)
+
+bosszip.asm & iboss.asm -- this is newzip.asm with the addition of the
+     boss key.  Two supplemental files, game.hrl (herald, displayed at
+     startup if present) and game.scr (screen, displayed on ^B) may
+     be present on the game disk.
+

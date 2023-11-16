@@ -1,0 +1,147 @@
+* FILE ZIP93-ASM
+
+**************************************************
+* SCRIPTING I/O                                  *
+**************************************************
+
+        RORG
+        DATA >EE93
+
+        DEF  TSTSCR,SCRCHR,SCRIPT
+
+        REF  BUFFER,PFLAGS
+        REF  PAB4,PAB4N,PAB4X,PAB4Y,PABPTR
+        REF  VSBR,VSBW,DSRLNK
+        REF  OPNFIL,JSR
+
+*=================================================
+
+* TEST FOR SCRIPTING AND UPDATE FLAGS ACCORDINGLY
+
+SCRIPT  DATA 0       FLAG SET = NOW SCRIPTING 
+PFOPEN  DATA 0       FLAG SET = SCRIPT FILE OPEN
+
+TSTSCR  LI   R8,BUFFER
+        MOV  @PFLAGS(R8),R8  GET FLAGS WORD
+
+        ANDI R8,1            SCRIPT FLAG SET?
+        JNE  X900            YES
+
+        CLR  @SCRIPT         NO, RESET (OUR) SCRIPT FLAG
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X900    MOV  @PFOPEN,R8      FILE ALREADY OPEN?
+        JNE  X902            YES
+
+        LI   R0,PAB4N        RS232 PARALLEL I/O
+        BL   @JSR
+        DATA  OPNFIL         OPEN A CHANNEL TO PRINTER
+        JEQ   X902           ERROR TRAP
+
+        MOV  R1,R8           SAVE
+
+        LI   R0,PAB4
+        LI   R1,>0300        "WRITE"
+        BLWP @VSBW           FIX PAB I/O SLOT
+
+        SETO @PFOPEN
+        MOV  R8,R1           RESTORE
+
+X902    SETO @SCRIPT         SET (OUR) SCRIPT FLAG
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+*-----------------------------------------------------------
+
+SCRBUF  EQU  >0FA0           SCRIPT LINE BUFFER
+SCREND  EQU  SCRBUF+40       END OF BUFFER
+
+SCRPTR  DATA SCRBUF          POINTER INTO BUFFER
+
+SCRBK   BYTE >08             "BACKSPACE"
+SCRCR   BYTE >0D             "CARRIAGE RETURN"
+
+* PUT A CHAR (R0 HIGH) INTO SCRIPT BUFFER
+*   HANDLE <CR> AND <BACKSPACE>
+
+SCRCHR  CB   R0,@SCRCR       CR?
+        JEQ  PUTSCR          YES, PRINT LINE AND EXIT
+
+        CB   R0,@SCRBK       BACKSPACE?
+        JEQ  SCRBAK          YES, DELETE A CHAR AND EXIT
+
+        LI   R8,SCREND
+        C    @SCRPTR,R8      IS THE BUFFER FULL?
+        JNE  X905            NO
+
+        DECT R6              YES,
+        MOV  R0,*R6          SAVE THE NEW CHAR
+
+        BL   @JSR
+        DATA  PUTSCR         PRINT A LINE
+
+        MOV  *R6+,R0         RESTORE THE CHAR
+
+X905    MOV  R1,R8
+        MOV  R0,R1           NEW CHAR IN R1 HIGH
+
+        MOV  @SCRPTR,R0      BUFFER TARGET POSITION
+        BLWP @VSBW           QUEUE THE CHAR
+
+        INC  @SCRPTR         ADVANCE THE BUFFER POINTER
+        MOV  R8,R1
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+*-----------------------------------------------------------
+
+* DELETE A CHAR FROM THE SCRIPT BUFFER
+
+SCRBAK  LI   R8,SCRBUF
+        C    @SCRPTR,R8      AT BEGINNING OF BUFFER NOW?
+        JEQ  X910            YES, FAIL
+
+        DEC  @SCRPTR         NO, BACK UP THE POINTER
+X910    MOV  *R6+,R11
+        B    *R11            RETURN
+
+*-----------------------------------------------------------
+
+* OUTPUT A LINE FROM THE SCRIPT BUFFER TO A PRINTER
+*   RESET SCRIPT BUFFER POINTER
+
+PUTSCR  MOV  R1,R8           SAVE
+
+        LI   R1,-SCRBUF
+        A    @SCRPTR,R1      CALCULATE # CHARS THIS LINE
+        SWPB R1
+
+        LI   R0,PAB4Y        NUMBER-OF-CHARS-TO-WRITE SLOT
+        BLWP @VSBW           FIX THE PAB
+
+        LI   R0,PAB4N        NAME LEN SLOT
+        MOV  R0,@PABPTR
+
+        BLWP @DSRLNK         GO PRINT THE LINE
+        DATA 8
+        JNE  X915            NO ERROR DETECTED
+
+        LI   R0,PAB4X        FLAGS SLOT
+        BLWP @VSBR           GET THE ERROR FLAG BITS
+
+        ANDI R1,>1F00        CLEAR ERROR FLAGS
+        BLWP @VSBW
+
+X915    MOV  R8,R1           RESTORE
+
+        LI   R8,SCRBUF
+        MOV  R8,@SCRPTR      RESET BUFFER POINTER
+
+        MOV  *R6+,R11   
+        B    *R11            RETURN
+
+
+        END

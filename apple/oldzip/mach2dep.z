@@ -1,0 +1,509 @@
+ .TITLE  "ZORK - MACHINE DEPENDENT - SECTION #2"
+ .PAGE
+ 
+ ;LAST MODIFICATION      - 2-01-84
+ 
+ ;****************************  DISK INTERFACE CODE *********************
+ 
+ RWTS    .EQU    02900           ;READ/WRITE ROUTINE
+ 
+ GAMETRK .EQU    3               ;TRACK ON WHICH GAME STARTS ***
+ 
+ SECTDIV .EQU    07F             ;SECTORS PER TRACK (EITHER 13. OR 16.)
+ 
+ SAVSIZ  .EQU    64.             ;# SECTORS ALLOWED FOR SAVE
+ 
+ ;I/O BLOCK (FOR RWTS)
+ IOB:    .BYTE   1               ;TYPE (ALWAYS 1)
+ SLOT:   .BYTE   6*10            ;SLOT # TIMES 10
+ DRIVE:  .BYTE   1               ;DRIVE (EITHER 1 OR 2)
+ VOLUME  .BYTE   0
+ TRACK   .BYTE                   ;FROM 0 TO 34.
+ SECTOR  .BYTE                   ;FROM 0 TO 12. FOR 13 SECTORS DISKS
+	 .WORD   DEVCHR          ;POINTER TO DEVICE CHARACTERISTICS TABLE
+ IOBUFR  .WORD   0               ;SOURCE/DESTINATION DATA BUFFER
+	 .WORD   0
+ IOCMD   .BYTE                   ;1 IS READ, 2 IS WRITE
+ STATUS  .BYTE
+ VOLFND  .BYTE
+ PSLOT   .BYTE   6*10            ;PREVIOUS SLOT #
+ PDRIVE  .BYTE   1               ;PREVIOUS DRIVE #
+ 
+ DEVCHR  .BYTE   0               ;DEVICE CODE (ALWAYS 0)
+	 .BYTE   1
+ MOTORON .WORD   0D8EF           ;MOTOR ON TIME (IN 100 USECS) COMPLEMENTED
+@;0D8EF = 1.0 SECS, 0F82F = 0.2 SECS
+ 
+ GETPUT  STA     IOCMD           ;TELL READ/WRITE COMMAND
+         MOVEW   TEMP,IOBUFR     ;TELL WHERE
+	 
+	 MOVE    #GAMETRK,TRACK  ;COMPUTE TRACK & SECTOR FROM PAGE #
+	 LDA     VAL+LO          ;LOW ORDER BYTE OF DIVIDEND
+         LDX     VAL+HI
+	 SEC
+ GPLOOP  SBC     SECTDIV         ;DIVISOR
+	 BCS     $1
+	 DEX                     ;BORROW
+	 BMI     GPEND
+         SEC
+ $1      INC     TRACK
+	 JMP     GPLOOP
+ GPEND   CLC
+	 ADC     SECTDIV
+	 STA     SECTOR
+	 
+         LDA     #1*IOB/100      ;SETUP POINTER TO I/O BLOCK
+	 LDY     #1*IOB&0FF
+	 JMP     RWTS            ;DO IT, RETURNS WITH CARRY CLEAR IF NO ERROR
+	 
+ ;GET a disk block, destination memory address in TEMP & page # in VAL
+ 
+ GET200  MOVEI   200,TEMP
+ GETNXT  INCW    VAL
+ IGETDK  LDA     #1              ;FOR READ
+	 JMP     GETPUT          ;RETURNS WITH CARRY CLEAR IF NO ERROR
+	 
+ GETDSK  JSR     IGETDK
+	 BCC     $1
+	 JSR     ZER             ;ERROR
+ $1      RTS
+ 
+ PUT200  MOVEI   200,TEMP
+ PUTNXT  INCW    VAL
+ PUTDSK
+ ;;      PUSHW   MOTORON
+ ;;      MOVE    #0D8,MOTORON+HI
+ ;;      MOVE    #0EF,MOTORON+LO
+	 LDA     #2              ;FOR WRITE
+	 JMP     GETPUT
+ ;;      PULLW   MOTORON
+ ;;      RTS                     ;RETURNS WITH CARRY CLEAR IF NO ERROR
+ 
+ ;************************** SAVE/RESTORE CODE *************************
+ 
+ COUTM   STX     MASK
+         LDY     #0
+         STY     MASK+1
+ COUTML  LDY     MASK+1
+         LDA     @TEMP,Y
+	 JSR     COUT
+	 INC     MASK+1
+	 DEC     MASK
+	 BNE     COUTML
+	 RTS
+ INSERM  .ASCII  "INSERT SAVE DISKETTE,"
+ INSERL  .EQU    *-INSERM
+ 
+ SNMOFF  .BYTE   0
+ SNMSG   .EQU    *
+ SLOTM   .EQU    *-SNMSG
+         .ASCII  "SLOT     (1-7):"
+ SNMSGL  .EQU    *-SNMSG
+ SNMDF   .EQU    *
+ SLOTDF  .BYTE   36              ;ASCII 6
+         .BYTE   31,38           ;MUST BE BETWEEN 1 AND 7
+	 
+ DRIVM   .EQU    *-SNMSG
+	 .ASCII  "DRIVE    (1-2):"
+ DRIVDF  .BYTE   32              ;ASCII 2
+         .BYTE   31,33           ;MUST BE 1 OR 2
+	 
+ POSM    .EQU    *-SNMSG
+	 .ASCII  "POSITION (0-7):"
+ POSDF   .BYTE   30              ;ASCII 0
+         .BYTE   30,38           ;MUST BE BETWEEN 0 AND 7
+ 
+ COLM80  .ASCII  "80 COLUMNS? (Y/N):"
+	 .BYTE   0D
+         .BYTE   255.
+	 
+ DEFM    .ASCII  "DEFAULT = "
+ DEFL    .EQU    *-DEFM
+ 
+ BEGM    .ASCII  "--- PRESS 'RETURN' TO BEGIN ---"
+ BEGL    .EQU    *-BEGM
+ 
+ PRLM    .ASCII  "PRINTER SLOT (0-7):"
+	 .BYTE   0D
+         .BYTE   255.
+ 
+ PRFLG   .BYTE   0               ;SLOT TEST FLAG
+ 
+ IIE     .BYTE   0               ;FLAG FOR IIe SET IN MODCDE, LATER USED
+@;TO CHECK U/L CASE, ETC.
+ 
+ MODCDE  LDA     0FBB3
+	 CMP     #06    ;IF 6 THEN IIE
+	 BNE     OUT
+	 LDA     0C017
+	 AND     #080    ;TEST FOR 0D OR 8D
+	 BNE     OUT     ;HIGH BIT SET = IIE WITH NO CARD
+	 
+	 LDA     #0
+	 STA     IIE     ;INIT IIE AGAIN FOR RESTART
+	 
+ ASK80   MOVEI   #COLM80,TEMP  ;PROMPT
+	 
+	 JSR     MHOME
+	 LDY     #0
+ ILF     LDA     (TEMP),Y
+	 CMP     #255.
+	 BEQ     DIP
+	 EOR     #80             ;MASK FOR NO FLASHING
+	 JSR     MCOUT
+	 INY
+	 JMP     ILF
+ DIP     JSR     MRDKEY  ;MONITOR RDKEY
+	 
+	 TAX
+	 CPX     #0EE    ;ASCII "n"
+	 BEQ     OUT     ;yes
+	 
+	 CPX     #0CE    ;ASCII "N"
+	 BEQ     OUT     ;YES
+	 
+	 CPX     #0F9    ;ASCII "y"
+	 BEQ     ISY     ;YES
+	 
+	 CPX     #0D9    ;ASCII "Y"
+	 BEQ     ISY     ;YES
+	 
+	 CPX     #08D    ;IS IT "CR"
+	 BNE     ASK80   ;NO THEN GO BACK
+	 
+ ISY     JSR     MHOME           ;CLEAR SCREEN AFTER PROMPT
+         
+         LDA     #00
+	 STA     36
+	 LDA     #0C3    ;PR#3
+	 STA     37
+	 JSR     PISSER          ;JSR     CR
+	 LDA     #01
+	 STA     IIE             ;SET THE FLAG -- IT'S A IIE W 80 COLUMNS
+	 RTS
+	 
+ OUT     LDA     #0
+	 STA     IIE     ;ZERO OUT THE IIE FLAG
+	 RTS
+	 
+ PCHK    LDA     PRFLG
+	 BNE     DD              ;DO ONLY ONCE
+	 
+ PRLP    MOVEI   #PRLM,TEMP
+	 
+	 LDY     #0
+ ILF1    LDA     (TEMP),Y
+	 CMP     #255.
+	 BEQ     DIP1
+	 EOR     #80             ;MASK FOR NO FLASHING
+	 JSR     MCOUT
+	 INY
+	 JMP     ILF1
+	 
+ DIP1    JSR     MRDKEY
+	 
+	 SEC
+	 SBC     #0B0
+	 BCC     PRLP
+	 CLC
+	 CMP     #08
+	 BCS     PRLP
+	 CLC
+	 ADC     #0C0
+	 STA     ALTCSW+1
+	 
+	 INC     PRFLG
+	 
+ DD      RTS
+	 
+ LOADSV  JSR     CLEARS
+         JSR     CR
+	 JSR     CR
+	 MOVEI   INSERM,TEMP
+	 LDX     #INSERL
+	 JSR     COUTM
+         JSR     CR
+ POSR    MOVE    #POSM,SNMOFF
+	 JSR     GETSNM
+ POSGO   STA     POSDF
+	 JSR     COUT
+ SLOTR   MOVE    #SLOTM,SNMOFF
+	 JSR     GETSNM
+ SLOTGO  TAX
+         AND     #7
+         ASL     A              ;TIMES 10
+	 ASL     A
+	 ASL     A
+	 ASL     A
+	 STA     SLOT
+	 TXA
+	 STA     SLOTDF
+	 JSR     COUT
+ DRIVR   MOVE    #DRIVM,SNMOFF
+	 JSR     GETSNM
+ DRIVGO  TAX
+	 AND     #3
+         STA     DRIVE
+	 TXA
+	 STA     DRIVDF
+	 JSR     COUT
+ BEGASK  JSR     CR
+	 MOVEI   BEGM,TEMP
+	 LDX     #BEGL
+	 JSR     COUTM
+	 JSR     LINOUT
+	 JSR     MRDKEY
+	 CMP     #8D             ;ASCII  RETURN
+	 BNE     BEGASK
+	 LDA     #0FF            ;INITIAL DISK BLOCK # FOR POSITION 0
+	 STA     VAL
+	 STA     VAL+1
+	 LDA     POSDF           ;RETRIEVE POSITION
+	 AND     #7
+	 BEQ     $2
+         TAY
+ $1      ADDB    VAL,#SAVSIZ
+	 DEY
+	 BNE     $1
+ $2      JSR     CR
+	 RTS
+ 
+ GETSNM  JSR     CR
+	 MOVEI   SNMSG,TEMP
+	 ADDB    TEMP,SNMOFF
+	 LDX     #SNMSGL
+	 JSR     COUTM
+	 JSR     LINOUT
+	 LDA     #25.
+	 STA     CH
+	 
+	 STA     EH              ;IIE'S CH
+	 
+	 LDA     #3F             ;USE INVERSE VIDEO
+	 STA     INVFLG
+	 MOVEI   DEFM,TEMP
+	 LDX     #DEFL
+	 JSR     PMSG
+	 MOVEI   SNMDF,TEMP
+	 ADDB    TEMP,SNMOFF
+	 LDX     #1
+	 JSR     PMSG
+	 LDA     #0FF
+	 STA     INVFLG
+         JSR     MRDKEY
+	 PHA
+	 LDA     #25.
+	 STA     CH
+	 
+	 STA     EH              ;IIE'S CH
+	 
+	 JSR     MCLEOL
+	 PLA
+	 LDY     SNMOFF
+	 CMP     #8D             ;ASCII RETURN
+	 BNE     $1
+	 LDA     SNMDF,Y         ;USE DEFAULT
+ $1      AND     #7F
+         CMP     SNMDF+1,Y       ;NOW CHECK RANGE
+	 BCC     GETSNM
+	 CMP     SNMDF+2,Y
+	 BCS     GETSNM
+	 RTS
+ 
+ REINSM  .ASCII  "RE-INSERT GAME DISKETTE,"
+ REINSL  .EQU    *-REINSM
+ CONM    .ASCII  "--- PRESS 'RETURN' TO CONTINUE ---"
+ CONL    .EQU    *-CONM
+ 
+ 
+ LOADGM  LDA     SLOT            ;BOOT SLOT?
+	 CMP     #6*10
+	 BNE     LOADG1
+	 LDA     DRIVE           ;BOOT DRIVE?
+	 CMP     #1
+	 BNE     LOADG1
+         JSR     CR
+	 MOVEI   REINSM,TEMP
+	 LDX     #REINSL
+	 JSR     COUTM
+ CONASK  JSR     CR
+	 MOVEI   CONM,TEMP
+	 LDX     #CONL
+	 JSR     COUTM
+	 JSR     LINOUT
+	 JSR     MRDKEY
+	 CMP     #8D             ;ASCII  RETURN
+	 BNE     CONASK
+	 JSR     CR
+ LOADG1  LDA     #6*10           ;BOOT SLOT
+	 STA     SLOT
+	 LDA     #1              ;BOOT DRIVE
+	 STA     DRIVE
+         RTS
+ 
+ SAVE    JSR     LOADSV
+         LDX     #0              ;INDEX TO SAVE BUFFER
+	 LDY     #ZID
+	 LDA     @ZCODEP,Y       ;SAVE ZORKID
+	 STA     200,X
+	 INX
+	 INY
+	 LDA     @ZCODEP,Y
+	 STA     200,X
+	 INX
+	 MOVEI   ZPCOFF,TEMP     ;SAVE ZPCH & ZPCL
+	 LDY     #3
+	 JSR     SAVE1
+	 MOVEI   LOCALS,TEMP     ;SAVE LOCALS
+	 LDY     #30.
+	 JSR     SAVE1
+	 MOVEI   STKOFF,TEMP     ;SAVE STACK POINTERS & COUNTS
+	 LDY     #6
+	 JSR     SAVE1
+	 JSR     PUT200          ;WRITE SAVE BUFFER
+	 BCS     SAVEF
+         LDX     #0              ;INDEX TO SAVE BUFFER
+	 MOVEI   ZSTACK,TEMP     ;SAVE STACK
+	 LDY     #0              ;SAVE FIRST 256 BYTES
+	 JSR     SAVE1
+	 JSR     PUT200          ;WRITE
+	 BCS     SAVEF
+         LDX     #0              ;INDEX TO SAVE BUFFER
+	 MOVEI   ZSTACK+100,TEMP
+	 LDY     #<2*ZSTAKL>-100 ;SAVE REST
+	 JSR     SAVE1
+	 JSR     PUT200
+	 BCS     SAVEF
+	 MOVEW   ZCODEP,TEMP     ;START OF PURE SPACE
+	 LDY     #ZPURBT+<HI^INVERT>     ;GET SIZE OF PURE SPACE
+	 LDA     @ZCODEP,Y
+	 STA     MASK
+	 INC     MASK            ;ROUND UP
+ SAVEL   JSR     PUTNXT
+	 BCS     SAVEF
+	 INC     TEMP+HI
+	 DEC     MASK
+	 BNE     SAVEL
+	 JSR     PUTNXT          ;FLUSH BUFFER
+	 BCS     SAVEF
+	 JSR     LOADGM
+	 JMP     PREDS
+ SAVEF   JSR     LOADGM
+         JMP     PREDF
+ 
+ SAVE1   DEY
+         LDA     @TEMP,Y
+	 STA     200,X
+	 INX
+	 CPY     #0
+	 BNE     SAVE1
+	 RTS
+ 
+ 
+ RESTOR  JSR     LOADSV
+	 JSR     GET200          ;READ INTO RESTORE BUFFER
+	 BCC     $1
+	 JMP     RESTF
+ $1      LDX     #0              ;INDEX TO RESTORE BUFFER
+	 LDY     #ZID
+	 LDA     @ZCODEP,Y       ;COMPARE ZORKIDS
+	 CMP     200,X
+	 BNE     $2
+	 INX
+	 INY
+	 LDA     @ZCODEP,Y
+	 CMP     200,X
+	 BEQ     $3
+ $2      JMP     RESTF
+ $3      LDY     #ZSCRIP+<LO^INVERT>    ;SAVE SCRIPTING FLAG
+	 LDA     @ZCODEP,Y
+	 STA     SIGNF
+	 INX
+	 MOVEI   ZPCOFF,TEMP     ;RESTORE ZPCH & ZPCL
+	 LDY     #3
+	 JSR     REST1
+	 LDA     #FALSE
+	 STA     ZPCFLG
+	 MOVEI   LOCALS,TEMP     ;RESTORE LOCALS
+	 LDY     #30.
+	 JSR     REST1
+	 MOVEI   STKOFF,TEMP     ;RESTORE STACK POINTERS & COUNTS
+	 LDY     #6
+	 JSR     REST1
+	 JSR     GET200          ;READ NEXT BLOCK INTO RESTORE BUFFER
+	 BCS     RESTF
+         LDX     #0              ;INDEX TO RESTORE BUFFER
+	 MOVEI   ZSTACK,TEMP     ;RESTORE STACK
+	 LDY     #0              ;RESTORE FIRST 256 BYTES
+	 JSR     REST1
+	 JSR     GET200          ;READ NEXT BLOCK
+	 BCS     RESTF
+         LDX     #0              ;INDEX TO RESTORE BUFFER
+	 MOVEI   ZSTACK+100,TEMP
+	 LDY     #<2*ZSTAKL>-100 ;RESTORE REST
+	 JSR     REST1
+	 MOVEW   ZCODEP,TEMP     ;START OF PURE SPACE
+	 LDY     #ZPURBT+<HI^INVERT>     ;GET SIZE OF PURE SPACE
+	 LDA     @ZCODEP,Y
+	 STA     MASK
+	 INC     MASK            ;ROUND UP
+ RESTL   JSR     GETNXT
+	 BCS     RESTF
+	 INC     TEMP+HI
+	 DEC     MASK
+	 BNE     RESTL
+	 LDA     SIGNF       ;RESTORE SCRIPTING FLAG
+	 LDY     #ZSCRIP+<LO^INVERT>
+	 STA     @ZCODEP,Y
+	 JSR     LOADGM
+	 JMP     PREDS
+ RESTF   JSR     LOADGM
+         JMP     PREDF
+ 
+ REST1   DEY
+	 LDA     200,X
+         STA     @TEMP,Y
+	 INX
+	 CPY     #0
+	 BNE     REST1
+	 RTS
+ 
+ RND     INC     04E             ;MODIFY NUMBER IN CASE NO READKEYS
+	 INC     04F
+	 MOVEW   04E,TEMP        ;SNARF RANDOM NUMBER FROM MONITOR
+	 RTS
+ 
+ QTMSG   .ASCII  "-- END OF SESSION --"
+ QTLNG   .EQU    *-QTMSG
+ ZERMSG  .ASCII  "INTERNAL ERROR #"
+ ZERLNG  .EQU    *-ZERMSG
+0;ZIP INTERNAL ERROR
+0
+ ZER     JSR     CR
+	 MOVEI   ZERMSG,TEMP             ;HEADER MESSAGE
+	 LDX     #ZERLNG
+	 JSR     COUTM
+	 PLA
+	 STA     TEMP+LO
+	 PLA
+	 STA     TEMP+HI
+	 JSR     PRNTNC
+	 JMP     QUIT
+	                         ; WARNING **** PUT NOTHING BETWEEN HERE
+@; AND THE QUIT OPCODE THERE IS VARIABLE
+@; FUNKINESS WITH BOOT2 DISK CONTROL
+@; BLOCK AND IT CHANGES VARIABLES
+@; WARNING *********************
+@
+@
+ .ORG    023D0           ;BELOW CONTROL BLOCK USED BY BOOT2.CODE
+	 
+ .LIST
+ 
+ QUIT    JSR     CR
+	 MOVEI   QTMSG,TEMP
+	 LDX     #QTLNG
+	 JSR     COUTM
+	 JSR     CR
+	 JMP     *
+ 

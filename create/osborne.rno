@@ -1,0 +1,263 @@
+.c;CREATING AN OSBORNE CREATE DISK FOR A NEW GAME
+.s
+NOTE: Before starting this procedure, make sure you have a blank,
+Osborne-formatted disk. This will become the new create disk.
+.s
+1. Put the CP/M system disk in the left-hand drive, Drive A. Put the
+disk labelled "Utilities TFTP/GAME.COM" in the right-hand drive, Drive
+B.
+.s
+2. Turn on the power. Hit return to boot the disk in Drive A. When the
+menu appears, hit the ESC key to load CP/M.
+.s
+3. When the "A>" prompt appears, type "dir b:" to get a listing of the
+files on the Utility disk in Drive B. There should be a file called
+"[oldname].COM", where "[oldname]" is the name of a pre-existing
+Interlogic game, shortened to the first eight letters if necessary.
+.s
+4. Type "b:" and hit the return key. A "B>" prompt should appear.
+.s
+5. Type "ED SETUP.ASM" and hit the return key.
+.s
+6. A prompt that looks like ":*" will appear. Type "1000A" and hit the
+RETURN key.
+.s
+7. A prompt that looks like "1:*" will appear. Type "FDB '" and hit the
+RETURN key.
+.s
+8. A prompt that looks like "30:*" will appear. Type
+"8DI[newname]ctrl-Z" and hit the return key. Note that ctrl-Z refers to
+hitting the CTRL and Z keys simultaneously. Also, [newname] refers to
+the name of the game you are creating this Create Disk for, shortened to
+the first 8 letters or padded to 8 letters using spaces.
+.s
+9. A prompt will appear that looks like "*". Type "E" and hit the RETURN
+key.
+.s
+10. After a few seconds, the "B>" prompt should reappear. Type "ASM
+SETUP" and hit the RETURN key.
+.s
+11. The CP/M Assembler will run for a little while. When it is done, the
+screen will say "End of Assembly", and the "B>" will reappear. Type
+"LOAD SETUP" and hit the RETURN key.
+.s
+12. Some gibberish will appear and then the "B>" will return. Type "REN
+[newname].COM=[oldname].COM". In this command, [newname] and [oldname]
+should be shortened to 8 letters but should not be padded with spaces if
+they are less than 8 letters.
+.s
+13. The "B>" prompt will appear again. Type "SETUP" and hit the RETURN
+key.
+.s
+14. The screen will say "Configuration Program Finished" and the "B>"
+prompt will return. Type "A:" and hit the RETURN key.
+.s
+15. When the "A>" prompt appears, type "ERA [oldname].COM" and hit the
+RETURN key.
+.s
+16. When the "A>" prompt returns, type "PIP A:=B:[newname].COM" and hit
+the RETURN key.
+.s
+17. The "A>" prompt will return. Remove the Utilities disk from Drive B
+and put the blank, Osborne-formatted disk into Drive B. Type a ctrl-C.
+.s
+18. When the "A>" prompt reappears, type "PIP B:=[newname].COM" and hit
+the return key. 
+.s
+19. Type "B:" to connect to Drive B, and then type "DIR" to list the
+files on the new Create disk. There should be one file, called
+"[newname].COM".
+.s
+20. You are done. Remove the new Create disk, label it, and put a
+write-protect sticker on it.
+
+.pg
+.c;HOW TO FORMAT DISKS FOR THE OSBORNE
+.s
+1. Put the CP/M system disk in the left-hand drive, Drive A.
+.s
+2. Turn on the power. The switch is in the back, under the lid.
+.s
+3. Hit the return key to boot the disk in Drive A.
+.s
+4. When the menu appears, hit the ESC key to load CP/M.
+.s
+5. When the "A>" prompt appears, type "COPY" and hit return.
+.s
+6. A two-item menu will appear. Type "F" for FORMAT.
+.s
+7. You will asked which drive you want to use for the formatting
+procedure. Type "B" and hit return.
+.s
+8. Put a blank disk in Drive B. Hit return to begin the formatting
+procedure.
+.s
+9. A line of F's will appear on the screen. Then a line of V's will
+appear just below the F's. When the formatting procedure is done, you
+will be asked if you want to format another disk.
+
+.pg
+.c;TRANSFERRING A GAME FILE FROM THE DEC-20 TO THE OSBORNE
+.s
+NOTE: Before you begin, you will need a blank, Osborne-formatted disk
+(or two if this is a two-disk game). Refer to the formatting section of
+the Osborne documentation.
+.s
+1. Plug the TN20 line into the front of the Osborne. You will need the
+Osborne/Apple black adapter cable to do this.
+.s
+2. Put the CP/M system disk in Drive A (the left-hand drive) and turn on
+the Osborne power. The power switch is in the panel in the back, next to
+the power cord.
+.s
+3. Hit return to boot the CP/M disk. When the menu appears, hit the ESC
+key to load CP/M.
+.s
+4. When the "A>" prompt appears, type "copy" and hit the RETURN key.
+.s
+5. You will asked whether you want to Format a disk or Copy a disk. Type
+"C" to copy a disk.
+.s
+6. You will asked which drive you want to use for the source disk. Type
+"A" for Drive A.
+.s
+7. Place the Osborne create disk for this game in Drive A. Place a
+blank, Osborne-formatted disk in Drive B. Hit the RETURN key to begin
+the copy procedure.
+.s
+8. When the copy procedure is complete, replace the Create disk with the
+CP/M disk. Hit several returns until you see the "A>" prompt.
+.s
+9. Type "dir b:" to see the contents of the disk in Drive B. It should
+contain one file, called [game].COM, where [game] is the first 8 letters
+of the name of the game.
+.s
+10. If you are transferring a two-disk game, go to step (16). If you are
+transferring a one-disk game, continue to the next step.
+.s
+11. At the "A>" prompt, type "tftp b:[game].DAT", but do not hit the
+RETURN key yet. Note that [game] refers to the first 8 letters of the
+game, such as SUSPENDE or PLANETFA.
+.s
+12. Follow the instructions for running TN20. When you get to the step
+where the 20 says "Type any key to begin transfer:" return to the
+Osborne and hit the RETURN key. The Drive A red working light will go
+on. A bit later, the Drive B red working light will go on. Wait a few
+seconds after the Drive B light goes on, and then hit a key on the 20
+terminal to begin the transfer.
+.s
+13. A's will begin appearing on the 20 terminal. No A's will appear on
+the Osborne screen, though. The transfer should take around 15 minutes.
+When it is done, the Osborne screen will say "Transfer Completed" and
+the "A>" prompt will return.
+.s
+14. Type "b: dir" and hit the RETURN key. The disk in Drive B should
+consist of two files, one called [game].COM and one called [game].DAT.
+.s
+15. The disk is Drive B is now a usable game disk. Boot it by typing
+[game] at the "A>" prompt. When the game prompt appears, type "$ve" to
+check the disk.
+.s
+16. The disk is Drive B will become disk one of the game. At the "A>"
+prompt, type "tftp b:[game].PRE", but do not hit the RETURN key yet.
+Note that [game] refers to the first 8 letters of the game, such as
+SUSPENDED or PLANETFA.
+.s
+17. Follow the instructions for running TN20. Don't forget to SPLIT the
+game file to create the [game].PRE and [game].PUR files. When you get to
+the step where the 20 says "Type any key to begin transfer:" return to the
+Osborne and hit the RETURN key. The Drive A red working light will go
+on. A bit later, the Drive B red working light will go on. Wait a few
+seconds after the Drive B light goes on, and then hit a key on the 20
+terminal to begin the transfer.
+.s
+18. A's will begin appearing on the 20 terminal. No A's will appear on
+the Osborne screen, though. The transfer should take around 5 minutes.
+When it is done, the Osborne screen will say "Transfer Completed" and
+the "A>" prompt will return.
+.s
+19. Type "dir b:" and hit the RETURN key. The disk in Drive B should
+contain two files, called [game].COM and [game].PRE. Remove this disk
+from Drive B and label it as Disk one.
+.s
+20. Put the second blank, Osborne-formated disk in Drive B. Hit a
+ctrl-C.
+.s
+21. When the "A>" prompt returns, type "tftp b:[game].PUR" but again, do
+not hit the RETURN key yet.
+.s
+22. Run TN20 again, this time sending the [game].PUR file. Remember to
+begin the transfer a few seconds after the red working light on the
+Osborne's Drive B goes on.
+.s
+23. A's will appear on the 20 terminal again. The transfer will take
+about 15 minutes. When it is done, the Osborne screen will say "Transfer
+Completed," and the "A>" will return.
+.s
+24. Type "dir b:". There should be one file on the disk in Drive B,
+called [game].PUR.
+.s
+25. The disk in Drive B is disk two of the game. Remove it and place
+disk one in Drive B.
+.s
+26. Boot the game. When the game prompt appears, type "$ve" to check the
+disk.
+
+TROUBLESHOOTING: The most common error message is something like "BDOS
+Bad Sector". If you get this, try hitting ctrl-C. If it still doesn't
+work, make sure that the disk you are copying to isn't write-protected.
+
+.pg
+.c;COPYING OSBORNE DISKS
+.s
+1. If you have an Osborne version of a game and you want to make another
+copy of it, you just have to duplicate it using the Osborne's CP/M copy
+procedure. You will need a blank, Osborne-formatted disk for each disk
+you want to copy.
+.s
+2. Put the CP/M System disk in the left-hand drive, Drive A. Turn on the
+Osborn power (in the back under the lid).
+.s
+3. Hit return to boot the disk in Drive A. When the menu appears, hit
+the ESC key to load CP/M.
+.s
+4. When the "A>" prompt appears, type "copy" and hit the RETURN key.
+.s
+5. You will be asked whether you want to Copy or Format. Type "C" to
+copy a disk.
+.s
+6. You will be asked which drive you want to use for the source disk.
+Type "A" for Drive A.
+.s
+7. Put the disk to be copied in Drive A. Put a blank, Osborne-formatted
+disk in Drive B. Hit the RETURN key to begin the copy procedure.
+.s
+8. If the game you are copying is a two-disk game, just repeat the above
+procedure with the the other disk.
+
+.pg
+.c;HOW TO BOOT DISKS ON THE OSBORNE
+.s
+1. Put the CP/M System disk in the left-hand drive, Drive A. Put the
+game disk (disk one if it is a two-disk game) in the right-hand drive,
+Drive B. 
+.s
+2. Turn on the Osborne power. The power switch is in the back, under the
+small lid, next to where the power cord is attached.
+.s
+3. Hit the RETURN key to boot the CP/M disk in Drive A.
+.s
+4. When the help menu appears, hit the ESC key to load CP/M.
+.s
+5. A prompt that looks like "A>" will appear. Type "b:" to connect to
+Drive B.
+.s
+6. A prompt that looks like "B>" will appear. Type the first 8 letters
+of the name of the game, such as ZORK2, STARCROS, or ENCHANTE, and hit
+the RETURN key. If you're not sure what to type, you can type "dir" to
+get a listing of the files on the disk in Drive B.
+.s
+7. If it is a one-disk game, the game should now boot. If it is a
+two-disk game, you will be instructed to insert to data disk. Remove the
+CP/M disk from Drive A and insert disk two. Then hit the RETURN key. The
+game should now boot.

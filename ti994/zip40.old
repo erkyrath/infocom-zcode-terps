@@ -1,0 +1,308 @@
+* FILE ZIP40-ASM
+
+**********************************************
+* LOW LEVEL FUNCTIONS                        *
+**********************************************
+
+        RORG
+
+        DEF  GTAWRD,PTAWRD,GETBYT,GETWRD
+        DEF  NXTBYT,NXTWRD,GETARG,GETVAR,PUTVAR
+        DEF  BYTVAL,PUTVAL,PFALSE,PTRUE
+        DEF  BSPLTB,BSPLIT
+
+        REF  ENDLOD,BUFFER,CURPAG,ZPC2,ZLOCS,GLOTAB
+        REF  GETPAG,NEWZPC,OPRFAL,OPRTRU
+
+*----------------------------------------------------------
+* GET A CORE WORD (MAY CROSS A WORD BOUNDARY)
+*    ABSOLUTE POINTER GIVEN IN R0, RETURN WORD IN R0
+
+GTAWRD  MOV  R0,R8
+        MOVB *R8+,R0         GET HIGH ORDER BYTE
+        SWPB R0
+
+        MOVB *R8,R0          GET LOW ORDER BYTE
+        SWPB R0
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* UPDATE CORE WORD
+*    ABSOLUTE POINTER GIVEN IN R0, NEW VALUE IN R1
+
+PTAWRD  MOVB R1,*R0+         STORE HIGH ORDER BYTE
+        SWPB R1
+        MOVB R1,*R0          STORE LOW ORDER BYTE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET A BYTE
+*    BLOCK POINTER IN R0, BYTE POINTER IN R1, RESULT IN R2
+*    UPDATE R0 AND R1 TO REFLECT BYTE GOTTEN
+
+GETBYT  DECT R6
+        MOV  R0,*R6          SAVE OLD BLOCK POINTER
+
+        C    R0,@ENDLOD      IS THIS A PRELOADED LOCATION?
+        JGT  X451            NO
+        JEQ  X451            NO
+
+        SLA  R0,9            YES, RECONSTRUCT POINTER
+        SOC  R1,R0
+        MOV  R0,R2           (CAN'T INDEX FROM R0)
+
+        MOVB @BUFFER(R2),R2  GET THE BYTE (R2 HIGH)
+        JMP  X452
+
+X451    BL   @JSR
+        DATA  GETPAG         FIND THE PROPER PAGE
+
+        A    R1,R0           POINT TO DESIRED BYTE
+        MOVB *R0,R2          GET IT (R2 HIGH)
+
+X452    SWPB R2
+        ANDI R2,>00FF        RETURN BYTE IN R2 LOW
+
+        MOV  *R6+,R0         RESTORE OLD BLOCK POINTER
+
+        INC  R1              UPDATE BYTE POINTER
+        CI   R1,512          END OF PAGE?
+        JNE  X453            NO
+
+        CLR  R1              YES, RESET BYTE POINTER
+        INC  R0              AND UPDATE BLOCK POINTER
+
+X453    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET A WORD
+*    BLOCK POINTER IN R0, BYTE POINTER IN R1, RESULT IN R2
+
+GETWRD  BL   @JSR
+        DATA  GETBYT         GET HIGH-ORDER BYTE
+
+        SWPB R2              POSITION IT
+        DECT R6
+        MOV  R2,*R6          SAVE IT
+
+        BL   @JSR
+        DATA  GETBYT         GET LOW-ORDER BYTE
+        SOC  *R6+,R2         OR IN HIGH BYTE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET THE NEXT BYTE, RETURN IT IN R0 (LOW)
+
+NXTBYT  MOV  @ZPC2,R0        BYTE POINTER
+        A    @CURPAG,R0      INDEX INTO CURRENT PAGE
+
+        DECT R6              MAKE ROOM ON STACK
+        MOVB *R0,*R6         GET AND SAVE THE BYTE
+
+        INC  @ZPC2           UPDATE PC
+        C    @ZPC2,512       END-OF-PAGE?
+        JLT  X454            NO
+
+        BL   @JSR
+        DATA  NEWZPC         YES, UPDATE PAGE
+
+X454    MOV  *R6+,R0         RETRIEVE THE BYTE (INC SP BY 2)
+        SWPB R0
+        ANDI R0,>00FF        CLEAR UNWANTED BYTE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET THE NEXT WORD, RETURN IT IN R0
+
+NXTWRD  BL   @JSR
+        DATA  NXTBYT         GET HIGH-ORDER BYTE
+
+        SWPB R0              MOVE TO PROPER POSITION
+        DECT R6
+        MOV  R0,*R6          SAVE IT
+
+        BL   @JSR
+        DATA  NXTBYT         GET LOW-ORDER BYTE
+        SOC  *R6+,R0         OR IN HIGH-ORDER BYTE
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET AN ARGUMENT, GIVEN ITS TYPE IN R0 (WORD)
+
+GETARG  DEC  R0              EXAMINE ARGUMENT
+        JLT  NXTWRD          O MEANT LONG IMMEDIATE
+        JEQ  NXTBYT          1 MEANT SHORT IMMEDIATE
+
+        BL   @JSR
+        DATA  NXTBYT         2 MEANT VARIABLE, GET THE VAR
+
+        MOV  R0,R0           STACK?
+        JNE  GETVAR          NO, JUST GET THE VAR'S VALUE
+
+X455    MOV  *R5+,R0         YES, POP THE (Z)STACK
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GET VALUE OF A VARIABLE
+*    VAR GIVEN IN R0 (LOW), R0 (HIGH) CLEAR
+*    VALUE RETURNED IN R0
+
+GETVAR  MOV  R0,R0           STACK?
+        JNE  X456            NO
+
+        MOV  *R5,R0          YES, READ TOP-OF-STACK
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X456    CI   R0,16-1         LOCAL?
+        JGT  X457            NO
+
+        DEC  R0              YES, POINT TO PROPER STACK ELEMENT
+        SLA  R0,1
+        NEG  R0
+        A    @ZLOCS,R0
+        MOV  *R0,R0          AND GET IT
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X457    AI   R0,-16          GLOBAL, POINT TO PROPER
+        SLA  R0,1               GLOBAL TABLE ELEMENT
+        A    @GLOTAB,R0
+        B    @GTAWRD         AND GET IT
+
+* UPDATE VALUE OF A VARIABLE
+*    VAR GIVEN IN RO (LOW), R0 (HIGH) CLEAR
+*    NEW VALUE GIVEN IN R1
+
+PUTVAR  MOV  R0,R0           STACK?
+        JNE  X458            NO
+
+        MOV  R1,*R5          YES, UPDATE TOP-OF-STACK
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X458    CI   R0,16-1         LOCAL?
+        JGT  X459            NO
+
+        DEC  R0              YES, POINT TO PROPER STACK ELEMENT
+        SLA  R0,1
+        NEG  R0
+        A    @ZLOCS,R0
+        MOV  R1,*R0          AND UPDATE IT
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X459    AI   R0,-16          GLOBAL, POINT TO PROPER
+        SLA  R0,1               GLOBAL TABLE ELEMENT
+        A    @GLOTAB,R0
+        B    @PTAWRD         AND UPDATE IT
+
+* RETURN VALUE IN R0 TO LOC SPECIFIED BY NEXTBYTE
+*   DESTROYS R1, BUT IS USUALLY CALLED AT END OF TOP-LEVEL FUNCTION
+
+BYTVAL  SWPB R0              BYTE VAL GIVEN IN R0 HIGH (TI-99)
+        ANDI R0,>00FF
+
+PUTVAL  MOV  R0,R1           NORMAL ENTRY POINT FOR WORD VAL
+        BL   @JSR
+        DATA  NXTBYT         GET VAR TO USE
+
+        MOV  R0,R0           STACK?
+        JNE  PUTVAR          NO, GO STORE VALUE
+
+        DECT R5              YES
+        MOV  R1,*R5          PUSH VALUE ONTO (Z)STACK
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* PREDICATE HANDLERS TRUE AND FALSE
+*    DESTROYS REGISTERS, BUT ARE ONLY CALLED FROM END OF TOP-LEVEL FUNCTIONS
+
+PFALSE  CLR  R1              PREDICATE WAS FALSE, CLEAR FLAG
+        JMP  PTRUE1
+
+PTRUE   LI   R1,1            PREDICATE WAS TRUE, SET FLAG
+PTRUE1  BL   @JSR
+        DATA  NXTBYT         GET FIRST (OR ONLY) PRED JUMP BYTE
+
+        LI   R8,>0080
+        CZC  R8,R0           NORMAL POLARITY PREDICATE?
+        JEQ  X461            NO, LEAVE FLAG ALONE
+
+        INC  R1              YES, INCREMENT FLAG
+X461    LI   R8,>0040
+        CZC  R8,R0           ONE-BYTE JUMP OFFSET?
+        JEQ  X462            NO
+
+        ANDI R0,>FF3F        YES, CLEAR SPECIAL BITS
+        JMP  X463
+
+X462    ANDI R0,>FF3F        CLEAR SPECIAL BITS FROM HIGH-ORDER OFFSET BYTE
+        SWPB R0              POSITION IT
+        MOV  R0,R2
+
+        BL   @JSR
+        DATA  NXTBYT         GET LOW-ORDER OFFSET BYTE
+
+        SOC  R2,R0           OR IN HIGH-ORDER BITS
+        LI   R8,>2000        
+        CZC  R8,R0           IS NUMBER NEGATIVE? (14 BIT 2'S COMP)
+        JEQ  X463            NO
+
+        ORI  R0,>C000        YES, MAKE 16 BIT NUMBER NEGATIVE
+X463    DEC  R1              TEST FLAG
+        JEQ  X466            WAS 1, THAT MEANS DO NOTHING
+
+        MOV  R0,R0           ZERO JUMP?
+        JNE  X464            NO
+        B    @OPRFAL         YES, THAT MEANS DO AN RFALSE
+
+X464    DEC  R0              ONE JUMP?
+        JNE  X465            NO
+        B    @OPRTRU         YES, THAT MEANS DO AN RTRUE
+
+X465    DEC  R0              ADJUST OFFSET
+        A    R0,@ZPC2        ADD TO PC
+        B    @NEWZPC         AND UPDATE ZPC STUFF
+
+X466    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* SPLIT BYTE-POINTER IN R0 INTO: BLOCK-POINTER
+*    IN R0 (7 BITS) AND BYTE OFFSET IN R1 (9 BITS)
+
+BSPLTB  MOV  R0,R1
+        ANDI R1,>01FF        CLEAR ALL BUT BYTE OFFSET BITS
+
+        SWPB R0
+        SRA  R0,1
+        ANDI R0,>007F        CLEAR ALL BUT BLOCK-POINTER BITS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* SPLIT WORD-POINTER IN R0 INTO: BLOCK-POINTER 
+*    IN R0 (8 BITS) AND BYTE OFFSET IN R1 (9 BITS)
+
+BSPLIT  MOV  R0,R1
+        SWPB R0
+        ANDI R0,>00FF        EXTRACT BLOCK BITS
+
+        ANDI R1,>00FF        CLEAR ALL BUT WORD OFFSET BITS
+        SLA  R1,1            CONVERT TO BYTE OFFSET
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+
+        END
+

@@ -1,0 +1,344 @@
+* FILE ZIP50.ASM
+
+* STRING FUNCTIONS ************************************************
+
+        RORG
+        DEF  PUTSTR,ZWORD
+
+        REF  CHRFUN,WRDOFF,WRDTAB
+        REF  GETWRD,GTAWRD,BSPLTB,NEWLIN,JSR
+
+* ZSTR CHARACTER CONVERSION VECTOR
+
+ZCHRS   TEXT 'abcdefghijklmnopqrstuvwxyz'
+        TEXT 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        TEXT '  0123456789.,!?_#'
+        BYTE '''                                 * () CHECK THIS
+        TEXT '"/\-:()'
+        BYTE >00
+        EVEN
+
+* OUTPUT A ZSTR
+*    GIVEN: R0 = BLOCK POINTER, R1 = BYTE POINTER
+*    RETURN UPDATED POINTER
+
+PUTSTR  DECT R6
+        MOV  R2,*R6
+        DECT R6
+        MOV  R3,*R6
+        DECT R6
+        MOV  R4,*R6
+        DECT R6
+        MOV  R5,*R6          SAVE OLD REGISTERS
+
+        CLR  R4              TEMP CHAR SET STARTS AT 0
+        CLR  R5              PERM CHAR SET STARTS AT 0
+
+*--------------------------------------------------------------------
+X551    BL   @JSR
+        DATA  GETWRD         GET NEXT STRING WORD
+
+        DECT R6
+        MOV  R0,*R6
+        DECT R6
+        MOV  R1,*R6
+        DECT R6
+        MOV  R2,*R6          SAVE PTR & COPY OF STRING WORD
+
+        LI   R3,3            3 BYTES IN (Z)WORD
+X552    DECT R6
+        MOV  R2,*R6          SAVE CURRENT BYTE (LOW 5 BITS)
+
+        SRA  R2,5            SHIFT NEXT BYTE INTO POSITION
+        DEC  R3
+        JNE  X552            LOOP UNTIL DONE
+
+        LI   R3,3            RETRIEVE THE 3 BYTES
+X553    MOV  *R6+,R2         GET NEXT BYTE
+        ANDI R2,>001F        CLEAR UNWANTED BITS
+
+        MOV  R4,R4           IN WORD MODE?
+        JGT  X554            NO
+        JEQ  X554            NO
+*--------------------------------------------------------------------
+
+        SLA  R2,1            YES, CALCULATE WORD OFFSET
+        A    @WRDTAB,R2      POINT INTO WORD TABLE
+        A    @WRDOFF,R2      USING PROPER 32-WORD BLOCK
+
+        MOV  R2,R0
+        BL   @JSR
+        DATA  GTAWRD         POINT TO WORD STRING
+
+        BL   @JSR
+        DATA  BSPLIT         SPLIT IT
+
+        BL   @JSR
+        DATA  PUTSTR         AND PRINT IT
+
+        JMP  X565            CONTINUE WHERE WE LEFT OFF,
+                                 WITH TEMP CS RESET
+*---------------------------------------------------------------------
+X554    CI   R4,3            CS 3 SELECTED? (ASCII MODE)
+        JLT  X556            NO, NORMAL CS
+*---------------------------------------------------------------------
+
+        JNE  X555            NO, BUT WE ARE IN ASCII MODE
+        SWPB R4              SHIFT SOME BITS HIGH TO MAKE NUMBER LARGE
+        SOC  R2,R4           SAVE HIGH-ORDER ASCII BITS HERE
+        JMP  X566            GO GET NEXT BYTE
+
+X555    ANDI R4,>0003        EXTRACT PREVIOUSLY SAVED HIGH-ORDER BITS
+        SLA  R4,5            POSITION THEM
+        SOC  R2,R4           OR IN LOW-ORDER BITS
+
+        MOV  R4,R0           
+        JMP  X564            GO PRINT THE CHARACTER
+
+*---------------------------------------------------------------------
+X556    CI   R2,6            SPECIAL CODE?
+        JLT  X559            YES, SPACE, WORD, OR SHIFT
+
+        CI   R4,2            MIGHT ALSO BE SPECIAL IF IN CS2
+        JNE  X558            BUT WE'RE NOT
+*---------------------------------------------------------------------
+
+        CI   R2,7            CRLF?
+        JEQ  X557            YES
+        JGT  X558            NO, NOT ASCII MODE, EITHER?
+
+        INC  R4              YES IT IS, SWITCH TO ASCII MODE
+        JMP  X566            AND GO GET NEXT BYTE
+
+X557    BL   @JSR
+        DATA  NEWLIN         CRLF REQUESTED, DO A NEWLINE
+        JMP  X565
+
+*-------------------------------------------------------------------
+X558    LI   R8,26           NORMAL CHAR,
+        MPY  R4,R8           CALCULATE OFFSET FOR THIS CS
+        A    R2,R9           ADD IN CHARACTER OFFSET (+6)
+
+        MOVB @ZCHRS-6(R9),R0   GET THE CHAR FROM CONV VECTOR
+        SWPB R0              MOVE TO R0 LOW
+        JMP  X564            GO PRINT IT
+*-------------------------------------------------------------------
+
+X559    MOV  R2,R2           IS IT A SPACE?
+        JNE  X560            NO
+
+        LI   R0,' '          YES
+        JMP  X564            GO PRINT A SPACE
+
+X560    CI   R2,3            IS IT A WORD?
+        JGT  X561            NO, MUST BE A SHIFT
+
+        ORI  R4,>8000        SHIFT TO WORD MODE FOR NEXT BYTE
+        DEC  R2              CALC WORD-TABLE BLOCK OFFSET
+        SLA  R2,6            64 BYTES IN A BLOCK
+        MOV  R2,@WRDOFF      SAVE IT AND LOOP
+        JMP  X566
+
+X561    AI   R2,-3           CALCULATE NEW CS
+        MOV  R4,R4           TEMP SHIFT (FROM CS 0)?
+        JNE  X562            NO
+
+        MOV  R2,R4           YES, JUST SAVE NEW TEMP CS
+        JMP  X566            AND LOOP
+
+X562    C    R2,R4           IS THIS THE CURRENT CS?
+        JEQ  X563            YES, DO A PERM SHIFT TO IT
+        CLR  R4              OTHERWISE, PERM SHIFT TO CS 0
+X563    MOV  R4,R5           TEMP AND PERM CS'S ARE SAME NOW
+        JMP  X566
+
+*----------------------------------------------------------------------
+X564    LI   R8,X565         (DO AN INDIRECT JSR)
+        DECT R6
+        MOV  R8,*R6          PUSH RETURN ADDRESS (NEXT INST)
+
+        MOV  @CHRFUN,R8      IDENTIFY PRINT ROUTINE
+        B    *R8             PRINT THE CHARACTER
+
+X565    MOV  R5,R4           RESET TEMP CS TO PERM CS
+
+X566    DEC  R3
+        JNE  X553            NEXT BYTE
+*----------------------------------------------------------------------
+
+        MOV  *R6+,R2         RESTORE POINTERS
+        MOV  *R6+,R1             AND ORIGINAL
+        MOV  *R6+,R0                 STRING WORD
+
+        MOV  R2,R2           END OF STRING?
+        JGT  X551            NO, GET NEXT WORD
+        JEQ  X551            NO, GET NEXT WORD
+
+        MOV  *R6+,R5         YES, CLEAN UP
+        MOV  *R6+,R4
+        MOV  *R6+,R3
+        MOV  *R6+,R2         AND RETURN UPDATED POINTER
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GIVEN AN ASCII CHAR IN R0 HIGH,
+*    RETURN THE CHARACTER SET # IN R0
+
+CHRCS   SWPB R0
+        ANDI R0,>00FF        IS THIS A NULL?
+        JNE  X571            NO
+
+        LI   R0,3            YES, RETURN DUMMY CS NUMBER
+        JMP  X574
+
+X571    CI   R0,'a'          LOWER CASE?
+        JLT  X572            NO
+        CI   R0,'z'
+        JGT  X572            NO
+
+        CLR  R0              YES
+        JMP  X574
+
+X572    CI   R0,'A'          UPPER CASE?
+        JLT  X573            NO
+        CI   R0,'Z'
+        JGT  X573            NO
+
+        LI   R0,1            YES
+        JMP  X574
+
+X573    LI   R0,2            CALL IT NUMBER/PUNCTUATION
+
+X574    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* GIVEN AN ASCII CHAR IN R0 HIGH,
+*    RETURN ZSTR BYTE VALUE (6 TO 31, OR 0) IN R0
+
+CHRBYT  LI   R8,ZCHRS        POINT TO CHAR CONVERSION TABLE
+
+X576    CB   R0,*R8+         FOUND THE CHARACTER?
+        JEQ  X577            YES
+
+        MOVB *R8,*R8         NO, END OF STRING?
+        JNE  X576            NO, CONTINUE LOOP
+
+        CLR  R0              YES, RETURN ZERO FOR FAILURE
+        JMP  X579
+
+X577    AI   R8,-ZCHRS+5     ADJUST PTR SO FIRST CHAR IS 6
+        MOV  R8,R0
+
+X578    CI   R0,32           SUBTRACT MULTIPLES OF 26
+        JLT  X579            UNTIL BASE CODE IS REACHED
+        AI   R0,-26
+        JMP  X578
+
+X579    MOV  *R6+,R11
+        B    *R11            RETURN
+
+* CONVERT UP TO 6 ASCIZ CHARS POINTED TO BY R0
+*    TO A 2-WORD ZSTR RETURNED IN R0 AND R1
+
+PADCHR  EQU  5
+
+ZWORD   DECT R6
+        MOV  R2,*R6
+        DECT R6
+        MOV  R3,*R6          SAVE REGISTERS
+
+        MOV  R0,R2           CHAR STRING POINTER
+        LI   R3,6            MAKE 6 ZSTR BYTES
+
+*---------------------------------------------------------------------
+X581    MOVB *R2+,R1         GET NEXT CHAR
+        JNE  X583            NOT END-OF-STRING
+*---------------------------------------------------------------------
+
+        LI   R0,PADCHR       AT END OF STRING, PAD WITH PAD CHARS
+X582    DECT R6
+        MOV  R0,*R6          SAVE A PAD BYTE
+
+        DEC  R3
+        JNE  X582            LOOP UNTIL DONE
+        JMP  X586
+
+*---------------------------------------------------------------------
+X583    MOV  R1,R0
+        BL   @JSR
+        DATA  CHRCS          FIND THE CS NUMBER FOR THIS CHAR
+
+        MOV  R0,R0           CS 0?
+        JEQ  X584            YES
+*---------------------------------------------------------------------
+
+        AI   R0,3            NO, CALCULATE TEMP SHIFT BYTE
+        DECT R6
+        MOV  R0,*R6          SAVE THE SHIFT BYTE 
+
+        DEC  R3              REDUCE BYTE COUNT
+        JEQ  X586            DONE
+
+*---------------------------------------------------------------------
+X584    MOV  R1,R0  
+        BL   @JSR
+        DATA  CHRBYT         FIND PROPER BYTE VAL FOR THIS CHAR
+
+        MOV  R0,R0           IN NORMAL CS'S?
+        JNE  X585            YES
+*---------------------------------------------------------------------
+
+        LI   R0,6            NO, USE ASCII SHIFT
+        DECT R6
+        MOV  R0,*R6          SAVE IT
+
+        DEC  R3              DONE YET?
+        JEQ  X586            YES
+
+        SWPB R1              NO, MOVE CHAR TO R1 LOW
+        ANDI R1,>00FF
+
+        MOV  R1,R0
+        SRA  R0,5            SHIFT (3) HIGH BITS INTO POSITION
+        DECT R6
+        MOV  R0,*R6          SAVE THEM
+
+        DEC  R3              DONE YET?
+        JEQ  X586            YES
+
+        ANDI R1,>001F        NO, POSITION THE (5) LOW BITS
+        MOV  R1,R0
+
+*----------------------------------------------------------------------
+X585    DECT R6
+        MOV  R0,*R6          SAVE THIS BYTE
+
+        DEC  R3
+        JNE  X581            LOOP UNTIL ZWORD FULL
+*----------------------------------------------------------------------
+
+X586    MOV  @10(R6),R0      BUILD ZWORD WORDS FROM 6 SAVED BYTES
+        SLA  R0,5
+        SOC  @8(R6),R0
+        SLA  R0,5
+        SOC  @6(R6),R0
+
+        MOV  @4(R6),R1
+        SLA  R1,5
+        SOC  @2(R6),R1
+        SLA  R1,5
+        SOC  @0(R6),R1
+
+        ORI  R1,>8000        SET END-OF-STRING BIT IN SECOND WORD
+        AI   R6,12           FLUSH STACK
+
+        MOV  *R6+,R3
+        MOV  *R6+,R2         RESTORE REGISTERS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+
+        END
+

@@ -1,0 +1,17 @@
+
+TFTP FOR ATARI ST
+------------------------------------------------------------------------
+
+    NOTE: before running TFTP, make /sure/ the ST was booted with
+the disk labeled Boot Disk, or any disk that installs the four standard
+desk accessories.  This will ensure that the serial port is set up
+correctly.
+
+    To use the ST TFTP, just connect a DEC20 line to the serial port.
+No special cables needed.  The baud rate defaults to 9600 but can be
+changed through the "Set RS232 Config" desk accessory.
+
+    There are two versions of the TFTP around.  The only difference
+is that the first always creates a file called STORY.DAT on the same disk
+as the TFTP itself, whereas the second allows you to specify the name
+of the file and the disk it is written to.

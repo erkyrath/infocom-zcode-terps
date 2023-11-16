@@ -1,0 +1,301 @@
+
+* FILE ZIP99-ASM
+
+******************************************************
+* TI-99 UTILITY SIMULATION ROUTINES                  *
+******************************************************
+
+* LOADING ORDER: DEBUG, ZIP99-OBJ, TFTP-OBJ
+
+        AORG >202A   POINTER, LAST FREE MEMORY ADDR (+1)
+        DATA >4000   IGNORE E/A UTILITY DEFS
+
+
+* THE FOLLOWING ROUTINES REPLACE SEVERAL UTILITY ROUTINES
+*   WHICH EXIST IN THE EDITOR/ASSEMBLER COMMAND MODULE,
+*   BUT ARE OMITTED FROM THE EXTENDED BASIC MODULE. 
+
+* THIS CODE (NOT DEBUGGED!) PROVIDED BY TEXAS INSTRUMENTS. 
+*   "DSRLNK" ROUTINE OPTIMIZED AT INFOCOM.
+
+* SEE THE EDITOR/ASSEMBLER MANUAL FOR UTILITY DOCUMENTATION.
+
+        RORG
+        DATA >EE99
+
+        DEF  DSRLNK,GPLLNK,KSCAN
+        DEF  VWTR,VSBW,VMBW,VSBR,VMBR
+
+*============================================================
+
+*  THE FOLLOWING ROUTINE REPLACES "DSRLNK"
+
+SCNAME  EQU  >8356   
+SCLEN   EQU  >8355
+
+CRULST  EQU  >83D0
+SADDR   EQU  >83D2
+GPLWS   EQU  >83E0
+
+SAVLEN  DATA 0       DEVICE NAME LENGTH
+SAVPAB  DATA 0       PTR INTO PAB - DEVICE NAME
+
+SAVVER  DATA 0       VERSION # OF DSR
+SAVENT  DATA 0       ENTRY ADDRESS OF DSR
+SAVCRU  DATA 0       CRU ADDRESS OF PERIPHERAL
+
+NAMBUF  DATA 0,0,0,0         DEVICE NAME (8 BYTES MAX)
+
+DLNKWS  DATA 0,0,0,0,0       WORKSPACE
+TYPE    DATA 0,0,0,0,0
+        DATA 0,0,0,0,0,0
+
+DECMAL  TEXT '.'
+HAA     BYTE >AA
+H20     BYTE >20
+
+DSRLNK  DATA DLNKWS,DLENTR   *** TRANSFER VECTOR ***
+
+DLENTR  MOV  *R14+,R5        FETCH PROGRAM TYPE (FOR LINK)
+        SZCB @H20,R15        RESET EQUAL BIT
+
+        MOV  @SCNAME, R0     FETCH PTR INTO PAB, NAM LEN SLOT
+        MOV  R0,R9           SAVE POINTER
+        AI   R9,-8           POINT TO PAB FLAG BYTE
+        BLWP @VSBR           READ DEVICE NAME LENGTH
+        MOVB R1,R3
+        SRL  R3,8            MAKE IT A WORD VALUE
+
+        SETO R4              INITIALIZE A COUNTER
+        LI   R2,NAMBUF       POINT TO NAMBUF
+
+LNK$LP  INC  R0              POINT TO NEXT CHAR OF NAME
+        INC  R4              BUMP UP CHAR COUNTER
+        C    R4,R3           END OF NAME?
+        JEQ  LNK$LN          YES
+
+        BLWP @VSBR           READ CURRENT CHAR
+        MOVB R1,*R2+         MOVE IT TO NAMBUF
+        CB   R1,@DECMAL      IS IT A DECIMAL POINT?
+        JNE  LNK$LP          NO
+
+LNK$LN  MOV  R4,R4           IS NAME LENGTH ZERO?
+        JEQ  LNKERR          YES, ERROR
+        CI   R4,7            IS NAME LENGTH >7?
+        JGT  LNKERR          YES, ERROR
+
+        CLR  @CRULST         
+        MOV  R4,@SCLEN-1     STORE NAME LENGTH FOR SEARCH
+        MOV  R4,@SAVLEN      SAVE DEVICE NAME LENGTH
+
+        INC  R4
+        A    R4,@SCNAME      POINT TO POSITION AFTER NAME
+        MOV  @SCNAME,@SAVPAB   SAVE PTR INTO DEVICE NAME
+
+* SEARCH ROM FOR DSR
+
+SROM    LWPI GPLWS           USE GPL WORKSPACE TO SEARCH
+        CLR  R1              VERSION FOUND OF DSR ETC.
+        LI   R12,>0F00       START OVER AGAIN
+
+NOROM   MOV  R12,R12         ANYTHING TO TURN OFF?
+        JEQ  NOOFF           NO
+        SBZ  0               YES, TURN IT OFF
+
+NOOFF   AI   R12,>0100       NEXT ROM'S TURN ON
+        CLR  @CRULST         CLEAR IN CASE WE'RE DONE
+        CI   R12,>2000       AT THE END
+        JEQ  NODSR           NO MORE ROMS TO TURN ON
+
+        MOV  R12,@CRULST     SAVE ADDRESS OF NEXT CRU
+        SBO  0               TURN ON ROM
+        LI   R2,>4000        START AT BEGINNING
+        CB   *R2,@HAA        IS IT A VALID ROM?
+        JNE  NOROM           NO
+
+        A    @TYPE,R2        GO TO FIRST POINTER
+        JMP  SGO2
+
+SGO     MOV  @SADDR,R2       CONTINUE WHERE WE LEFT OFF
+        SBO  0               TURN ROM BACK ON
+
+SGO2    MOV  *R2,R2          IS ADDRESS A ZERO?
+        JEQ  NOROM           YES, NO PROGRAM TO LOOK AT
+
+        MOV  R2,@SADDR       REMEMBER WHERE WE GO NEXT
+        INCT R2              GO TO ENTRY POINT
+        MOV  *R2,R9          GET ENTRY ADDRESS
+
+* SEE IF NAME MATCHES
+
+        MOVB @SCLEN,R5       GET LENGTH AS COUNTER
+        JEQ  NAME2           ZERO LENGTH, DON'T DO MATCH
+        CB   R5,*R2+         DOES LENGTH MATCH?
+        JNE  SGO             NO
+        SRL  R5,8            MOVE TO RIGHT PLACE
+        LI   R6,NAMBUF
+
+NAME1   CB   *R6+,*R2+       IS CHARACTER CORRECT?
+        JNE  SGO             NO
+        DEC  R5              MORE TO LOOK AT?
+        JNE  NAME1           YES
+
+NAME2   INC  R1              NEXT VERSION FOUND
+        MOV  R1,@SAVVER      SAVE VERSION NUMBER
+        MOV  R9,@SAVENT      SAVE ENTRY ADDRESS
+        MOV  R12,@SAVCRU     SAVE CRU ADDRESS
+
+        BL   *R9             MATCH, CALL SUBROUTINE
+        JMP  SGO             NOT RIGHT VERSION
+
+        SBZ  0               TURN OFF ROM
+        LWPI DLNKWS          SELECT DSRLNK WORKSPACE
+        MOV  R9,R0           POINT TO FLAG BYTE IN PAB
+        BLWP @VSBR           READ FLAG BYTE
+
+        SRL  R1,13           JUST WANT THE ERROR FLAGS
+        JNE  IOERR           ERROR!
+        RTWP
+
+* ERROR HANDLING
+
+NODSR   LWPI DLNKWS          SELECT DSRLNK WORKSPACE
+LNKERR  CLR  R1              CLEAR THE ERROR FLAGS
+IOERR   SWPB R1
+        MOVB R1,*R13         STORE FLAGS IN CALLING R0
+        SOCB @H20,R15        INDICATE AN ERROR OCCURRED
+        RTWP
+
+*------------------------------------------------------------
+
+* THE FOLLOWING ROUTINE REPLACES "GPLLNK"
+
+UTILWS  EQU  >8320   DEFINE REGISTER SPACE HERE
+GRMWA   EQU  >9C02   GROM WRITE ADDRESS
+
+XML     DATA >0379   GROM ENTRY POINT -- MACHINE DEPENDENT!!
+
+GPLLNK  DATA UTILWS,GPLENT   *** TRANSFER VECTOR ***
+
+GPLENT  MOVB @>8373,R1       FETCH GPL SUBSTACK POINTER
+        SRL  R1,8            MAKE IT A WORD
+        AI   R1,>8302        ADD >8300 FOR ABSOLUTE ADDRESS
+        MOV  @XML,*R1        PUT XML INST ADDR ON STACK
+        SWPB R1              UPDATE SUBSTACK POINTER
+        MOVB R1,@>8373       
+
+        MOV  *R14+,R0        FETCH GPL ROUTINE ADDRESS, AND
+        MOVB R0,@GRMWA         SET UP GPL PROGRAM COUNTER
+        SWPB R0
+        MOVB R0,@GRMWA       
+
+        LI   R0,RTN          GET DESIRED RETURN ADDRESS
+        MOV  R0,@>8300       PUT RETURN ADDR IN XML TABLE >F
+        LWPI >83E0           USE GPL WORKSPACE
+        B    @>006A          BRANCH TO GPL
+
+RTN     LWPI UTILWS          USE BLWP ROUTINE WORKSPACE AGAIN
+        RTWP                 RETURN TO MAIN PROGRAM
+
+*------------------------------------------------------------
+
+* ROUTINE TO REPLACE "XMLLNK" -- NOT IMPLEMENTED
+
+*------------------------------------------------------------ 
+
+* ROUTINE TO REPLACE "KSCAN"
+
+SCNKEY  EQU  >000E           KEY SCAN ROUTINE ENTRY POINT
+KSCAN   DATA UTILWS,KSENTR  
+
+KSENTR  LWPI GPLWS
+        MOV  R11,@UTILWS+22  SAVE GPL RETURN ADDR
+        BL   @SCNKEY         CALL SCAN ROUTINE IN ROM
+        LWPI UTILWS
+        MOV  R11,@GPLWS+22   RESTORE GPL RETURN ADDR
+        RTWP
+
+*------------------------------------------------------------
+
+* ROUTINE TO REPLACE "VWTR"
+
+VDPWA   EQU  >8C02           VDP WRITE ADDRESS
+VDPWD   EQU  >8C00           VDP WRITE DATA ADDRESS
+
+VWTR    DATA UTILWS,VWTREN   *** TRANSFER VECTOR ***
+
+VWTREN  MOV  *R13,R1         GET REGISTER NO AND VALUE
+        MOVB @1(R13),@VDPWA  WRITE OUT VALUE
+        ORI  R1,>8000        SET FOR REGISTER WRITE
+        MOVB R1,@VDPWA       WRITE OUT REGISTER NO
+        RTWP
+
+*------------------------------------------------------------
+
+* ROUTINES TO REPLACE "VSBW" AND "VMBW"
+ 
+R2LB    EQU  UTILWS+5        LOW BYTE OF REGISTER 2
+
+VSBW    DATA UTILWS,VSBWEN   *** TRANSFER VECTOR ***
+VMBW    DATA UTILWS,VMBWEN   *** TRANSFER VECTOR ***
+
+VSBWEN  BL   @WVDPWA         WRITE OUT ADDRESS
+        MOVB @2(R13),@VDPWD  WRITE A BYTE
+        RTWP
+
+VMBWEN  BL   @WVDPWA         WRITE OUT ADDRESS
+VWTMOR  MOVB *R1+,@VDPWD     WRITE A BYTE
+        DEC  R2              ANY MORE TO WRITE?
+        JNE  VWTMOR          YES
+        RTWP
+
+WVDPWA  LI   R1,>4000        CREATE MASK IN R1
+        MOV  *R13,R2         GET VDP ADDRESS
+        MOVB @R2LB,@VDPWA    WRITE LOW BYTE OF ADDRESS
+        SOC  R1,R2           ADJUST VDP WRITE BIT
+        MOVB R2,@VDPWA       WRITE HIGH BYTE OF ADDRESS
+
+        MOV  @2(R13),R1      GET CPU RAM ADDRESS
+        MOV  @4(R13),R2      GET BYTE COUNT
+        RT
+
+*------------------------------------------------------------
+
+* ROUTINES TO REPLACE "VSBR" AND "VMBR"
+
+VDPRD   EQU  >8800           VDP READ DATA ADDRESS
+
+VSBR    DATA UTILWS,VSBREN   *** TRANSFER VECTOR ***
+VMBR    DATA UTILWS,VMBREN   *** TRANSFER VECTOR ***
+
+VSBREN  BL   @WVDPRA         WRITE OUT ADDRESS
+        MOVB @VDPRD,@2(R13)  READ A BYTE
+        RTWP
+
+VMBREN  BL   @WVDPRA         WRITE OUT ADDRESS
+VRDMOR  MOVB @VDPRD,*R1+K    READ A BYTE
+        DEC  R2              ANY MORE TO READ?
+        JNE  VRDMOR          YES
+        RTWP
+
+WVDPRA  CLR  R1
+        MOV  *R13,R2         GET VDP ADDRESS
+        MOVB @R2LB,@VDPWA    WRITE LOW BYTE OF ADDRESS
+        SOC  R1,R2           ADJUST VDP WRITE BIT
+        MOVB R2,@VDPWA       WRITE HIGH BYTE OF ADDRESS
+
+        MOV  @2(R13),R1      GET CPU RAM ADDRESS
+        MOV  @4(R13),R2      GET BYTE COUNT
+        RT
+
+*============================================================
+
+* TEST OF GPLLNK ROUTINE...
+
+        CLR  R8
+        MOVB R8,@>837C       CLEAR STATUS BYTE
+        BLWP @GPLLNK
+        DATA >004A           LOAD SMALL CAPITALS
+
+
+        END

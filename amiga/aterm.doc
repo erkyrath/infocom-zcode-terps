@@ -1,0 +1,434 @@
+
+			Aterm Users Guide
+			-----------------
+
+OVERVIEW:
+
+  Aterm is a general purpose terminal program that incorporates the basic
+necessities, such as ASCII and protocol file transfer ability, as well as
+features to make life easier for the user.  Following is a list of the main
+features of Aterm:
+
+	> Baud rates	 - 300, 1200, 2400, 4800, 9600
+		     	 - initial rate set from Preferences.
+
+	> File transfers - ASCII transmit/capture to any device.
+			   Prompted transmit with user definable prompt.
+			 - XMODEM (checksum)
+			 - XMODEM (CRC)
+			 - SuperKermit (Sliding Windows Kermit)
+
+	> Duplex control - Full, Half, Echo.
+
+	> Function keys  - User definable.
+			 - May be saved/loaded along with other parameters.
+			 - Function keys may be chained/loaded from key
+			   defintion.
+			 - Function key files may be in S: directory.
+			 - Provision for default function key file.
+
+	> Autochop	 - Uses "hunk-end" padding during XMODEM send to
+			   eliminate need for chopping at receiving end.
+			 - Automatic pad stripping on XMODEM downloads.
+			 - Properly pads/strips executable and ARCed files.
+
+	> Flow control	 - Xon/Xoff selectable (enabled/disabled)
+
+	> CHAT mode	 - A split screen mode that allows entry of one line
+			   of text, which is sent as a "block" when a <RETURN>
+			   is entered.  Prevents mixing of incoming/outgoing
+			   lines when used in CO. 
+
+	> Clock		 - Clock runs in title bar if present in 
+			   C: directory.
+
+	> Phone book	 - Stores numbers (up to 10 per phone book file).
+			 - Autodial from phone list.
+			 - Optionally loads Function Key file from list.
+
+                     *============================*
+
+HARDWARE REQUIRED:
+
+  Any RS232 modem that can be controlled with ASCII text strings, ie. Hayes or
+compatible. Please note that Aterm does not require any other RS232 lines than
+TXD, RXD, and SIGNAL GROUND.  No other lines (DSR, CTS, CD, etc.) are checked.
+
+  You may have to set your modem DIP switches to simulate DTR being present.
+
+
+                     *============================*
+
+INSTALLING ATERM:
+
+  There are a few configurations that you may want to use, depending solely
+upon your personal preferences.
+
+  1. Aterm, AtermClock, Init.Key, and any other Function Key or Phone Book
+     files in CD (current directory).
+
+  2. Aterm in any other directory.
+     AtermClock in C: directory.
+     Init.Key and other FKey or Phone Book files in S: directory.
+
+  3. Aterm and AtermClock in C: directory.
+     Init.Key and other FKey or Phone Book files in S: directory.
+
+  If you use Aterm a lot, option 3 is the easiest way to go.
+
+  A brief explanation of the operation as applied to AtermClock and FKey files
+will help you decide how to configure the environment.
+
+  When Aterm loads, it will attempt to load AtermClock, which runs as a
+separate task, from the current directory.  If it not present in the CD, Aterm
+will attempt to load it from the C: directory. (This is the 'c' directory on
+your boot disk if you have not used ASSIGN to change it)  If it is still not
+found, Aterm will decide that you did not want the clock, and will tell you it
+could not be found. Running without the clock in no way impacts Aterm's
+operation.
+
+  Aterm then attempts to load a file called Init.Key from the current
+directory. If not found, it will try to load it from the S: directory.
+(The 's' directory on your boot disk if you have not used ASSIGN to change it)
+If it is not found, Aterm will set its own defaults, with the exception of the
+baud rate, which will take the value specified by your Preferences (from a file
+called 'system-configuration').
+
+  I use the last option, but you may prefer to use one of the others. I have
+Aterm in my C: directory, with the name Aterm. While you can name Aterm
+anything you desire, AtermClock and Init.Key must be as specified, or they will
+not be found by Aterm.
+
+                     *============================*
+
+			      OPERATION
+
+GETTING STARTED:
+
+Invoke Aterm by the following methods... (assuming it is named Aterm)
+
+If Aterm is in the C: directory or if it is in the current directory:
+
+RUN Aterm
+
+If it is in another directory... (assume it is in DF1: directory 'terminals')
+
+RUN DF1:terminals/Aterm
+
+
+  NOTE: Capitals are optional.
+
+  NOTE: The RUN is optional, but if used, greatly enhances the use of Aterm. It
+  will allow you to run other programs from the CLI, which may be seen by
+  simply clicking on the 'push to back' gadget on Aterm's screen. To return to
+  Aterm, click on the same gadget in the CLI screen. The CLI window may also be
+  left in front and resized. I often edit or print files, compile, or rearrange
+  disks while uploading or downloading. Unlike some commercial terminal
+  programs, Aterm does not make a pig of itself by hogging the printer port
+  (or any other system resources it isn't currently using).
+
+  At this time, Aterm will load, then try to load the clock and default
+function key file, and you will see a title screen.  Provided your modem is
+hooked up and powered on, you may now start to use it.
+
+  The only way to have an Init.Key file is to create one with Aterm. To do
+this, simply use the right (menu) button on the mouse to set up the parameters
+that you will want to use. The settable parameters are:
+
+  Prompt - Settable from the 'File' menu.
+
+  Baud - Select the baud rate from the 'Baud' menu if you want Aterm to come up
+         with a different setting than that specified in your Preferences.
+
+  Mode - Half, Full, or Echo, settable from the 'Mode' menu.
+
+  Autochop - On/Off, settable from the 'Miscellaneous' menu.
+
+  Xon/Xoff - On/Off, settable from the 'Miscellaneous' menu.
+
+  Protocol - XMODEM, XMODEM CRC, Kermit, from the 'Miscellaneous' menu.
+
+  You may also wish to define some function keys at this time.
+
+  When you have everything set to your satisfaction, select 'FKey Save' from
+the 'Miscellaneous' menu.  You will be prompted for the file name you wish to
+save the file under.  Type one of the following, ending your input with a
+<RETURN>.
+
+Init.Key
+
+S:Init.Key
+
+DF1:terminal/Init.Key
+
+ Depending on your preferred configuration as outlined above.
+
+                     ----------------------------
+
+  At this time, you may also wish to set up a Phone Book. To do so, select
+"Phone Book" from the Miscellaneous menu. You will be presented with a
+contrasting window with a number of features. For now, we will just make a
+default Phone Book file.
+
+  The default Phone Book file is called Term.Phn, and will be found in the
+S: directory along with the Init.key file, if you have decided to put it
+there. You can have a Phone Book in any directory, but in order to have it
+come up without having to type in the name, it should be "S:Term.Phn".
+
+  Move the mouse pointer to the box immediately following "Dial Prefix:",
+and click the left button. A cursor should appear in the box. The dial
+prefix will be dependent upon the modem you are using. If it is one that
+requires no prefix, simply use the <right Amiga> and 'X' keys together to
+erase the contents of the box.  You may also enter any CTRL keys in the
+normal way, including carriage returns (CTRL M). The prefix will be used for
+all numbers on the list.
+
+  Now enter the names of the BBS's or services you wish to call under the
+"Name:" column, and the numbers for them under "Number:", using the mouse
+pointer and left button to select each field in turn.
+
+  When you are done, click the "Save" box, and your file will be saved under
+the name "S:Term.Phn". More on the interaction between the Phone Book and
+Function Key files later.
+
+                     ----------------------------
+
+  Next, a step by step tour of the items in the menus.
+
+  Please note that any menu items followed by the <Amiga> symbol may be
+  selected by holding down the right <Amiga> key, and typing the key that is
+  shown immediately after the symbol in the menu. ie. <Right Amiga> C will 
+  initiate ASCII capture mode, or terminate it if it is already capturing.
+
+File:
+
+  ASCII Capture:  You will be asked for a file name. The file named will be
+  opened for writing, and anything appearing on your screen will be written to
+  the file. CTRL characters are for the most part suppressed so that the file
+  may be edited with ED. If no path is given, the file will be written to your
+  current directory. Good results are obtained by capturing to RAM:, but care
+  must be taken to ensure that you have enough memory to hold the data.
+    You may capture to RAM:, DF0:, DF1:, DH0: PRT:, or any other device that
+  may be added to the Amiga at a later date.
+    To end the ASCII capture, you simply select ASCII capture again.
+
+  ASCII Transmit: You will be asked for a file name.  The file named will be
+  opened for reading, and the contents of the file will be sent out on the
+  modem port.  If no path is given, the file must be in the current directory.
+    The ASCII transmit will be terminated when the file has been sent in its
+  entirety, and may be terminated earlier by selecting ASCII Transmit again.
+  The Promt character, if enabled acts as a 'throttle', and each time a
+  carriage return is sent from the file, Aterm will wait for the prompt
+  character before sending the next line. See entry for 'Prompt' below.
+
+  Binary Receive: You will be asked for a file name. The file named will be
+  opened for writing, and as the file is received (using the protocol selected
+  in the 'Miscellaneous' menu), it will be written.  The file may contain any
+  sort of data, and it will not be changed in any way. As with ASCII Capture,
+  you may Receive to any device (except the printer).
+    To abort the transfer early, press the <ESC> key. The host may 'lock up' at
+  this time, but will usually respond to a few <RETURN>s, CTRL Zz, or CTRL Xs.
+
+  Binary Transmit: You will be asked for a file name. The named file will be
+  opened for reading, and the contents of it will be sent unchanged to the host
+  or other terminal program via the protocol selected.  Please note that the
+  host or other terminal program must be using the same protocol as you are.
+    The protocol used is dependent upon the setting of the protocol selection
+  in the Miscellaneous menu.
+    The transfer may be aborted early by pressing the <ESC> key.
+
+  Prompt: The prompt character is a user definable character that is used to
+  'pace' the ASCII Transmit operation.  If a 'full blast' transmission is
+  desired, simply type a '0' to set the prompt character to its "inactive"
+  state. To set it to any other character, press the key desired when asked to
+  supply a character. A common character to use is <RETURN>.  The operation of
+  the prompted ASCII Transmit is as follows... Aterm will transmit 1 line of
+  the file, then wait until it receives the prompt character from the modem.
+  When The prompt character is received, the next line will be sent.
+  This helps to ensure that the host or other terminal is ready to receive
+  more data.
+
+Baud:
+
+  Use the mouse to select any baud rate from 300 to 9600 baud.
+
+Mode:
+
+  Half:  Half duplex (not really duplex, but 'local echo', but who's being
+  picky?), will cause all characters sent to the modem to also be printed to
+  the screen. Use this setting if the host or other terminal does not echo
+  your own characters to you.
+
+  Full:  Use when the host or other terminal echos your characters to you. All
+  characters you type will be sent to the modem only, and you are depending on
+  the other end to send them back so you can see them. Switch to this setting
+  if you are getting double characters, ie. HHeelllloo..
+
+  Echo:  Sends any characters received from the modem back out to the modem.
+  Use this setting if you wish to echo characters to the other end. Be careful
+  with this one, as it has some strange side effects if enabled during up or
+  downloads, or whenever you are connected to a host or other terminal that
+  also echos your characters.
+
+Miscellaneous:
+
+  FKey Load:  You will be asked for a file name. This file will be used as a
+  function key definition and 'settings' file. The file MUST be one previously
+  generated by Aterm with the FKey Save function. As with Init.Key, it may
+  either be in the current directory or the S: directory. If it is in neither,
+  you will have to specify the complete path.
+
+  FKey Save:  You will be asked for a file name. Your current function key
+  definitions and menu settings will be written to the named file. Please note
+  that if you want the file anywhere but the current directory, that you will
+  need to specify the path, ie. S:name or DF1:term/name.
+
+  Define FKey: You will be asked for a function key string definition. This is
+  a string of characters that you wish to be sent when a function key is
+  pressed. First, you must tell Aterm which function key to define. This is
+  done by pressing the appropriate function key. You may only define the
+  function keys on the top row, and they are limited to 40 characters each.
+  There is a way to have a longer definition, as well as being able to define
+  more keys, but this will be covered in a later section. All characters are
+  legal in a function key definition, including all CTRL characters, <CR>,
+  <TAB>, <ESC>, etc.  To end the definition, press any function key.  The
+  reason for splitting the extra options in the definition is that they are
+  temporary 'quick and dirty' solutions, and will be changed in future
+  revisions to Aterm.
+
+  Auto Chop:  Set this to 'ON' to download executable, ARCed and text files. 
+  Set to 'OFF" for 'problem files' that may have been uploaded with a program
+  that does not properly pad the end of the file. Files such as icons,
+  graphics, instrument, etc, may be chopped too short if they are autochopped.
+  In this case it it better to leave them unchopped and to attempt to chop them
+  to the right length offline.
+
+  Xon/Xoff: Set this 'ON' for flow control. If you are sending to a host, it
+  will sometimes require you to wait while it is busy doing something else. To
+  signal that this is the case, it will send you an 'Xoff' ( CTRL S ), and when
+  it is ready for more data, it will send you an 'Xon' ( CTRL Q ). Sometimes,
+  however, especially when dealing with a packet switching network, certain 
+  conditions may cause the network to send an 'Xoff', without a corresponding
+  'Xon'. This will lock up the terminal program, and will mean that to recover,
+  you will have to reboot the Amiga <CTRL-Amiga-Amiga>, to recover. Line noise
+  may also send you an unintentional CTRL S. In these cases, select 'OFF' for
+  this option.
+
+  Protocol:
+
+    XModem:  This is the 'plain' checksum Xmodem.
+
+    Xmodem CRC:  This is a better XModem protocol, with better error checking.
+    If you select this option, and the other side does not support it, there
+    will be a delay, then both sides will go back to the 'plain' XModem. To
+    avoid this delay, set Xmodem to match the other side.
+
+    Kermit:  This is an implementation of Sliding Windows Kermit, and is
+    superior in speed and error checking to XModem, especially over packet
+    switching networks. When a file transfer is started, both ends will
+    "negotiate for parameters", using the best of the Kermit protocols that
+    both ends can handle. Thus, this implementation may interact with any
+    lesser versions, using the best parameters that the lesser version can 
+    handle.  The authors would appreciate hearing about any compatibility
+    problems encountered with lesser versions.
+
+  CHAT Mode: This gives you a 'split screen', a window along the bottom of the
+  screen that you can type a line of text into. The text you type is held in a
+  buffer and will only be sent when you end the line with a <RETURN>. While the
+  line is being typed, the upper part of the screen will still show any
+  characters arriving from the modem port.  While the line is being sent, no
+  characters arriving from the modem will be printed. This does wonders for the
+  readability of the screen while participating in real time CO.  When
+  connected to another terminal, and you are chatting, the worst that can
+  happen is that your line interrupts the other line only once, instead of
+  having your characters and  those from the other side mixed randomly
+  throughout the line. 
+
+  Phone Book: Allows you to enter names and numbers of services or BBS's that
+  you call frequently. More than one phone book file may be accessed. Enter the
+  name of the file in the "File:" box.
+
+  There is an interaction between Function Key files and Phone Book entries.
+  Though you can load Function Key files from the menu, you can also load them
+  from the Phone Book. Simply make sure that the name of the Function Key file
+  is the same as the name in the "Name:" field of the number you want to dial.
+  For instance, if there is a Function Key file called "CIS" either in the
+  current directory or in the S: directory, AND if an entry in the Phone Book
+  "Name:" field is "CIS", then when you click on the DIAL box to the left of
+  that name, Aterm will attempt to load the file "CIS" as a Function Key
+  file, first from the current directory, then from the S: directory.
+
+  NOTE: If for any reason you do not wish to load a Function Key file, just
+  precede the name with a space in the "Name:" field. Aterm will take this as
+  a signal that you do not want a Function Key file, and will not even look for
+  it.
+
+                     *============================*
+
+			       ADDENDUM
+
+FKEY OPTIONS:
+
+  In addition to the standard characters allowed in function keys, there are a
+few special keys that will, when the function key is sent, perform some special
+tasks. These are designed to extend the function keys, making them for all
+practical purposes, of unlimited length, and giving you the ability to change
+your key definitions automatically as you move from area to area within a
+network or bulletin board. 
+
+  NOTE: The method used to implement these special functions is temporary,
+  constituting a 'quick and dirty' solution.  The authors would be glad to hear
+  from Aterm users about any ideas on implementation of this feature.
+
+  The special options are <Fn:>, <LOAD>, and <LOADEX>. 
+
+  In all cases, these must be the last thing defined as part of a function key
+definition (you'll see why in a moment). They are activated as follows.
+
+  Select 'Define FKey' from the menu (or use the <right Amiga>D ).
+  Press the function key to be defined.
+  Enter whatever text you want sent to the modem prior to the execution of the
+   special command.
+  Press the <DEL> key.
+  Now press one of...
+     Any number key (1-0)
+     The 'l' key (lower case L)
+     The 'L' key (upper case l)
+
+  The visual indication of these will be (in the same order)...
+     <Fn:>  (where n is the number pressed)
+     <LOAD> 
+     <LOADEX>
+
+  The meanings and additional information to be supplied for each 
+  function are:
+  
+  <Fn:> - This will cause the currently defined function key specified by 'n' to
+  be sent/executed. '0' specifies FKey 10.
+
+  <LOAD> - This one MUST be followed by the name of a file that contains a
+  function key definition. Upon executing the this command, Aterm will attempt
+  to load this file as a function key definition.  Handy for 'switching the
+  context' of your function keys when going to a different section of a
+  network or BBS.
+
+  <LOADEX> - MUST be followed by a single digit (1-0), then immediately by a
+  file name. The file named must be a function key definition file. Aterm will
+  attempt to load this file as a function key definition file, and if loaded,
+  will then execute the newly defined key specified by the number immediately
+  after the <LOADEX> symbol.
+
+  NOTE: If you wish to include a real <DEL> character in a function key
+  defintiton, just press the <DEL> key twice.
+
+  The best way to find out about the uses for these functions is to play with
+them.
+
+                     *============================*
+
+Aterm Documentation file (C) November 1986 by Larry Phillips
+
+Documentation Revisions for Aterm 7.3 (C) Dec. 1986 by Larry Phillips
+
+Compuserve 76703,4322
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            

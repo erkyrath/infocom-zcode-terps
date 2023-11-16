@@ -1,0 +1,179 @@
+* FILE ZIP90-ASM
+
+***********************************************
+* TI-99 I/O FUNCTIONS                         *
+***********************************************
+
+VSBW    EQU  >2020
+VMBW    EQU  >2024
+VSBR    EQU  >2028
+VMBR    EQU  >202C
+
+*-------------------------------------------------------------------
+
+TISCOL  DATA  920            SCREEN COLUMN POINTER
+*  ASSUME 40 COLUMNS, INITIALIZE TO COL 0, ROW 24
+
+TICR    BYTE >0D             CARRIAGE RETURN
+NOCR    BYTE >80             ZIL NO-CARRIAGE-RETURN
+
+* OUTPUT A CHAR TO SCREEN, CHAR IN R0 HIGH, "RETURN" SCROLLS
+
+OUTCHR 
+TTYOUT  CB   R0,@TICR        CR?
+        JEQ  SCROLL          YES, SCROLL UP
+
+        MOV  R1,R8           NO, SAVE OLD R1
+        MOV  R0,R1           R1 HIGH = CHARACTER
+        MOV  @TISCOL,R0      R0 = TARGET SCREEN LOC
+
+        BLWP @VSBW           PRINT IT
+        MOV  R8,R1           RESTORE OLD R1
+
+        CI   R0,959          LAST COLUMN?
+        JEQ  SCROLL          YES, SCROLL UP
+
+        INC  @TISCOL         NO, BUMP COLUMN POINTER
+        MOV  *R6+,R11
+        B    *R11            AND RETURN
+
+*------------------------------------------------------------------
+
+TISBUF  BSS  40              ONE-LINE BUFFER
+
+* SCROLL THE SCREEN, BLANK LAST LINE, RESET TISCOL
+
+SCROLL  MOV  R0,R8
+        MOV  R1,R9
+        MOV  R2,R10          SAVE OLD REGS
+
+        LI   R0,40           START WITH ROW 2
+        LI   R1,TISBUF       BUFFER
+        LI   R2,40           NUMBER OF BYTES TO MOVE
+
+X805    BLWP @VMBR           COPY THE LINE INTO CPU
+        AI   R0,-40
+        BLWP @VMBW           AND MOVE TO LOWER VDP MEMORY
+
+        AI   R0,80           POINT TO NEXT LINE
+        CI   R0,960          END OF SCREEN?
+        JLT  X805            NO, LOOP
+
+        LI   R12,>2020       TWO SPACES
+X806    MOV  R12,*R1+        FILL THE BUFFER WITH SPACES
+        DECT R2              FULL YET?
+        JNE  X806            NO, LOOP
+
+        AI   R0,-40          POINT TO FINAL LINE
+        LI   R1,SCRBUF       RESTORE LINE BUFFER POINTER
+        LI   R2,40           NUMBER OF (BLANKS) TO WRITE
+        BLWP @VMBW           BLANK THE FINAL LINE
+
+        MOV  R0,@TISCOL      RESET COLUMN POINTER
+        MOV  R10,R2
+        MOV  R9,R1
+        MOV  R8,R0           RESTORE OLD REGS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+*------------------------------------------------------------------------
+
+* OUTPUT A STRING, POINTER TO FIRST CHAR IS A DATA ITEM
+*     FOLLOWING THE CALLING POINT
+
+PRINT   MOV  R0,R8           SAVE R0
+        MOV  *R6,R0          GET ADDRESS OF STRING
+        INCT *R6             ADJUST RETURN LINKAGE
+
+* (ENTER HERE IF STRING POINTER IS IN R0; DESTROYS R0)
+
+OUTSTR  MOV  R0,R12
+        MOV  R1,R9           SAVE R1
+
+        MOV  @TISCOL,R0      CURRENT SCREEN LOC IN VDP
+
+X807    MOVB *R12+,R1        GET A CHAR, END OF LINE?
+        JEQ  X809            YES, SCROLL
+
+        CB   R1,@NOCR        END OF LINE (NO CR)?
+        JEQ  X808            YES
+
+        BLWP @VSBW           NO, WRITE THE CHAR INTO VDP
+        INC  R0              UPDATE SCREEN POINTER
+        JMP  X807            AND LOOP
+
+X808    MOV  R0,@TISCOL      SAVE UPDATED COLUMN POINTER
+        MOV  R9,R1
+        MOV  R8,R0           RESTORE OLD REGS
+
+        MOV  *R6+,R11
+        B    *R11            RETURN
+
+X809    MOV  R9,R1
+        MOV  R8,R0           RESTORE OLD REGS
+
+        JMP  SCROLL          AND GO SCROLL
+
+*-------------------------------------------------------------------
+
+KSCAN   EQU  >201C           ADDRESS OF KEY UTILITY
+KSTAT   EQU  >837C
+KINIT   EQU  >8374
+KVAL    EQU  >8375           LOC OF RETURNED ASCII VALUE
+
+* GET A DEBOUNCED KEY, RETURN IT IN R0 HIGH
+
+TTYIN   CLR  R0
+        MOVB R0,@KINIT       INITIALIZE KEYBOARD "FULL"
+
+        BLWP @KSCAN          GET A KEY
+
+        MOVB @KSTAT,R0       DEBOUNCE IT:
+        LI   R8,>2000           TEST HIGH BYTE, BIT 2
+        COC  R8,R0           WAS A NEW KEY PRESSED?
+        JNE  TTYIN           NO, LOOP
+
+        MOVB @KVAL,R0        FETCH KEY VALUE
+        LI   R8,>FF00        "NO KEY PRESSED" CODE
+        CB   R0,R8           WAS A KEY PRESSED?
+        JEQ  TTYIN           NO, LOOP
+
+        MOV  *R6+,R11        YES
+        B    *R11            RETURN IT
+
+*----------------------------------------------------------------
+
+        DEF  START
+
+JSR     DECT R6
+        MOV  R11,*R6
+        INCT *R6
+
+        MOV  *R11,R11
+        B    *R11
+
+
+START   LWPI >8300           DEFINE REGISTERS IN PAD
+        LI   R6,>F800        TOP OF STACK
+
+X1      BL   @JSR
+        DATA  TTYIN          GET KEY IN R0 HIGH
+
+        BL   @JSR
+        DATA  TTYOUT         PRINT IT ON LINE 24
+
+        LI   R1,'$'
+        SWPB R1
+        CB   R0,R1           WAS '$' TYPED?
+        JNE  X1              NO, LOOP
+
+X2      BL   @JSR
+        DATA  PRINT
+        DATA  STRING
+
+        JMP  X1              LOOP
+
+STRING  TEXT 'THIS IS A CHARACTER STRING'
+
+        END

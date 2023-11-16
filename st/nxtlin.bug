@@ -1,0 +1,13 @@
+    This bug has been fixed in the ST, where it was discovered.
+    [Now fixed in Amiga too.]
+    May need to be fixed in the Mac.
+
+    It can be seen in Trinity by typing a long string of LOOKs in the
+opening location.  When the line on which [MORE] should appear begins
+with boldface text, the [MORE] comes out !after! the boldface.
+
+    It's not really a problem except at one point towards the end
+of Trinity, where it spoils an otherwise blank screen.
+
+    The bug's cause is that PUTLIN, which dumps the buffer before and
+after highlights, wasn't checking for [MORE].

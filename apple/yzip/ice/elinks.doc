@@ -1,0 +1,324 @@
+       IBM PC/XT/AT SYMBOLIC DEBUG COMMUNICATIONS SOFTWARE
+                    FOR PC-DOS v2.x AND v3.x
+
+
+Supplied on the IBM compatible disk are two files:
+
+ELINKS.EXE - Executable Communications Software program which 
+             uses the IBM-PC/XT/AT COM1 or COM2 port.
+
+ELINKS.DOC - This document.
+
+
+     If it is required that an I/O port other than a standard IBM 
+COM1 or COM2 port be used, contact Huntsville Microsystems, Inc.
+
+
+
+Starting ELINKS:
+
+     The standard ELINKS command line is formatted as follows:
+
+          ELINKS [-baud] [-port] [<hexfile> [<symfile>] ]
+
+     All command line arguments are optional.
+
+
+     -baud     Select   communications  port  baud   rate   (9600 
+               default).  Allowable selections are:  N (No change 
+               from current baud rate), 110, 150, 300, 600, 1200, 
+               2400, 4800, 9600.
+
+     -port     Select   communications  port.    (COM1  or   COM2 
+               default).   ELINKS will automatically select  COM1 
+               as its default,  unless COM1 is not available,  in 
+               which  case  it will use COM2.   The -port  option 
+               will override this port search and cause ELINKS to 
+               use  only the port named.   Allowable options are:  
+               AUX (Default -- may be COM1 or COM2), COM1, COM2.
+
+     <hexfile> Set  up the name of a .HEX file to load  with  the 
+               emulator  'R' command,  or write with the emulator 
+               'W'  command.   The hex file name is of the  form:  
+               [d:][path]filename[.ext]  .    The  file's  drive, 
+               path, and extent are all optional.  Drive and path 
+               default  to  the  currently  logged-in  drive  and 
+               directory.  A hexfile's extent defaults to .HEX .
+
+     <symfile> Read the named symbol file into the ELINKS  symbol 
+               table.  The symbol file must be in standard symbol 
+               file  format,   such  as  that  produced  by   the 
+               Huntsville  Microsystem's  HMA  series  of  cross-
+               assemblers.   The  symbol file name is of the same 
+               form as a hex file name:  [d:][path]filename[.ext]  
+               Drive and path default as before.  Extent defaults 
+               to .SYM for a symbol file.
+
+Notes:
+
+     To  use  ELINKS,  the  HMI emulator should  be  set  up  for 
+autobaud mode with 8 data bits and no parity (this is how  ELINKS 
+sets  up  the  COMx port).   The CTS and RTS  control  lines  are 
+ignored  by  ELINKS,  and should be jumpered together inside  the 
+emulator.
+
+     When ELINKS is started,  it will sign-on and ask:   "Has the 
+emulator been reset (Y or N) ?  ".  If the emulator has just been 
+turned  on,  or  if the emulator's reset button has been  pressed 
+since  last using ELINKS,  this question should be answered  'Y'.  
+Otherwise,  it  should  be answered 'N'.   A 'Y' answer  to  this 
+question causes ELINKS to initialize the emulator's baud rate and 
+communications software handshake mode.
+
+     To exit ELINKS, use the 'Ctrl-Break' key.
+
+
+Examples:
+          ELINKS                        ; Run ELINKS
+          ELINKS -4800                  ; Set baud rate to 4800
+          ELINKS -COM2                  ; Use COM2
+          ELINKS TEST                   ; Set up "TEST.HEX"
+          ELINKS TEST.HXE               ; Set up "TEST.HXE"
+          ELINKS TEST TEST              ; Read "TEST.SYM"
+          ELINKS TEST TEST.             ; Read "TEST."
+          ELINKS -1200 -COM1 TEST TEST  ; All options used
+
+
+
+ELINKS commands:
+
+     Using  ELINKS  in conjunction with an HMI emulator adds  the 
+following commands to the emulator's command set:
+
+     I   hexfile         ; Set up a hex file name for 
+                         ; reading/writing
+     R                   ; Read a hex file set up with 'I'
+     R   bias            ; Read a hex file with offset 'bias'
+     W   saddr,faddr     ; Write a hex file from 'saddr' to 
+                         ; 'faddr' into the 'I' file
+     DIR                 ; Show disk directory
+     <   batfile         ; Read emulator commands from the file 
+                         ; 'batfile'
+     +   outfile         ; Send all screen output to the file 
+                         ; 'outfile'
+     I.  symfile         ; Read the given symbol file
+     I.. symfile         ; Append the given symbol file
+     W.  symfile         ; Write the ELINKS symbol table to the 
+                         ; named file
+     .                   ; Display the ELINKS symbol table
+     .symbol             ; Display the ELINKS symbol table, 
+                         ; starting at 'symbol'
+     .symbol=            ; Delete the named symbol from the 
+                         ; ELINKS symbol table
+     .symbol=value       ; Create or revalue the named symbol
+
+
+     In  addition  to  adding the commands  listed,  ELINKS  will 
+insert  symbols  into  the output of all  'L'  commands  and  CPU 
+register displays.
+
+     When  ELINKS is in use,  all emulator commands which require 
+addresses may have symbols used in place of the address(es).   To 
+use a symbol in a command in place of an address,  use  ".symbol" 
+where the address is required.
+
+Examples:
+          L100           ; List from 0100
+          L.START        ; List from START
+          W.START,.END   ; Write from START to END
+
+
+
+Details on ELINKS commands:
+
+
+     I hexfile
+
+          The  'I' command is used to name a hex file for  ELINKS 
+to use on subsequent 'R' and 'W' commands.
+
+          The  hex  file name is given using standard  file  name 
+format.  ".HEX" is the default file name extension.
+
+          The  initial  'I' filename can be given on  the  ELINKS 
+command line.
+
+
+     R
+     R bias
+
+          The  'R' command is used for reading the last named 'I' 
+file into the emulator or target system memory.   If a read  bias 
+is  given,  this bias will be added to the addresses of all bytes 
+read from the hex file, before these bytes are stored in memory.
+
+          'bias' is a hexadecimal number (or symbol).
+
+
+     W saddr,faddr
+
+          The 'W' command is used to write a hex file from  saddr 
+to faddr into the last named 'I' file.
+
+          'saddr'   and  'faddr'  are  hexadecimal  numbers   (or 
+symbols).
+
+
+     DIR
+
+          The  'DIR'  command causes ELINKS to run the  operating 
+system DIR function.
+
+
+     < batfile
+
+          The '<' command is used to temporarily re-direct ELINKS 
+input to the named batch file.  Any emulator command may be given 
+in this batch file, except for the '<' command.
+
+          A  '<'  command in a batch file causes ELINKS to  pause 
+until a carriage-return is typed on the keyboard.
+
+          Typing  carriage-return while a pause is not in  effect 
+will abort batch file processing.
+
+          The  batch  file name is a  standard  file  name.   The 
+default extent for a batch file is ".BAT".
+
+
+     + outfile
+
+          The  '+'  command  causes  all emulator  output  to  be 
+written  to  the  named file,  in addition to  appearing  on  the 
+screen.
+
+          Output  to the '+' file continues until a new '+'  file 
+is opened,  or a '+' is entered by itself on a line (this  closes 
+the current '+' file without opening a new one).
+
+          It  is recommended that any '+' files be closed  before 
+exiting ELINKS with 'Ctrl-Break'.
+
+          The outfile name is a standard file name.   No  default 
+extent is assumed.
+
+
+     I. symfile
+
+          The 'I.' command causes ELINKS to read the named symbol 
+file into its internal symbol table.
+
+          The  symbol  file name is a standard  file  name.   The 
+default extent is ".SYM".
+
+          This  command  can  be given by default on  the  ELINKS 
+command line.
+
+          'I.' given without a symbol file name causes an  "ERROR 
+IN  OPEN" message,  and erases the current contents of the ELINKS 
+internal symbol table.
+
+
+     I.. symfile
+
+          The  'I..'  command  causes ELINKS to  read  the  named 
+symbol  file  and append its contents to the current contents  of 
+its internal symbol table.
+
+
+     W. symfile
+
+          The  'W.'  command causes ELINKS to  write  the  edited 
+contents of its internal symbol table to the named symbol file.
+
+
+     .
+
+          '.'  commands  are used for editing and displaying  the 
+contents of the ELINKS internal symbol table.
+
+          A  '.'  given  on the command  line  causes  ELINKS  to 
+display the contents of its internal symbol table.
+
+
+     .symbol
+
+          A  '.'  command followed by a symbol causes  ELINKS  to 
+display  the contents of its internal symbol table,  starting  at 
+'symbol'.
+
+
+     .symbol=
+
+          A '.' command, followed by a symbol, followed by an '=' 
+causes  ELINKS to erase the named symbol from its internal symbol 
+table.
+
+
+     .symbol=value
+
+          This  command  causes  ELINKS  to  assign  'value'   to 
+'symbol'.
+
+          If 'symbol' already exists, it is revalued.
+
+          If symbol does not exist,  it is appended to the symbol 
+table, and assigned the value 'value'.
+
+          'value' is an hexadecimal number.
+
+
+
+Notes on symbols:
+
+     ELINKS defines a symbol as either a label,  or a module path 
+followed by a label.
+
+     The  ELINKS  iternal  symbol  table contains  two  types  of 
+entries:  labels and modules.
+
+     To use an ordinary label in a command, use ".label".
+
+     To  use  a  module  path  to  reach  a  certain  label,  use 
+".module/label" (i.e. L.STARTMOD/START).
+
+     Using a module path will move the named module to the top of 
+the symbol table,  and then search the symbol table for the named 
+label.   This  places the last pathed module first in the  search 
+order for subsequent symbol manipulation operations.
+
+     Modules cannot be editing with the ELINKS '.' commands.
+
+     If  a  label is added to the internal symbol table with  the 
+".symbol=value"  command,  and that symbol contains a  path;  the 
+label  will be added after the module named in the  path,  rather 
+than at the end of the symbol table.
+
+
+Notes for 8088/8086 users:
+
+     Labels  on  the  8088/8086 emulator may have  values  beyond 
+those associated with normal 8-bit processors.
+
+     For the 8088/8086, label values may take on the forms:
+
+          ssss:oooo      ; Segment:Offset (20-bit value)
+          CS:oooo        ; Segment_Register:Offset (20-bit value)
+          DS:oooo
+          ES:oooo
+          SS:oooo
+          oooo           ; Offset only (Ordinary 16-bit value)
+
+     Label forms "ssss:oooo" and "oooo" are fixed values.  Labels 
+defined  with a segment register have values which vary according 
+to the current contents of the 8088/8086 segment registers.
+
+
+     The  following  labels have special meaning to  ELINKS  when 
+used with the 8088/8086,  and should not be used in ANY  assembly 
+language program:
+
+     _Aorg_    _Corg_    _Dorg_    _Eorg_    _Sorg_    _Uorg_
+     _Aend_    _Cend_    _Dend_    _Eend_    _Send_    _Uend_
+
+

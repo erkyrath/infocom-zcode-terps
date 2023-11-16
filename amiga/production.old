@@ -1,0 +1,48 @@
+How to download a game to the Amiga (via a PC)
+--------------------------------------------------------------------
+
+1.  Transfer the game file to the PC with Kermit.
+
+2.  CONVERT < GAME.ZIP > GAME.HEX	(hexify it)
+
+3.  SPLIT GAME.HEX 100000 Q		(split into smaller files)
+
+4.  On the Amiga, make a disk copy of the Create disk
+
+	Open the CLI on the Workbench disk
+	>diskcopy from df0: to df1:
+
+    A prompt appears, put Create disk in drive 0 and an unformatted
+    disk in drive 1 (format is automatic).  Hit RETURN.
+
+5.  (Repeat the following once for each file created in Step 3)
+
+    On Amiga:  (Workbench disk is still in drive 0, CLI is open)
+
+	Put Transfer Disk in drive 1.
+	>cd df1:			(change to Transfer Disk)
+	>read Game.00x serial		(x is 1, 2, or 3)
+
+    On the PC:
+
+	XTALK
+	sp 96				(speed 9600)
+	go lo				(go local)
+	<HOME>				(hit the home key, #7 on right)
+	se GAME.00x			(send a file)
+	quit				(when done)
+
+6.  On Amiga:   (when drive lights go out)
+
+	Remove Workbench disk, insert copy of Create disk in drive 0.
+
+	>join Game.001 Game.002 Game.003 AS df0:Story.Data
+
+7.  On Amiga:   (when drive lights go out)
+
+	Remove Transfer disk, insert Workbench disk in drive 1.
+
+	>protect df0:Story.Data r	(make the game READ-ONLY)
+
+8.  Remove the new game disk ond open the Write-Protect tab.
+

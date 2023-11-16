@@ -1,0 +1,47 @@
+
+BUILDING ZIP/EZIP/XZIP UNDER MPW
+--------------------------------
+
+    Compiling, assembling and linking an interpreter and its resources
+is now automated by the Workshop's MAKE function.  There are several things
+that still must be done manually to make a shippable disk.
+
+1.  Installation of a Font (XZIP only)
+
+    (a) A font resource id is related to its family id by a formula 
+which can be found buried in the chapter on fonts in IM:
+
+    resid = (128 * famid) + size
+
+    For example, in BZ I picked 8 as the family id of the custom font
+and defined its size as 9-point, so the resource id will be 1033.
+
+    (b) After a custom font is produced with a font editor (in the
+case of BZ, by munging a copy of the Monaco font), it should be given
+a distinctive id and name (the public domain editor used for BZ,
+FontEdit, doesn't provide for this).  I used Apple's ResEdit:
+
+	[] at FOND, do "get info", change id 4 -> 8
+	[] open FOND, change "family id" 4 -> 8 and "res id" 521 -> 1033
+	[] at FONT, do "get info", change "res id" as before, and change
+    "name" to "BZ Font" or whatever.
+
+    (c) Finally, use ResEdit to copy, then paste the font into the game
+resource file.  (The MPW DeRez utility can be run to put the font data
+into an archivable source format.)
+
+2.  Signaturization
+
+    Hancock currently expects to find /3/ instances of the creator
+string ("INFO") in the game resource fork, but the count under MPW seems
+to have increased to /5/.  To prevent Hancock from aborting and failing
+(pending a new search strategy), I just patch the first 2 instances 
+by hand using FEdit (before running Hancock).
+
+3.  Finder bits
+
+    The "bundle bit" must be SET in order for desktop restores to work
+correctly (i.e. clicking on a save file to load it).  Under the old
+Lisa workshop it was set by MacCom when the interpreter was moved to a
+Mac disk.  Currently I set it with FEdit.  Probably there's a better
+way to accomplish this under MPW.

@@ -1,0 +1,25 @@
+
+To: Support
+From: Duncan Blanchard
+Re: Mac Problem
+Date: 12/24/86
+
+    If a Macintosh user calls and says the SAVE command isn't
+working, the problem is probably that they are saving to a disk
+formatted with HFS (Hierarchical File System).  Our older Mac
+interpreters (before version G) don't work (are't compatible)
+with HFS.
+
+    Two solutions --
+
+    o  Save only to disks formatted without HFS, or
+    o  Exchange the game disk for a newer one, with interpreter
+       version G or higher.
+
+    HFS disks are also referred to as double-sided disks.  
+The easiest way to tell if you have one is, HFS disks hold 800K
+while non-HFS disks hold only 400K.
+
+    Newer Macintoshes (Mac Plus, Mac Enhanced) normally use 
+HFS disks, but can also format and use non-HFS disks.  Older Macs 
+use only non-HFS disks.

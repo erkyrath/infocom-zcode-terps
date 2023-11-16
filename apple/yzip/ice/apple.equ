@@ -1,0 +1,283 @@
+	TITLE	"Apple ][ YZIP (c)Infocom","APPLE ][ HARDWARE STUFF"
+	PAGE	
+; -------------------
+; APPLE II MEMORY MAP
+; -------------------
+
+;
+; some hardware spots
+;
+SCREEN	EQU	$2000		; START OF Double HiRes SCREEN RAM
+
+PRGLBL	EQU	$BF00		; ProDOS Globals page in main mem
+PR_BITMAP EQU	$BF58		; ProDOS system bitmap
+KVERSION EQU    $BFFF           ; ProDOS version (== $FF if InfoDOS)
+INFODOS_ID EQU  $FF
+
+IOADDR	EQU	$C000		; start of I/O registers
+PROADR	EQU	$D000		; start of ProDOS
+
+LBUFF	EQU	$0200		; LINE INPUT BUFFER
+PIC1BUF EQU	LBUFF		; we can use line buffer for one picture buffer
+SCRBUFF	EQU	LBUFF+$80	; screen line buffer
+BORG	EQU	$2000		; ORIGIN OF .SYSTEM CODE 
+;
+; some page 3 storage relocated stuff
+;
+PAGE3STUFF EQU	$300
+MOUSER	EQU	PAGE3STUFF	; this is where mouse subroutine goes
+COLORS	EQU	MOUSER+$12
+XPOSTBL	EQU	COLORS+$40
+
+SV_PCL	EQU	$400		; for scrolling data
+SV_PCH	EQU	$600
+
+IOBUFF	EQU	$0800		; 1Kb DATA BUFFER BUFFER
+
+PAGING_MEM EQU	IOBUFF+$400	; Paging table stuff
+NEXTPNT	EQU	PAGING_MEM
+PREVPNT	EQU	NEXTPNT+$40	
+VPAGEH	EQU	PREVPNT+$40	
+VPAGEL	EQU	VPAGEH+$40	
+PAGELEN	EQU	$200		; length of paged read
+
+ZSTKBL	EQU	PAGING_MEM+$100	; Z-STACK  BOTTOM,LO  (1K STACK FOR EZIP)
+ZSTKTL	EQU	ZSTKBL+$100	; TOP, LO
+ZSTKBH	EQU	ZSTKBL+$200	; BOTTOM, HI
+ZSTKTH	EQU	ZSTKBL+$300	; TOP, HI
+;
+; now define some file i/o buffers and such
+;
+GAME1FIO EQU	ZSTKBL+$400	; Game file I/O buffer
+GAME2FIO EQU	GAME1FIO+$400	; Second game file i/o buffer
+SEGTBL	EQU	GAME2FIO+$400	; segment table for multi disks
+PIC2BUF	EQU	SEGTBL+($400-140) ; picture buffer is 140 bytes long
+TCHARTBL EQU	SEGTBL+$400	; 208 bytes for (possible) terminating
+COPY_LINE EQU   TCHARTBL+$60    ; copy line in screen memory
+DSKSEG	EQU	TCHARTBL+$D0	; spot to stash pointers for disk segments
+D1SEG	EQU	DSKSEG		; where in SEGTBL for Disk 1
+D2SEG	EQU	D1SEG+2
+D3SEG	EQU	D2SEG+2
+D4SEG	EQU	D3SEG+2
+D5SEG	EQU	D4SEG+2
+D6SEG	EQU	D5SEG+2
+D7SEG	EQU	D6SEG+2
+D8SEG	EQU	D7SEG+2
+LOCAL_SV EQU	TCHARTBL+$E0	; to save locals before restore
+LOCALS	EQU	TCHARTBL+$100	; LOCAL VARIABLE STORAGE (30 BYTES)
+BUFSAV	EQU	LOCALS+$20	; TEMP SPACE FOR SAVE/RESTORE (80 BYTES)
+SCR_LINE EQU	LOCALS+$100	; place to build displayed line
+;
+; now for some interpreter data
+;
+INTR_BEGIN EQU	$4000		; START OF Interpreter CODE in main
+INTR_SIZE EQU	(41*512)	; size of interpreter
+
+ZBEGIN	EQU	(INTR_BEGIN+INTR_SIZE) ; start of Z code
+MMSIZE	EQU	PRGLBL-INTR_BEGIN ; free memory in main bank
+Z1SIZE	EQU	HIGH(PRGLBL-ZBEGIN) ; size of preload, part 1
+;
+; this is in Bank 2, Main mem
+;
+;
+; Picture directory goes in Bank 2, Aux mem
+;
+PIC_DIR	EQU	$D000		; picture local directory
+
+;
+; some special markers if we are using InfoDOS
+;
+SP_START EQU    $D000           ; start of special area
+SP_SIZE EQU     ((($FF-(SP_START>>8))*256)/512)     ; how many pages
+
+PBEGIN	EQU	$0800		; start of paging buffers, in aux mem
+NUMBUFS	EQU	HIGH(SCREEN-PBEGIN) ; how many 256k paging buffers
+
+P2PAGE	EQU	HIGH(PRGLBL-ZBEGIN) ; first page of zcode in aux bank
+Z2BEGIN	EQU	$4000		; start of part 2 in aux mem
+				; just after the dhires screen
+Z2PAGE	EQU	HIGH Z2BEGIN	; get me just the page address
+Z2SIZE	EQU	HIGH (PRGLBL-Z2BEGIN) ; size of preload, part 2
+P3PAGE	EQU	Z1SIZE+Z2SIZE	; first page in aux mem part 3
+Z3BEGIN	EQU	$D000		; start of 3 part in aux mem
+Z3PAGE	EQU	HIGH Z3BEGIN	; get me page number too
+Z3SIZE	EQU	LOW ($100-Z3PAGE)	; size of part 3, in pages
+
+;
+; other numba's
+;
+PGBEGIN	EQU	(P3PAGE+Z3SIZE)	; first paged page
+PRESIZE EQU	(Z1SIZE+Z2SIZE+Z3SIZE)	; size of preload, # pages
+SCRSZE	EQU	INTR_BEGIN-SCREEN ; size of Double HiRes screen (8k, each bank)
+RAMDSK	EQU	(119*512)	; size of RAM disk in aux mem
+RAMSAVE	EQU	$B500		; save this much to cover HiRes screen in
+				; aux and the rest of the preload, up to
+				; PRGLBL ($bf00)
+FREERAM	EQU	RAMDSK-RAMSAVE	; size of Free RAM after 'saving' 
+				; special AUX memory
+DSKSZE	EQU	(512*273)	; size of ProDOS data disk file
+
+; ---------
+; CONSTANTS
+; ---------
+
+IIeID	EQU	2	; Apple ][e Yzip
+IIcID	EQU	9	; ][c Yzip
+IIgsID	EQU 	10	; ][gs Yzip
+
+P3BANK	EQU	$FF	; show upper aux mem
+AUX	EQU	1	; offset to Auxillary mem switches
+MAIN	EQU	0	; for main memory switches
+
+LO	EQU	0	
+HI	EQU	1	
+ABANK	EQU	2	; for address variables
+
+OFF	EQU	0	; for toggling soft-switches
+ON	EQU	1
+
+EOL	EQU	$0D	; EOL CHAR
+LF	EQU	$0A	; LINE FEED
+SPACE	EQU	$20	; SPACE CHAR
+BACKSPACE EQU	$08	; BACKSPACE CHAR
+ESCAPE	EQU	$1B	; ESCAPE Key
+VOLCHAR EQU	'?'	; Key to hit for ONLINE command
+;
+; Screen Defs
+;
+MAXWIDTH EQU	140	; 560 / 4 = max "pixels"
+REAL_MAXW EQU	MAXWIDTH*4
+MAXHEIGHT EQU	192	; 192 screen lines
+FONT_W	EQU	2	; font width (for game, anyway)
+FONT_H	EQU	9	; font height
+MFONT_W	EQU	3	; mono spaced font width, to game
+MONOFONT_W EQU	MFONT_W*4	; how wide the mono font really is
+
+SPACE_WIDTH EQU	8	; default space width
+BLINK_RATE EQU	3	; tenths of seconds between blinks
+
+OUTER_DELAY EQU	$1C	; outside delay loop counter
+INNER_DELAY EQU	3	; inner delay loop
+
+GS_OUTER_DELAY EQU $72	; ][gs outside counter
+GS_INNER_DELAY EQU 2	; ][gs inside counter
+
+; ----------------------
+; BOOT ZERO PAGE EQUATES
+; ----------------------
+
+BADDR	EQU	$26	; (WORD) ROM BOOT ADDRESS
+BSLOT	EQU	$2B	; (BYTE) ROM BOOT SLOT
+
+; ----------------
+; HARDWARE EQUATES
+; ----------------
+
+KBD	EQU	$C000	; KEY STROBE
+STORE80 EQU	$C000	; video aux mem switch
+RDBNK	EQU	$C002	; READ MAIN MEMORY (+MAIN, +AUX)
+WRTBNK	EQU	$C004	; WRITE MAIN 48K OF MEMORY (+MAIN, +AUX)
+ALTZP	EQU	$C008	; R/W MAIN (C009 = AUX) >MEM
+COL80SW	EQU	$C00C	; 80 Column switch
+ANYKEY 	EQU	$C010	; ANY KEY DOWN FLAG
+VERTBLNK EQU	$C019	; Vertical Blanking Flag
+IIGSVID EQU     $C029   ; GS MEGA ][ video register
+SPKR	EQU	$C030	; SPEAKER FLAG (MAKE A NOISE)
+IIGSSHD EQU     $C035   ; ][GS shadowing reg
+TEXTSW	EQU	$C050	; Graphics Switch
+MIXEDSW EQU	$C052	; Mixed Text/Graphics
+PAGE2SW EQU	$C054	; Page select
+HIRESSW	EQU	$C056	; Select HiRes
+DHIRESW	EQU	$C05E	; Double HiRes switch (backwards: +0 on +1 off)
+IOUDIS	EQU	$C07E	; Double HiRes Switch enabler (same backass way)
+BNK2SET	EQU	$C083	;READ/READ      READ RAM WRITE RAM BANK 2
+BNK1SET	EQU	$C08B	;READ/READ      READ RAM WRITE RAM BANK 1
+RDROM	EQU	$C082	; READ READ ROM NO WRITE
+RDBNK1	EQU	$C088	; READ ram, bank 1
+RDBNK2	EQU	$C080	; Read ram, bank 2
+
+; -----------------
+; MONITOR VARIABLES
+; -----------------
+
+CSW	EQU	$36	; CHARACTER OUTPUT VECTOR (for scripting)
+RNUM1	EQU	$4e	; random numbers to be used
+RNUM2	EQU	$4f
+APKEY1	EQU	$C061	; open apple key flag
+APKEY2	EQU	$C062	; closed apple key flag
+; -----------
+; MOUSE STUFF
+; -----------
+MTABLE	EQU	$C412	; Mouse ROM table
+MSVECTOR EQU	MOUSER+16	; where vector is stored
+MSMOVEF	EQU	MSVECTOR+2	; Mouse moved flag
+MSBTNF	EQU	MSMOVEF+1	; Mouse button flag
+;
+; MOUSE screen holes
+;
+CLMPMINL EQU	$478		; lo part of clamping min
+CLMPMINH EQU	$578		; hi part of    "      "
+CLMPMAXL EQU	$4F8		; lo part of clamping max
+CLMPMAXH EQU	$5F8		; hi part of    "      "
+MOUSEXL	EQU	$478		; lo part of mouse X
+MOUSEXH	EQU	$578		; hi part of mouse X
+MOUSEYL	EQU	$4F8		; lo part of mouse Y
+MOUSEYH	EQU	$5F8		; hi part of mouse Y
+MOUSEST	EQU	$778		; status byte
+;
+; some mouse constants
+;
+SGL_CLK	EQU	$81	; single click char
+DBL_CLK	EQU	$82	; double click char
+CLK_CNT	EQU	-4	; counts between single and double click
+; Subroutine offsets
+SETM	EQU	0
+SERVEM	EQU	1
+READM	EQU	2
+CLEARM	EQU	3
+POSM	EQU	4
+CLAMPM	EQU	5
+HOMEM	EQU	6
+INITM	EQU	7
+
+; --------------
+; PRODOS GLOBALS
+; --------------
+PRODATE	EQU	$BF90	; date and
+PROTIME	EQU	$BF92	; time
+MACHID	EQU	$BF98	; machine id
+
+; ----------------
+; MONITOR ROUTINES
+; ----------------
+MPREAD	EQU	$FB1E	; Read for joystick control
+MBASCAL	EQU	$FC22	; CALC LINE BASE ADDRESS
+MBELL	EQU	$FF3A	; MAKE A NOISE
+RESET_VECTOR EQU $FFFC  ; force warm reboot
+MCLEOL	EQU	$FC9C	; CLEAR TO END OF LINE
+MCLEOS	EQU	$FC42	; CLEAR TO END OF SCREEN
+MHOME	EQU	$FC58	; CLEAR SCREEN/HOME CURSOR
+MCOUT	EQU	$FDED	; CHAR OUTPUT
+MCOUT1	EQU	$FDF0	; CHAR OUTPUT TO SCREEN
+MRDKEY	EQU	$FD0C	; READ KEY
+MGETLN1	EQU	$FD6F	; GET LINE
+MWAIT	EQU	$FCA8	; WASTE SO MUCH TIME
+;
+; Some /RAM spots
+;
+RAMVEC	EQU	$BF26	; /RAM drive vector
+OLDVEC	EQU	$77E	; spot to save the drive vector
+UNSVEC	EQU	$BF16	; "Uninstalled Device" vector
+DEVCNT	EQU	$BF31	; Device count
+DEVNUM	EQU	$BF32	; Device list
+
+;
+; machine info spots
+;
+MACHID1	EQU	$FBB3	; first part
+MACHID2	EQU	$FBC0	; second part
+MACHCHK	EQU	$FE1F	; differentiate between ][e and gs
+			; do sec, then jsr, and if still set, = ][e
+	END
+
+

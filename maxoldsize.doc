@@ -1,0 +1,20 @@
+The answer to all your questions: Maximum game sizes per machine
+Remember: We Hate Micros (tm)
+
+Micro		1-disk		2-disk			
+-----		------		------	
+
+TRS-80 MOD I	80K (81900)	87K PUR (89088)
+
+OSBORNE		82K (83948)	90K PUR (92160)
+
+ATARI		83K (84972)	90K PUR (92160)
+
+TI-99		---		22K (22528) PRE (DISK1)
+                                89.5K (91648) PUR (DISK2)
+
+COMMODORE	> 120K
+
+APPLE		123K (as of 1 Feb 84 -- per Dan Horn)
+
+IBM		> 150K

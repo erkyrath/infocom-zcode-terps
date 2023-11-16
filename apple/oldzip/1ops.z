@@ -1,0 +1,178 @@
+O^u " .TITLE  "ZORK - 1 OPS"
+ .PAGE
+ 
+ ZEROP   LDA     ARG1+HI
+	 ORA     ARG1+LO
+	 BEQ     PREDSL
+	 JMP     PREDF
+ PREDSL  JMP     PREDS
+ 
+ NEXTP   LDA     ARG1+LO
+	 JSR     OBJLOC
+	 LDY     #5
+	 JMP     FIRST1          ;SAME AS FIRST?
+ 
+ FIRSTP  LDA     ARG1+LO
+	 JSR     OBJLOC
+	 LDY     #6
+ FIRST1  LDA     @TEMP,Y
+	 PHA
+	 STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 JSR     PUTVLC          ;STORE VALUE
+	 PLA
+	 ORA     #0
+	 BNE     PREDSL          ;FOUND FIRST
+	 JMP     PREDF           ;FIRST NOT FOUND
+ 
+ LOC     LDA     ARG1+LO
+	 JSR     OBJLOC
+	 LDY     #4
+	 LDA     @TEMP,Y
+	 STA     TEMP+LO
+	 LDA     #0
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
+ PTSIZE  CLC
+	 LDA     ARG1+LO
+	 ADC     ZCODEP+LO
+	 STA     TEMP+LO
+	 LDA     ARG1+HI
+	 ADC     ZCODEP+HI
+	 STA     TEMP+HI
+	 SUBB    TEMP,#1
+	 LDY     #0
+	 JSR     PROPL
+	 CLC
+	 ADC     #1
+	 JMP     PUTBYT
+ 
+ INC1    LDA     ARG1+LO
+	 JSR     VARGET
+	 INCW    TEMP
+ INC2    PUSHW   TEMP
+	 LDA     ARG1+LO
+         JSR     VARPUT
+	 PULLW   TEMP
+	 RTS
+ 
+ DEC1    LDA     ARG1+LO
+	 JSR     VARGET
+	 SUBB    TEMP,#1
+	 JMP     INC2
+ 
+ PRINTB  MOVEW   ARG1,TEMP
+ PRINT2  JSR     SETWRD
+	 JMP     PRINT1
+ 
+ REMOVC  LDA     ARG1+LO
+	 JSR     OBJLOC
+	 LDY     #4
+	 LDA     @TEMP,Y
+	 BNE     $1
+	 RTS                     ;NO OBJECT
+ $1      TAX
+         PUSHW   TEMP            ;SAVE VALUE
+	 TXA
+	 JSR     OBJLOC          ;PARENT OBJECT, LP
+	 LDY     #6
+	 LDA     @TEMP,Y         ;SIBL
+	 CMP     ARG1+LO
+	 BNE     REMVC1          ;NOT SAME
+	 PULLW    VAL
+	 PUSHW   VAL             ;L1
+	 LDY     #5
+	 LDA     @VAL,Y
+	 LDY     #6              ;PARENT'S FIRST SLOT GETS LOC SLOT
+	 STA     @TEMP,Y
+	 JMP     REMVC2
+ 
+ REMVC1  JSR     OBJLOC          ;GET SIBL
+	 LDY     #5
+	 LDA     @TEMP,Y         ;NEW SIBL
+	 CMP     ARG1+LO
+	 BNE     REMVC1          ;NOT END OF CHAIN
+	 PULLW    VAL
+	 PUSHW   VAL
+	 LDA     @VAL,Y          ;OLD NEXT
+	 STA     @TEMP,Y
+ REMVC2  PULLW    TEMP
+	 LDY     #4
+	 LDA     #0
+	 STA     @TEMP,Y
+	 INY
+	 STA     @TEMP,Y
+	 RTS
+ 
+ PRINTD  LDA     ARG1+LO
+ PRNTDC  JSR     OBJLOC
+	 LDY     #7
+	 LDA     @TEMP,Y
+	 STA     VAL+<LO^INVERT>
+	 INY
+	 LDA     @TEMP,Y
+	 STA     VAL+<HI^INVERT>
+	 MOVEW   VAL,TEMP
+	 INCW    TEMP
+	 JSR     SETWRD
+	 JMP     PZSTR
+ 
+ 
+ RETURN  MOVEW   OZSTKP,ZSTAKP   ;RESET STACK FROM CALL
+	 MOVE    OZSTKC,ZSTAKC
+	 JSR     POPSTK          ;RESET Z-STACK
+	 LDA     TEMP            ;HAS NUMBER OF LOCALS
+	 BEQ     RET2            ;NO LOCALS
+	 MOVEI   #LOCALS-2,VAL
+	 LDA     TEMP
+	 STA     MASK
+	 ASL     A
+	 CLC
+	 ADC     VAL+LO          ;POSITION VAL TO RESTORE LOCALS
+	 STA     VAL+LO
+	 BCC     RET1
+	 INC     VAL+HI
+ RET1    JSR     POPSTK          ;GET THE LOCAL, REVERSE ORDER FIRST
+	 LDY     #<LO^INVERT>
+	 LDA     TEMP+LO
+	 STA     @VAL,Y
+	 NEXT    <HI^INVERT>
+	 LDA     TEMP+HI
+	 STA     @VAL,Y
+	 SUBB    VAL,#2          ;NOW BACK UP ONE ELEMENT
+	 DEC     MASK
+	 BNE     RET1            ;LOOP
+ RET2    JSR     POPSTK          ;RESTORE UPPER PC
+         MOVEW   TEMP,ZPCH
+         JSR     POPSTK          ;RESET Z-STACK
+	 MOVEW   TEMP,OZSTKP
+	 JSR     POPSTK
+	 MOVE    TEMP+HI,ZPCL    ;REST OF PC
+	 MOVE    TEMP+LO,OZSTKC  ;RESTORE OLD VALUES
+	 LDA     #0
+	 STA     ZPCFLG          ;PC CHANGED
+	 MOVEW   ARG1,TEMP       ;ARGUMENT TO BE RETURNED
+	 JMP     PUTVAL          ;STORE AND RETURN
+ 
+ JUMP    MOVEW   ARG1,TEMP
+	 SUBB    TEMP,#1
+         JMP     PREDB3          ;TREAT AS A SUCCESSFUL JUMP
+ 
+ PRINT   MOVEW   ARG1,TEMP
+	 JSR     SETSTR
+ PRINT1  JMP     PZSTR           ;PRINT THE STRING
+ 
+ VALUE   LDA     ARG1+LO
+	 JSR     VARGET
+	 JMP     PUTVAL
+ 
+ BCOM    LDA     ARG1+LO
+	 EOR     #0FF
+	 STA     TEMP+LO
+	 LDA     ARG1+HI
+	 EOR     #0FF
+	 STA     TEMP+HI
+	 JMP     PUTVAL
+ 
