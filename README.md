@@ -62,13 +62,11 @@ The `.pre` and `.pur` files concatenate to the original, except that in ziptest.
 * ezip/_read.me: Changelog (through 11/13/87)
 * ezip/*.asm: Source
 * ezip/*.cbd: Source for "combined disk" version, which I think supports C64 and C128 on the same disk
-
 * xzip/_read.me: Changelog (through 11/13/87)
 * xzip/notes: Compilation docs
 * xzip/c128: Implementation notes on color and fonts
 * xzip/*.asm: Source
 * xzip/*.bat: Batch scripts for build
-
 * split/*: File split utility
 * tftp/*: File transfer utility
 
@@ -99,7 +97,6 @@ The `.pre` and `.pur` files concatenate to the original, except that in ziptest.
 * startupii: Batch script, configure environment?
 * temp.zil: Fragment of the V6 ZIL parser? (Looks like "Arthur")
 * *.c, *.h, *.asm files: XZIP and YZIP interpreter code
-
 * batch/batch.info: Docs on compiling using batch scripts
 * batch/*.bat: Build scripts
 
@@ -184,12 +181,10 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * mx*.a: XZIP (or maybe YZIP) source, assembly
 * mx.lst: Assembled printout
 * yzip-f3.bin: Binary for YZIP
-
 * xzip.lst: XZIP source (Pascal)
 * xzip.r: Resource fork info for XZIP
 * gfx.c: C code to compress/uncompress image data
 * gfx.p: Same, Pascal
-
 * build.info: Build docs
 * build.old: Older docs
 * combined.ideas: Thoughts on creating a combined ZIP/EZIP/XZIP interpreter, with the idea of using high-end Macs as primary IF development machines
@@ -201,7 +196,6 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * production.old: Same, older
 * st_convert.notes: Notes on adjusting assembly source to MPW syntax
 * refcard.doc: Customer reference card for Macintosh
-
 * prepsound.p: Utility to convert Amiga sound files to Mac
 * serialize.c: Utility to tweak the serial number of a Z-code file
 * signaturize.info: Docs on setting the Mac creator/type codes for a Mac interpreter
@@ -210,7 +204,6 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * stftp.p: File sending utility (does more?)
 * testsound.p: Test playing sounds, I guess
 * av_*.asm: Another audio test
-
 * dissbits.a: Sample source for a "copy image with dissolve effect" routine
 * temp: Chunk of mx4.a
 * ?: ?
@@ -259,7 +252,6 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * smash.c: Utility to combine a bunch of images into a library file?
 * fcompare.c: File compare utility
 * tftp.c: TFTP source
-
 * asm.note: Notes that the (stx*.s) source can compile either ZIP or EZIP depending on compiler defs
 * color.note: Implementation note on color usage
 * batch.info: Notes on compiling ZIP binaries
@@ -271,7 +263,6 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * tftp.info: Docs on using TFTP to move a game file from DEC20 to ST
 * font2.dat: Presumably font data
 * refcard.txt: Customer reference card for Atari ST
-
 * readme.doc: Docs for GIA sound utility (via Activision)
 * gia.c: Sound player utility
 * makefile.gia: Makefile for GIA
