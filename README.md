@@ -235,7 +235,7 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * tzip.asm: ZIP assembly
 * create.asm: Create a floppy
 
-## hp HP PC (HP-DOS)
+## hp: HP PC (HP-DOS)
 
 * read.me: Changelog (blank)
 * hpzip.asm: ZIP assembly
