@@ -181,39 +181,39 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 
 ## mac: Macintosh
 
-mx*.a: XZIP (or maybe YZIP) source, assembly
-mx.lst: Assembled printout
-yzip-f3.bin: Binary for YZIP
+* mx*.a: XZIP (or maybe YZIP) source, assembly
+* mx.lst: Assembled printout
+* yzip-f3.bin: Binary for YZIP
 
-xzip.lst: XZIP source (Pascal)
-xzip.r: Resource fork info for XZIP
-gfx.c: C code to compress/uncompress image data
-gfx.p: Same, Pascal
+* xzip.lst: XZIP source (Pascal)
+* xzip.r: Resource fork info for XZIP
+* gfx.c: C code to compress/uncompress image data
+* gfx.p: Same, Pascal
 
-build.info: Build docs
-build.old: Older docs
-combined.ideas: Thoughts on creating a combined ZIP/EZIP/XZIP interpreter, with the idea of using high-end Macs as primary IF development machines
-cracks.memo: Notes from "a pirate BBS" on cracking copy-protection, and how the `@piracy` ZIP opcode might be kept meaningful
-hfs.memo*: Customer support info for an interpreter bug on the (then-new) Mac HFS filesystem
-iconfix.memo: Customer support info for save files not showing the correct icon
-zork0.bugfix: Bug report for MacOS 5.0, 6.0.0
-production.info: Docs on creating a game floppy
-production.old: Same, older
-st_convert.notes: Notes on adjusting assembly source to MPW syntax
-refcard.doc: Customer reference card for Macintosh
+* build.info: Build docs
+* build.old: Older docs
+* combined.ideas: Thoughts on creating a combined ZIP/EZIP/XZIP interpreter, with the idea of using high-end Macs as primary IF development machines
+* cracks.memo: Notes from "a pirate BBS" on cracking copy-protection, and how the `@piracy` ZIP opcode might be kept meaningful
+* hfs.memo*: Customer support info for an interpreter bug on the (then-new) Mac HFS filesystem
+* iconfix.memo: Customer support info for save files not showing the correct icon
+* zork0.bugfix: Bug report for MacOS 5.0, 6.0.0
+* production.info: Docs on creating a game floppy
+* production.old: Same, older
+* st_convert.notes: Notes on adjusting assembly source to MPW syntax
+* refcard.doc: Customer reference card for Macintosh
 
-prepsound.p: Utility to convert Amiga sound files to Mac
-serialize.c: Utility to tweak the serial number of a Z-code file
-signaturize.info: Docs on setting the Mac creator/type codes for a Mac interpreter
-signaturize.p: Utility to set the Mac creator/type codes on a Mac *floppy*
-tftp.p: File transmission utility
-stftp.p: File sending utility (does more?)
-testsound.p: Test playing sounds, I guess
-av_*.asm: Another audio test
+* prepsound.p: Utility to convert Amiga sound files to Mac
+* serialize.c: Utility to tweak the serial number of a Z-code file
+* signaturize.info: Docs on setting the Mac creator/type codes for a Mac interpreter
+* signaturize.p: Utility to set the Mac creator/type codes on a Mac *floppy*
+* tftp.p: File transmission utility
+* stftp.p: File sending utility (does more?)
+* testsound.p: Test playing sounds, I guess
+* av_*.asm: Another audio test
 
-dissbits.a: Sample source for a "copy image with dissolve effect" routine
-temp: Chunk of mx4.a
-?: ?
+* dissbits.a: Sample source for a "copy image with dissolve effect" routine
+* temp: Chunk of mx4.a
+* ?: ?
 
 ## msdos
 
