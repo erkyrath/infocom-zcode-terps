@@ -291,6 +291,7 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * phg_zip.c: Source for ZIP, modification by Paul H. Gross (5-October-1985)
 * phg_zipdefs.h: Modified header (not used)
 * dip.c: Source for DIP
+* dipdefs.h: Header for dip.c
 * folding.c: Code for word-wrapping feature
 * page.c: Code for memory-paging feature
 * dip.block: A chunk of dip.c having to do with image data
