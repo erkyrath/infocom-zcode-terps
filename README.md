@@ -118,14 +118,12 @@ The `.pre` and `.pur` files concatenate to the original, except that in ziptest.
 * atarizip-d.asm: assembled printouts (ZIP)
 * atari-grip.prn: assembled printouts (DIP)
 
-## basic: ???
+## basic: GW-BASIC
 
-* xzip.bin: ZIP binary
-* *.bas: BASIC bytecode having to do with putting files on a floppy? (not sure why there are several versions)
+* xzip.bin: ZIP binary (possibly C64, as it starts with the bytes "CBM")
+* *.bas: BASIC bytecode for receiving files over a serial connection
 
-Not sure which BASIC this is. The `xzip.bin` file starts with the bytes "CBM", but the `*.bas` files don't look like [C64 BASIC][c64basic] to me.
-
-[c64basic]: http://fileformats.archiveteam.org/wiki/Commodore_BASIC_tokenized_file
+Not sure why there are several versions of the BASIC script. They all start by printing "IBM TFTP RECEIVER", but they diverge from there.
 
 ## colorcomputer: TRS-80 CoCo 2
 
@@ -208,7 +206,7 @@ This is the same source archived at the [CoCo Archive][cocoarc].
 * temp: Chunk of mx4.a
 * ?: ?
 
-## msdos
+## msdos: MS-DOS 2.0
 
 * read.me: Changelog (through 10/29/84)
 * mszip.asm: ZIP assembly
