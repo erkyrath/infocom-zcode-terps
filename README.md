@@ -123,6 +123,8 @@ The `.pre` and `.pur` files concatenate to the original, except that in ziptest.
 * xzip.bin: ZIP binary (C128 auto-boot disk)
 * *.bas: BASIC bytecode for receiving files over a serial connection
 
+Presumably the C128 image is just the last file that was transferred to a micro before the directory was dumped.
+
 Not sure why there are several versions of the BASIC script. They all start by printing "IBM TFTP RECEIVER", but they diverge from there.
 
 ## colorcomputer: TRS-80 CoCo 2
