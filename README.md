@@ -120,7 +120,7 @@ The `.pre` and `.pur` files concatenate to the original, except that in ziptest.
 
 ## basic: GW-BASIC
 
-* xzip.bin: ZIP binary (possibly C64, as it starts with the bytes "CBM")
+* xzip.bin: ZIP binary (C128 auto-boot disk)
 * *.bas: BASIC bytecode for receiving files over a serial connection
 
 Not sure why there are several versions of the BASIC script. They all start by printing "IBM TFTP RECEIVER", but they diverge from there.
